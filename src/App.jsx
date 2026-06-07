@@ -1,0 +1,5729 @@
+// ============================================================
+// WEDDING SAAS  v6.0.0  （商業版／多租戶）
+// 最後更新：2026-06-07
+// 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.0.0  2026-06-07  ★ Major：SaaS 多租戶架構（基於 v5.6.1 完整功能）
+//          • 全新獨立 Firebase 專案（wedding-saas-558d9）
+//          • Firebase Auth：Email/Password + Google OAuth
+//          • 多租戶 Firestore：/weddings/{weddingId}/...
+//          • Hash 路由：#/login · #/setup · #/dashboard · #/w/{id}/...
+//          • 婚禮創建向導（3步）
+//          • 完整保留 v5.6.1：分區zones、場地規模、雙鎖、環境設施、輪播箭頭、智慧裁切匯出等
+//
+// ============================================================
+// WEDDING SYSTEM  v5.6.1
+// 陳馨諺 & 蘇珮語 婚禮管理系統
+// 最後更新：2026-06-07
+// 版本規則：x.x.1=Patch（小修） · x.1=Minor（功能/大修） · x.0=Major（大改版）
+// v5.6.1  2026-06-07  ★ Patch：服務生帶位清單移除無意義的「桌號」亂碼欄（內部 ID），只保留「桌名」（第 X 桌）
+// v5.6    2026-06-07  ★ Minor：分區與設施體驗修正（6 項）
+//                        ① 分區可編輯：名稱／顏色／鎖定（編輯浮窗）；名單分區標籤同步套用該顏色；鎖定後不可拖移/縮放
+//                        ② 桌次設定的「鎖定此桌／設為主桌」改為按「儲存」才套用（不再即時生效）
+//                        ③ 修正分區框蓋住環境設施導致點不到：分區框體改 pointer-through，僅標題列/縮放把手可互動，設施 zIndex 提升
+//                        ④ 分區名稱前移除符號
+//                        ⑤ 環境設施浮窗底部按鈕大小／排序與其他浮窗一致（刪除靠左、取消+儲存靠右、加上分隔線）
+//                        ⑥ 匯出名單（完整／素食／特殊需求／帶位清單）的桌號旁新增「分區」欄
+// v5.5    2026-06-06  ★ Minor：合併兩條開發支線（v5.3.1 排位升級 ＋ v5.4.1 設施/輪播），統一分區實作
+//                        • 併入輪播左右箭頭（點擊重置計時器，dots 保留）
+//                        • 併入「宴會環境設施」：＋環境設施鈕、建立/編輯浮窗（名稱＋28 符號＋10 色＋鎖定）、點擊圖塊可編輯、舊 type 標記自動遷移為 emoji
+//                        • 分區統一：保留 v5.3.1 的 zones（可命名／拖移／縮放／每區一頁 A4）；舊「areas」資料自動併入 zones（不遺失）
+//                        • 名單「桌號」欄在有分區時顯示所屬分區標籤
+//                        • 保留 v5.3.1 全部：場地規模預設、雙鎖（位置/座位）、Pointer 改派、座位 × 分離、智慧裁切匯出
+// v5.4.1  2026-06-06  ★（支線）標記升級為環境設施；修 addArea/addMarker 傳物件給 uiPrompt 的白畫面
+// v5.4    2026-06-06  ★（支線）輪播箭頭、分區(areas)、標記類型
+// v5.3.1  2026-06-01  ★ Patch：修正白畫面致命錯誤——DEFAULT_CANVAS_W/H 在 DEFAULT_CONFIG 後才宣告 → TDZ crash；
+//                        移至 DEFAULT_CONFIG 之前。另：座位鎖時「重排（清空）」鈕禁用
+//                        ① 場地規模可選（小/中/大/超大畫布）；新桌欄數隨畫布寬度自動排列
+//                        ② 分區（多場地）：可命名、可拖移/縮放的分區框；匯出支援「每區一頁 A4」+「整體一頁」智慧裁切（自動直/橫式）
+//                        ③ 鎖定拆分為兩種獨立鎖：📌 位置鎖（桌不能移、座位照排）、🔒 座位鎖（已排的人凍結，空位仍可加新人，桌可移）
+//                           － 舊 locked:true 自動遷移為兩者皆鎖；hover 桌子浮出 ✕ 快速解鎖；編輯視窗內兩開關
+//                        ④ 座位互動修復：點座位不再誤刪；改派改用 Pointer Events（桌機＋手機一致，elementFromPoint 判落點）；
+//                           移除改為座位角落獨立 × 鈕（hover 顯示）；拖到桌外＝移回待安排
+// v5.2.2  2026-05-31  ★ Patch：修正 v5.2 引入的回歸——桌子在手機上拖不動
+//                        • 根因：tapSelected 從物件/null 改為陣列後，空陣列 [] 是 truthy
+//                        • startDragTable guard 與 RoundTable 的 tapPending prop 都誤判為「已選人」→ 永遠擋住拖曳
+//                        • 改為檢查 tapSelected.length > 0；新增手機模式拖曳回歸測試
+// v5.2.1  2026-05-31  ★ Patch：多選 Bar 只在有選中時顯示、顯示人數總和、成功提示顯示人數、取消鈕清空陣列；
+//                        多選 Bar+成功提示改 position:fixed（固定視窗頂端）；全部 input 加 autoComplete=off（擋 Chrome 密碼誤觸）
+// v5.2  2026-05-31  ★ Minor：待安排清單改「多選模式」：可同時選 N 人（最多 10 人），點任一桌位全數放入。新增座位驗證：座位不足時警告、不允許放入。
+// v5.1.9  2026-05-31  ★ 修正致命錯誤：startDragTable 誤用未定義的 tapPending（應為 tapSelected）→ 拖曳崩潰。同時：直接改 DOM 零重繪、setPointerCapture 鎖定觸控、移除 debug 面板
+// v5.1.8  2026-05-30  ★ 修復「window.firebase.storage is not a function」：Firebase 腳本改為 app 先載再並行載功能模組（解決載入順序競態）＋初始化自動重試＋失敗清快取
+// v5.3.6  2026-05-30  ★ 桌子/標記拖曳改用 Pointer Events（取代 mouse+touch），手機 Android/iOS 皆可拖移
+// v5.3.5  2026-05-30  ★ 手機排位：桌子可觸控拖曳移位（touch 事件鏡像桌機 mouse 邏輯）
+// v5.1.4  2026-05-30  ★ 手機排位：隱藏與底部抽屜重疊的「待安排名單」固定按鈕
+// v5.1.3  2026-05-30  ★ 手機排位 A方案：底部抽屜+點選分配（點賓客→點桌放入，不需拖曳）；桌機完全不影響
+// v5.1.2  2026-05-30  ★ LINE 分享預設範例文字；排位收折鈕手機改 fixed（不再被捲動藏到畫面外）
+//                        謝謝頁圖片文案；新增可自訂 LINE 分享文字欄位；手機版 RWD（名單橫排不換行、側欄手機預設折收、
+//                        排位觸控拖曳支援、資訊管理頁籤不換行）
+// v5.1.1  2026-05-30  ★ 同桌/避桌偵測修復（effective pairs）；深色文字；外觀預覽改版；謝謝頁圖片；自訂浮窗；LINE純文字分享；關係順序；婉拒顯示；手機 top bar
+// v5.1    2026-05-29  ★（原 v4.12）同桌管理、衝突徽章置中、多攜伴全座位×、排位不可誤刪、外觀預覽、字體全系統、祝福牆隨機等
+// v5.0    2026-05-29  ★ 字體控制（中文5選+英文5選）；輸入框架構修正
+// v4.9.1  2026-05-29  ★ 後續修復（拖曳治本+主題邊線）：
+//                        • 拖桌/拖標記期間只更新本地狀態、放開才送一筆寫入（消除回彈/閃爍與「其他裝置已修改」誤報）
+//                        • 雙保險：lastSyncedRef 改單調遞增、自家 echo 不覆寫本地
+//                        • 六主題邊線真正接到位（透過 CSS 變數套到側邊欄/標題欄/主畫布/底紋）
+// v4.9    2026-05-29  ★ 修正避桌/同桌重整後消失（根因：avoidPairs 為巢狀陣列，Firestore 拒絕寫入→整筆 set 失敗；改 pack 成物件陣列寫入、讀回還原）；排位姓名改取姓名後兩字不抓暱稱；衝突資訊點擊開避桌管理、同桌未滿足 hover 顯示明細；拖桌放開不再誤觸桌次設定；RSVP 祝福勾選框預設打勾＝公開
+// v4.8.1  2026-05-28  修正 RSVP 祝福勾選框：改為永遠顯示（移除依內容條件渲染）；submitRSVP 補強：無祝福內容時強制 publicBlessing=false
+// v4.8    2026-05-28  ★ 資料保護6層：A1寫入前異常偵測(DATA_SHRINK)、A2 localStorage本地鏡像(5份歷史)、A4破壞性操作前強制備份、A5每日備份90天保留、A6 PITR說明；B照片來源統一(StorageMeter改讀主文件+清理孤兒)；C2 GuestModal加publicBlessing；謝謝頁圖片上傳進度提示
+// v4.7    2026-05-27  ★ 重大更新：資料保護(Transaction版本鎖+自動備份)、備份還原UI、祝福牆瀑布流頁面、名單祝福查看Modal、NavBar/Sidebar邊線強化、Footer取代邏輯
+// v4.6.3  2026-05-27  排位畫布修復：圓桌與舞台/入口加 data-tp、邊框改半透明黑色細線(任何主題下可見)、暗黑遮罩弱化(.45)
+// v4.6.2  2026-05-27  ★ 主題系統完整重做：data-tp 排除預覽按鈕、Hero 漸層動態、新增 12 色全面覆蓋(hover/軟邊框/Btn dark/卡片白/排位畫布等)
+// v4.6.1  2026-05-27  修正 NavBar 主題未變(rgba匹配)、新增避桌衝突詳情 Modal(hover/click)
+// v4.6    2026-05-27  ★ 主題全面覆蓋(attribute selector)、頁尾文字真實渲染、避桌雙向同步(addPair自動寫入guest.avoidTable)
+// v4.5.2  2026-05-27  設定頁面標題為「電子喜帖及排位規劃小工具」
+// v4.5.1  2026-05-27  修正 Hook 順序錯誤 (#310)
+// v4.5    2026-05-27  ★ Footer文字管理、外觀主題切換(6種)、避桌Bug修正、同桌未滿足提示
+// v4.4.1  2026-05-26  修正 reCAPTCHA Site Key
+// v4.4    2026-05-26  ★ 中等級防護：表單驗證加強（姓名格式、禁用詞）、速率限制（localStorage 5min 3次）、Session token、reCAPTCHA v3、時間戳檢查
+// v4.3.2  2026-05-26  婉拒按鈕文本改為分行顯示：「無法參與／我想留下祝福」、CSS white-space 改為 pre-line
+// v4.3.1  2026-05-26  修改邀請函出席按鈕文本：「確認出席」→「我一定到！！」、「婉拒」→「無法參與 但我想留下祝福」、調整按鈕排版支援換行
+// v4.3    2026-05-26  ★ 新增「關係分類管理」：資訊管理新增 👥 頁籤，支援自訂 RSVP 關係選項（標籤、顏色、子分類）、新增刪除分類、全域動態化
+// v4.2.2  2026-05-26  ★ 修正 onToggleLock is not defined：RoundTable 缺少 prop 宣告
+// v4.2.1  2026-05-26  鎖定桌改用透明遮罩層 (zIndex:10) 確保點擊不被座位遮蓋
+// v4.2    2026-05-26  鎖定桌整個圓形可點擊解鎖（解決按鈕被遮蓋問題）
+// v4.1    2026-05-26  修正主文件超 1MB（persist 剝除 config base64）、拖把手改單符號
+// v4.0    2026-05-25  ★ 重大升級：圖片改用 Firebase Cloud Storage（單張 20MB、免費 5GB），鎖定桌可點擊解鎖
+// v3.6    2026-05-25  刪除全部照片鈕、鎖桌修正、避桌管理同步、Lightbox 全屏縮放
+// v3.5.1  2026-05-25  圖片上傳上限調為 800KB
+// v3.5    2026-05-25  PhotoCard 拖把手 + 拖動聚焦線、無壓縮上傳、ImageLightbox、名單匯出下拉選單、表格全部左對齊
+// v3.4.1  2026-05-25  修正 React Hook 順序錯誤 (#310)
+// v3.4    2026-05-25  照片改子集合避開 1MB 限制、自動壓縮、拖拉排序、聚焦調整、LINE 分享修正、容量顯示
+// v3.3    2026-05-25  刪除鈕改為 hover 顯示、分享按鈕改 button+window.open、折收移至左下角圓形按鈕
+// v3.2    2026-05-25  刪除鈕跑版修正、側邊欄折收按鈕、版本紀錄文字、底部圖片、分享按鈕統一
+// v3.1    2026-05-25  字體更新、座位顯示修正、LINE 分享重寫、謝謝頁面圖片上傳
+// v3.0    2026-05-24  完整重建：RSVP / 名單 / 排位 / 資訊管理 / Firebase 同步
+// ============================================================
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+
+// ============================================================
+// CONSTANTS & DEFAULTS
+// ============================================================
+// ============================================================
+// FIREBASE CONFIG — 商業版獨立專案 wedding-saas-558d9
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCNIeg9Cz37CBCPL5BhVsosIw6OSp4v6Sk",
+  authDomain: "wedding-saas-558d9.firebaseapp.com",
+  projectId: "wedding-saas-558d9",
+  storageBucket: "wedding-saas-558d9.firebasestorage.app",
+  messagingSenderId: "586772571298",
+  appId: "1:586772571298:web:fd3ebb906d7979af0323fb"
+};
+
+// ============================================================
+// MULTI-TENANT FIRESTORE PATH HELPERS
+// 所有資料讀寫透過這些 helper，確保路徑含 weddingId
+// ============================================================
+const weddingDoc    = (db, wid) => db.collection('weddings').doc(wid);
+const mainDocRef    = (db, wid) => weddingDoc(db, wid).collection('data').doc('main');
+const photosColRef  = (db, wid) => weddingDoc(db, wid).collection('photos');
+const backupsColRef = (db, wid) => weddingDoc(db, wid).collection('backups');
+
+const FONT_STACK = "'Noto Sans TC','LiHei Pro','黑體-繁',sans-serif";
+const SANS_STACK = "'Noto Sans TC','LiHei Pro','黑體-繁',sans-serif";
+
+// v5.3 排位畫布預設尺寸（需在 DEFAULT_CONFIG 之前宣告）
+const DEFAULT_CANVAS_W = 1600, DEFAULT_CANVAS_H = 1200;
+
+const DEFAULT_CONFIG = {
+  groomName: "", brideName: "",
+  weddingDate: "",
+  weddingTime: "入席 18:00　·　開席 18:30",
+  venue: "", address: "", phone: "",
+  logoType: "text",
+  logoText: "",
+  logoDataUrl: "",
+  thankYouTitle: "感謝您的回覆",
+  thankYouMsg: "我們已收到您的訊息\n期待在婚禮上與您相見",
+  thankYouExtra: "",
+  lineShareText: "",
+  transportInfo: "",
+  inviteInfoHtml: "",
+  customGroups: null,
+  footerText: "",
+  theme: "cream",
+  fontCJK:   "noto-serif",
+  fontLatin: "cormorant",
+  canvasW: DEFAULT_CANVAS_W,   // v5.3 排位畫布尺寸（場地規模）
+  canvasH: DEFAULT_CANVAS_H
+};
+
+// ============================================================
+// THEMES
+// ============================================================
+const THEMES = {
+  cream:    { name:"典雅奶油", pageBg:"#F9F5EF", cardBg:"#FFFEFA", primary:"#B5895F", primaryHover:"#9F754C", soft:"#EFE3D0", border:"#E5DDD0", borderSoft:"#E5D5BD", text:"#3A332B", subText:"#6B6259", mutedText:"#9A8F82", heroOverlayTop:"rgba(58,51,43,.08)", heroOverlayMid:"rgba(58,51,43,.42)", heroOverlayBot:"rgba(58,51,43,.72)", modalOverlay:"rgba(58,51,43,.45)", dark:false },
+  rose:     { name:"玫瑰金粉", pageBg:"#FDF6F8", cardBg:"#FFFBFC", primary:"#BF7090", primaryHover:"#A85A7C", soft:"#F5DCE2", border:"#EECDD6", borderSoft:"#F0D4DC", text:"#3A2B2E", subText:"#7B5A62", mutedText:"#A08090", heroOverlayTop:"rgba(60,30,40,.10)", heroOverlayMid:"rgba(60,30,40,.45)", heroOverlayBot:"rgba(60,30,40,.75)", modalOverlay:"rgba(60,30,40,.50)", dark:false },
+  lavender: { name:"薰衣草紫", pageBg:"#F8F6FD", cardBg:"#FDFBFF", primary:"#8B6EC4", primaryHover:"#7158AD", soft:"#EAE4F6", border:"#D8CEF0", borderSoft:"#DED4F0", text:"#2E2A3A", subText:"#6B6380", mutedText:"#9A94B0", heroOverlayTop:"rgba(40,35,60,.10)", heroOverlayMid:"rgba(40,35,60,.45)", heroOverlayBot:"rgba(40,35,60,.75)", modalOverlay:"rgba(40,35,60,.50)", dark:false },
+  forest:   { name:"森林深綠", pageBg:"#F5F8F5", cardBg:"#FAFCFA", primary:"#4A7C59", primaryHover:"#36633F", soft:"#D8EDE0", border:"#C5DDD0", borderSoft:"#D0DDCC", text:"#1E3028", subText:"#4A6255", mutedText:"#7A9A88", heroOverlayTop:"rgba(20,45,28,.10)", heroOverlayMid:"rgba(20,45,28,.45)", heroOverlayBot:"rgba(20,45,28,.75)", modalOverlay:"rgba(20,45,28,.50)", dark:false },
+  ocean:    { name:"海洋湛藍", pageBg:"#F4F7FC", cardBg:"#F9FBFE", primary:"#3A60A8", primaryHover:"#284680", soft:"#DCE4F2", border:"#C8D5EB", borderSoft:"#D5DDED", text:"#1A2640", subText:"#3A4F6A", mutedText:"#7A90B0", heroOverlayTop:"rgba(20,35,70,.10)", heroOverlayMid:"rgba(20,35,70,.45)", heroOverlayBot:"rgba(20,35,70,.75)", modalOverlay:"rgba(20,35,70,.50)", dark:false },
+  dark:     { name:"夜幕暗黑", pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true },
+};
+
+function getTheme(cfg) {
+  return THEMES[cfg && cfg.theme] || THEMES.cream;
+}
+
+// ============================================================
+// FONTS
+// ============================================================
+const FONTS_CJK = {
+  'noto-serif': { name:'思源明體', family:"'Noto Serif TC',serif",       url:'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&display=swap' },
+  'lxgw':       { name:'霞鶩文楷', family:"'LXGW WenKai TC',cursive",    url:'https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&display=swap' },
+  'noto-sans':  { name:'思源黑體', family:"'Noto Sans TC',sans-serif",    url:'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&display=swap' },
+  'shippori':   { name:'雫明朝',   family:"'Shippori Mincho B1',serif",   url:'https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;500&display=swap' },
+  'zen-old':    { name:'禪意古明朝',family:"'Zen Old Mincho',serif",       url:'https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500&display=swap' },
+};
+const FONTS_LATIN = {
+  'cormorant':   { name:'Cormorant Garamond', family:"'Cormorant Garamond',serif",  url:'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&display=swap' },
+  'playfair':    { name:'Playfair Display',   family:"'Playfair Display',serif",    url:'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=swap' },
+  'eb-garamond': { name:'EB Garamond',        family:"'EB Garamond',serif",         url:'https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap' },
+  'josefin':     { name:'Josefin Sans',       family:"'Josefin Sans',sans-serif",   url:'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400&display=swap' },
+  'lato':        { name:'Lato',               family:"'Lato',sans-serif",           url:'https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;1,300&display=swap' },
+};
+
+const GROUP_INFO = {
+  groom: { label:"新郎方", color:"#3A60A8", soft:"#DCE4F2", subs:["新郎親友","新郎公司同事","新郎親戚長輩"] },
+  bride: { label:"新娘方", color:"#BF7090", soft:"#F5DCE2", subs:["新娘親友","新娘公司同事","新娘親戚長輩"] },
+  shared: { label:"共同",  color:"#B5895F", soft:"#EFE3D0", subs:["共同好友","其他"] }
+};
+
+// Resolve effective group info — uses customGroups from config when set, else defaults
+function getGroupInfo(cfg) {
+  if (cfg?.customGroups && typeof cfg.customGroups === 'object' && Object.keys(cfg.customGroups).length > 0) {
+    return cfg.customGroups;
+  }
+  return GROUP_INFO;
+}
+// v5.3：固定關係顯示順序 — 新娘方、共同、新郎方，其餘自訂分類依其後
+// （Firestore 物件鍵順序不保證，故需明確排序避免按鈕位置跳動）
+const GROUP_ORDER = ['bride','shared','groom'];
+function orderedGroupEntries(GI) {
+  const keys = Object.keys(GI);
+  const head = GROUP_ORDER.filter(k=>keys.includes(k));
+  const rest = keys.filter(k=>!GROUP_ORDER.includes(k));
+  return [...head, ...rest].map(k=>[k, GI[k]]);
+}
+// Preset color palette for new custom groups
+const GROUP_COLORS = [
+  {color:"#7BA77B",soft:"#DCF0DC"},
+  {color:"#A87B3A",soft:"#F0DFCA"},
+  {color:"#6B86B3",soft:"#D8E2F2"},
+  {color:"#A67BB0",soft:"#EBD8F2"},
+  {color:"#B07B7B",soft:"#F2D8D8"},
+  {color:"#7BA8A0",soft:"#D8EEE9"},
+  {color:"#9EA87B",soft:"#EAF0D8"},
+  {color:"#A89B7B",soft:"#F0EBD8"},
+];
+
+const TABLE_COLORS = ["#F4E3D7","#DDE4E8","#E5F0E5","#EEE4F5","#F5E8D0","#E8E8E8","#F2E0E0","#E0EEF5","#E8F0E0","#F5EBE0"];
+const TABLE_RADIUS = 52, SEAT_OUTER = 88, SEAT_SIZE = 28;
+// v5.3 場地規模預設（畫布尺寸）
+const VENUE_SIZES = [
+  {key:'s',  label:'小型 (~20桌)',  w:1600, h:1200},
+  {key:'m',  label:'中型 (~35桌)',  w:2600, h:1700},
+  {key:'l',  label:'大型 (~70桌)',  w:3600, h:2400},
+  {key:'xl', label:'超大 (120+桌)', w:5200, h:3400},
+];
+
+const uid = () => Math.random().toString(36).slice(2,9)+Date.now().toString(36);
+
+// ============================================================
+// IMAGE COMPRESSION
+// Auto-resize and compress images to fit Firestore constraints
+// ============================================================
+function compressImage(file, maxW=800, quality=0.7) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) return reject(new Error('Not an image'));
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxW) { h = h * (maxW/w); w = maxW; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(blob => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Read failed'));
+          reader.readAsDataURL(blob);
+        }, 'image/jpeg', quality);
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function dataUrlSizeKB(dataUrl) {
+  if (!dataUrl) return 0;
+  return Math.round(dataUrl.length * 0.75 / 1024);
+}
+
+
+// ============================================================
+// CSS INJECTION
+// ============================================================
+function injectCSS() {
+  if (document.getElementById('wed-css')) return;
+  const link = document.createElement('link');
+  link.id = 'wed-css-font';
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&display=swap';
+  document.head.appendChild(link);
+  const s = document.createElement('style');
+  s.id = 'wed-css';
+  s.textContent = `
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#F9F5EF}
+.wed{font-family:var(--wed-font, ${FONT_STACK});color:#3A332B;min-height:100vh;background:#F9F5EF}
+.wed *:not([data-own-font]){font-family:var(--wed-font, ${FONT_STACK})!important}
+.wed *{font-family:inherit;color:inherit}
+.wed button{cursor:pointer;border:none;background:none;font-family:inherit}
+.wed input,.wed textarea,.wed select{font-family:inherit;color:#3A332B;outline:none}
+.wed-scroll::-webkit-scrollbar{width:5px;height:5px}
+.wed-scroll::-webkit-scrollbar-thumb{background:#D4B894;border-radius:3px}
+@keyframes wfadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.wfadein{animation:wfadein .4s ease-out}
+@keyframes wspin{to{transform:rotate(360deg)}}
+@keyframes wedPreviewPulse{0%,100%{box-shadow:0 0 0 0 rgba(181,137,95,.5)}50%{box-shadow:0 0 0 7px rgba(181,137,95,0)}}
+.wed-preview-eye{animation:wedPreviewPulse 1.8s ease-in-out infinite}
+/* v5.3 手機點選分配：桌位發光圈動畫 */
+@keyframes wedTapRing{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.06)}}
+.wed-tap-ring{animation:wedTapRing 1.2s ease-in-out infinite}
+/* v5.3 座位移除 × 鈕：hover 才顯示，與拖曳/點擊分離 */
+.wed-seat-x{opacity:0;transition:opacity .12s}
+.wed-seat:hover .wed-seat-x{opacity:1}
+@media (hover:none){.wed-seat-x{opacity:.85}}
+@keyframes wedFadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+/* v5.3 手機版 top bar：防止選單文字直排堆疊、改為水平捲動 */
+.wed-nav-menu{ -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.wed-nav-menu::-webkit-scrollbar{ display:none; }
+/* v5.4 #5a：名單列表所有儲存格維持橫排不換行 */
+.wed-guest-table table{ min-width:max-content; }
+.wed-guest-table th, .wed-guest-table td{ white-space:nowrap; }
+@media (max-width:640px){
+  .wed-nav{ padding:8px 12px !important; gap:6px !important; }
+  .wed-nav button{ padding:6px 9px !important; letter-spacing:0 !important; }
+  .wed-nav-status-txt{ display:none; }
+  .wed-nav-logo span{ font-size:16px !important; letter-spacing:2px !important; }
+}
+@media (max-width:900px){
+  /* 排位收折鈕：手機/平板改 fixed 釘在畫面左下，避免被捲動藏到畫面外 */
+  .wed-sidebar-toggle{ position:fixed !important; bottom:16px !important; left:12px !important; z-index:9990 !important; }
+}
+.wspin{animation:wspin .9s linear infinite}
+@media(max-width:640px){
+  .wed-form-grid{grid-template-columns:1fr!important}
+  .wed-stats{grid-template-columns:repeat(2,1fr)!important}
+  .wed-hero{min-height:280px!important}
+}
+@media print{.no-print{display:none!important}}
+  `;
+  document.head.appendChild(s);
+}
+
+// ============================================================
+// THEME APPLY
+// ============================================================
+function applyTheme(theme) {
+  let el = document.getElementById('wed-theme-css');
+  if (!el) { el = document.createElement('style'); el.id = 'wed-theme-css'; document.head.appendChild(el); }
+  if (!theme || theme.name === '典雅奶油') {
+    // 奶油主題：清掉非奶油的覆寫，並把 CSS 變數設成奶油色，這樣 var(--wed-...) 在排位頁也能正確套色
+    el.textContent = `
+body { --wed-bg:#F9F5EF; --wed-card:#FFFEFA; --wed-border:#E5DDD0; --wed-border-soft:#E5D5BD; }
+/* 奶油主題輸入框：獨立規則確保底色與表單一致（#FFFEFA） */
+.wed input[style],.wed textarea[style],.wed select[style] {
+  background: #FFFEFA !important; border-color: #E5DDD0 !important; color: #3A332B !important;
+}
+`;
+    document.body.removeAttribute('data-wed-theme');
+    return;
+  }
+  document.body.setAttribute('data-wed-theme', theme.name);
+  const dk = theme.dark;
+  const NOT = ':not([data-tp])';
+  // 注意：React 把 #RRGGBB inline style 渲染成 rgb(r, g, b)；rgba 保持 rgba 形式
+  el.textContent = `
+/* === v4.9 主題 CSS 變數 — 排位頁 4 個位置（側邊欄/標題欄/主畫布/底紋）用 var(--wed-...) 套色 === */
+body { --wed-bg:${theme.pageBg}; --wed-card:${theme.cardBg}; --wed-border:${theme.border}; --wed-border-soft:${theme.borderSoft || theme.border}; }
+
+/* === 基礎 === */
+body { background: ${theme.pageBg} !important; }
+.wed { background: ${theme.pageBg} !important; color: ${theme.text} !important; }
+
+/* === 輸入元素（基礎）=== */
+.wed input,.wed textarea,.wed select { color: ${theme.text} !important; background: ${theme.cardBg} !important; border-color: ${theme.border} !important; }
+.wed input::placeholder,.wed textarea::placeholder { color: ${theme.mutedText} !important; }
+
+/* === NavBar 頂部 (rgba 半透明) — 加強邊線可見性 === */
+.wed nav { 
+  background: ${theme.cardBg} !important; 
+  border-bottom: 1px solid ${dk ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.08)'} !important;
+  box-shadow: 0 2px 10px ${dk ? 'rgba(0,0,0,.4)' : 'rgba(58,51,43,.06)'} !important;
+}
+.wed [style*="rgba(249, 245, 239"]${NOT} { background: ${theme.cardBg} !important; }
+
+/* === Sidebar (排位左側) — 加強分隔線 === */
+.wed [style*="border-right: 1px solid rgb(229, 221, 208)"]${NOT} {
+  border-right: 1px solid ${dk ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'} !important;
+  box-shadow: 2px 0 8px ${dk ? 'rgba(0,0,0,.3)' : 'rgba(58,51,43,.04)'} !important;
+}
+
+/* === 頁面背景色 (#F9F5EF / #FBF7EF / #FDFAF6) === */
+.wed [style*="background: rgb(249, 245, 239)"]${NOT},
+.wed [style*="background-color: rgb(249, 245, 239)"]${NOT},
+.wed [style*="background: rgb(251, 247, 239)"]${NOT},
+.wed [style*="background-color: rgb(251, 247, 239)"]${NOT},
+.wed [style*="background: rgb(253, 250, 246)"]${NOT},
+.wed [style*="background-color: rgb(253, 250, 246)"]${NOT} {
+  background: ${theme.pageBg} !important;
+  background-color: ${theme.pageBg} !important;
+}
+
+/* === 卡片白 (#FFFEFA) === */
+.wed [style*="background: rgb(255, 254, 250)"]${NOT},
+.wed [style*="background-color: rgb(255, 254, 250)"]${NOT} {
+  background: ${theme.cardBg} !important;
+  background-color: ${theme.cardBg} !important;
+}
+.wed [style*="color: rgb(255, 254, 250)"]${NOT} { color: ${dk ? '#F0EDE8' : '#FFFEFA'} !important; }
+
+/* === 邊框色 (#E5DDD0) — 只改邊框，與輸入框背景規則完全分離 === */
+.wed [style*="border: 1px solid rgb(229, 221, 208)"]${NOT},
+.wed [style*="border:1px solid rgb(229, 221, 208)"]${NOT},
+.wed [style*="border-color: rgb(229, 221, 208)"]${NOT},
+.wed [style*="border-bottom: 1px solid rgb(229, 221, 208)"]${NOT},
+.wed [style*="border-top: 1px solid rgb(229, 221, 208)"]${NOT},
+.wed [style*="border-right: 1px solid rgb(229, 221, 208)"]${NOT},
+.wed [style*="border-left: 1px solid rgb(229, 221, 208)"]${NOT} {
+  border-color: ${theme.border} !important;
+}
+
+/* === 分隔線底色 (#E5DDD0 作為背景色的裝飾元素，與上方邊框規則分離) === */
+.wed [style*="background: rgb(229, 221, 208)"]${NOT},
+.wed [style*="background-color: rgb(229, 221, 208)"]${NOT} {
+  background-color: ${theme.border} !important;
+}
+
+/* === 輸入框外觀 — 獨立高優先度規則（specificity 0,2,1 > 結構邊線規則 0,2,0）=== */
+/* 完全不受上方結構邊線/分隔線規則影響；底色與表單背景一致，僅靠邊框線區分 */
+.wed input[style],.wed textarea[style],.wed select[style] {
+  background: ${theme.cardBg} !important;
+  border-color: ${theme.border} !important;
+  color: ${theme.text} !important;
+}
+
+/* === 軟邊框色 (#E5D5BD) === */
+.wed [style*="border: 1px solid rgb(229, 213, 189)"]${NOT},
+.wed [style*="border:1px solid rgb(229, 213, 189)"]${NOT},
+.wed [style*="border-color: rgb(229, 213, 189)"]${NOT} {
+  border-color: ${theme.borderSoft || theme.border} !important;
+}
+
+/* === 主色 (#B5895F) — 文字 === */
+.wed [style*="color: rgb(181, 137, 95)"]${NOT} { color: ${theme.primary} !important; }
+/* === 主色 — 背景 (Btn gold 等) === */
+.wed [style*="background: rgb(181, 137, 95)"]${NOT},
+.wed [style*="background-color: rgb(181, 137, 95)"]${NOT} {
+  background: ${theme.primary} !important;
+  background-color: ${theme.primary} !important;
+}
+/* === 主色 hover (#9F754C) === */
+.wed [style*="background: rgb(159, 117, 76)"]${NOT},
+.wed [style*="background-color: rgb(159, 117, 76)"]${NOT} {
+  background: ${theme.primaryHover || theme.primary} !important;
+  background-color: ${theme.primaryHover || theme.primary} !important;
+}
+
+/* === 軟底色 (#EFE3D0 - Tag) === */
+.wed [style*="background: rgb(239, 227, 208)"]${NOT},
+.wed [style*="background-color: rgb(239, 227, 208)"]${NOT} {
+  background: ${theme.soft} !important;
+  background-color: ${theme.soft} !important;
+}
+
+/* === 進度條底色 (#F1EAE0) === */
+.wed [style*="background: rgb(241, 234, 224)"]${NOT},
+.wed [style*="background-color: rgb(241, 234, 224)"]${NOT} {
+  background: ${theme.soft} !important;
+  background-color: ${theme.soft} !important;
+}
+
+/* === 主文字色 (#3A332B) === */
+.wed [style*="color: rgb(58, 51, 43)"]${NOT} { color: ${theme.text} !important; }
+.wed [style*="background: rgb(58, 51, 43)"]${NOT},
+.wed [style*="background-color: rgb(58, 51, 43)"]${NOT} {
+  background: ${theme.text} !important;
+  background-color: ${theme.text} !important;
+}
+
+/* === 次要文字色 (#6B6259) === */
+.wed [style*="color: rgb(107, 98, 89)"]${NOT} { color: ${theme.subText} !important; }
+
+/* === 弱文字色 (#9A8F82) === */
+.wed [style*="color: rgb(154, 143, 130)"]${NOT} { color: ${theme.mutedText} !important; }
+
+/* === Btn dark hover (#241F1A) === */
+.wed [style*="background: rgb(36, 31, 26)"]${NOT},
+.wed [style*="background-color: rgb(36, 31, 26)"]${NOT} {
+  background: ${theme.text} !important;
+}
+
+${dk ? `
+/* === 暗黑模式專屬 === */
+/* 純白 (#FFFFFF) */
+.wed [style*="background: rgb(255, 255, 255)"]${NOT},
+.wed [style*="background-color: rgb(255, 255, 255)"]${NOT},
+.wed [style*="background: white"]${NOT},
+.wed [style*="background:white"]${NOT} {
+  background: ${theme.cardBg} !important;
+  background-color: ${theme.cardBg} !important;
+}
+/* 淺灰 (#FAFAFA, #F8F8F8) */
+.wed [style*="background: rgb(248, 248, 248)"]${NOT},
+.wed [style*="background-color: rgb(248, 248, 248)"]${NOT},
+.wed [style*="background: rgb(250, 250, 250)"]${NOT},
+.wed [style*="background-color: rgb(250, 250, 250)"]${NOT} {
+  background: ${theme.pageBg} !important;
+}
+/* 標題 */
+.wed h1, .wed h2, .wed h3, .wed h4 { color: ${theme.text} !important; }
+/* 狀態色：成功綠 (#2A6B2A) 在深色幾乎不可見 → 提亮 */
+.wed [style*="color: rgb(42, 107, 42)"]${NOT} { color: #7FBF7F !important; }
+/* 狀態色：警告琥珀 (#7A5C00) 在深色幾乎不可見 → 提亮 */
+.wed [style*="color: rgb(122, 92, 0)"]${NOT} { color: #E0C060 !important; }
+/* 深綠 RSVP success (#2A6B2A 變體) */
+.wed [style*="color: rgb(47, 107, 47)"]${NOT},
+.wed [style*="color: rgb(95, 143, 95)"]${NOT} { color: #8FCF8F !important; }
+/* 深色卡片內常見的深灰文字 (#5A5249, #4A4239 等) 安全網 → 提亮 */
+.wed [style*="color: rgb(90, 82, 73)"]${NOT},
+.wed [style*="color: rgb(74, 66, 57)"]${NOT},
+.wed [style*="color: rgb(58, 51, 43)"]${NOT} { color: ${theme.text} !important; }
+/* 軟琥珀底色狀態框 (#FFF8E0, #FFFBE8) 深色化 */
+.wed [style*="background: rgb(255, 248, 224)"]${NOT},
+.wed [style*="background-color: rgb(255, 248, 224)"]${NOT},
+.wed [style*="background: rgb(255, 251, 232)"]${NOT},
+.wed [style*="background-color: rgb(255, 251, 232)"]${NOT} { background: #3A3420 !important; background-color: #3A3420 !important; }
+/* 成功綠底框 (#E8F5E8) 深色化 */
+.wed [style*="background: rgb(232, 245, 232)"]${NOT},
+.wed [style*="background-color: rgb(232, 245, 232)"]${NOT} { background: #203020 !important; background-color: #203020 !important; }
+/* 備份最新列反白底 (#FAFCF7) 深色化 — 否則淺底+提亮文字＝看不見 */
+.wed [style*="background: rgb(250, 252, 247)"]${NOT},
+.wed [style*="background-color: rgb(250, 252, 247)"]${NOT} { background: ${theme.soft} !important; background-color: ${theme.soft} !important; }
+/* 紅色衝突底框 (#FAEEEE, #FFF0F0) 深色化 */
+.wed [style*="background: rgb(250, 238, 238)"]${NOT},
+.wed [style*="background-color: rgb(250, 238, 238)"]${NOT},
+.wed [style*="background: rgb(255, 240, 240)"]${NOT},
+.wed [style*="background-color: rgb(255, 240, 240)"]${NOT} { background: #3A2020 !important; background-color: #3A2020 !important; }
+` : ''}
+
+/* === 排位圓桌容器淺色背景 (#FCFAF5) === */
+.wed [style*="background: rgb(252, 250, 245)"]${NOT},
+.wed [style*="background-color: rgb(252, 250, 245)"]${NOT} {
+  background: ${theme.cardBg} !important;
+}
+  `;
+}
+
+// ============================================================
+// FONT APPLY  — 懶加載 Google Fonts；英文字體接 ASCII、中文字體接 CJK
+// ============================================================
+function applyFont(cjkKey, latinKey) {
+  const cjk = FONTS_CJK[cjkKey]   || FONTS_CJK['noto-serif'];
+  const lat = FONTS_LATIN[latinKey] || FONTS_LATIN['cormorant'];
+  // 懶加載：只在選中時才注入 <link> 標籤
+  [[cjkKey   || 'noto-serif', cjk],
+   [latinKey || 'cormorant',  lat]].forEach(([key, f]) => {
+    const id = 'wed-font-' + key;
+    if (!document.getElementById(id)) {
+      const link = document.createElement('link');
+      link.id = id; link.rel = 'stylesheet'; link.href = f.url;
+      document.head.appendChild(link);
+    }
+  });
+  // 英文字體排在前（接管 ASCII），中文字體排在後（接管 CJK）
+  document.body.style.setProperty('--wed-font', `${lat.family}, ${cjk.family}`);
+}
+// 外觀頁籤開啟時預載所有字體（讓預覽卡片能即時顯示）
+function preloadAllFonts() {
+  Object.entries({...FONTS_CJK, ...FONTS_LATIN}).forEach(([key, f]) => {
+    const id = 'wed-font-' + key;
+    if (!document.getElementById(id)) {
+      const link = document.createElement('link');
+      link.id = id; link.rel = 'stylesheet'; link.href = f.url;
+      document.head.appendChild(link);
+    }
+  });
+}
+
+// ============================================================
+// FIREBASE
+// ============================================================
+function initFirebase() {
+  if (window.__wedFB) return window.__wedFB;
+  window.__wedFB = new Promise((resolve, reject) => {
+    const load = src => new Promise((res,rej) => {
+      // 若該腳本已存在（重複初始化／HMR）就直接 resolve，避免重覆插入
+      if ([...document.scripts].some(s=>s.src===src)) { res(); return; }
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = () => rej(new Error('Load failed: '+src));
+      document.head.appendChild(s);
+    });
+    // ⚠ Firebase compat 腳本有載入順序依賴：app-compat 必須先建立 window.firebase 命名空間，
+    // 其他 auth/firestore/storage-compat 才能掛載功能。並行載入會造成 storage 偶發未註冊
+    // （window.firebase.storage is not a function）。故先等 app 載完，再並行載其餘三個。
+    load('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js')
+      .then(()=>Promise.all([
+        load('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js'),
+        load('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js'),
+        load('https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js')
+      ]))
+      .then(()=>{
+        // 保險：確認三個功能都已註冊，否則視為載入失敗（讓呼叫端可重試而非拋出半殘狀態）
+        if (typeof window.firebase?.storage !== 'function' ||
+            typeof window.firebase?.firestore !== 'function' ||
+            typeof window.firebase?.auth !== 'function') {
+          throw new Error('Firebase SDK 尚未完整載入');
+        }
+        if(!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
+        const auth = window.firebase.auth();
+        const googleProvider = new window.firebase.auth.GoogleAuthProvider();
+        googleProvider.setCustomParameters({ prompt: "select_account" });
+        resolve({ auth, googleProvider, db: window.firebase.firestore(), storage: window.firebase.storage() });
+      })
+      .catch(err=>{ window.__wedFB = null; reject(err); });  // 失敗清除快取，下次可重試
+  });
+  return window.__wedFB;
+}
+
+const DEFAULT_PHOTO_B64 = "data:image/jpeg;base64,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";
+
+// ============================================================
+// DATA HELPERS
+// ============================================================
+// 宴會環境設施（v5.5：取代舊「標記」，自由選 emoji + 顏色 + 鎖定）
+const FACILITY_EMOJIS = ['🎤','🚪','📽️','🚻','🍹','🎁','📋','🍰','🎂','🌹','📸','🎵','💐','🕯️','🍷','☕','🎈','🪑','🛗','🅿️','🚬','♿','🎬','🔊','💡','🍽️','🎀','🌸'];
+const FACILITY_COLORS = ['#3A332B','#B5895F','#3A6B8A','#6B6259','#7BA77B','#8A7BAF','#C04040','#B07A4A','#4A8A4A','#A0567A'];
+// 舊 type → emoji/color 遷移對照（相容 v5.4 以前資料）
+const LEGACY_MARKER_MAP = {
+  stage:{emoji:'🎤',color:'#3A332B'}, entry:{emoji:'🚪',color:'#B5895F'},
+  projector:{emoji:'📽️',color:'#3A6B8A'}, restroom:{emoji:'🚻',color:'#6B6259'},
+  bar:{emoji:'🍹',color:'#7BA77B'}, custom:{emoji:'📍',color:'#8A7BAF'}
+};
+const AREA_COLORS = ['#B5895F','#7BA77B','#8A7BAF','#3A6B8A','#B07A4A'];
+
+function emptyData() {
+  return {
+    guests:[], tables:[], markers:[
+      {id:'stage', label:'舞台', emoji:'🎤', color:'#3A332B', x:600, y:40, locked:false},
+      {id:'entry', label:'入口', emoji:'🚪', color:'#B5895F', x:600, y:760, locked:false}
+    ],
+    photos:[{id:'default', dataUrl:DEFAULT_PHOTO_B64, enabled:true, order:0}],
+    config: Object.assign({}, DEFAULT_CONFIG),
+    versions:[],
+    avoidPairs:[],
+    samePairs:[],
+    zones:[]
+  };
+}
+// ── 避桌配對序列化（v4.9 修正資料遺失根因）──────────────────────────
+// 應用程式內部一律用 tuple 形式 [[a,b],...]；但 Firestore「不接受巢狀陣列」，
+// 直接寫入 avoidPairs:[[a,b]] 會讓整筆 set() 被拒絕並默默失敗，導致避桌/同桌資料看似存了卻在重整後消失。
+// 寫入前 pack 成物件陣列 [{a,b}]（合法），讀回時 unpack 還原成 tuple。兩種格式皆相容。
+function packAvoid(pairs) {
+  return (Array.isArray(pairs) ? pairs : [])
+    .map(p => Array.isArray(p) ? {a:p[0], b:p[1]} : (p && p.a && p.b ? {a:p.a, b:p.b} : null))
+    .filter(p => p && p.a && p.b);
+}
+function unpackAvoid(arr) {
+  return (Array.isArray(arr) ? arr : [])
+    .map(p => Array.isArray(p) ? p : (p && p.a && p.b ? [p.a, p.b] : null))
+    .filter(p => p && p[0] && p[1]);
+}
+// packSame / unpackSame — 同桌偏好，序列化規則同 avoidPairs
+function packSame(pairs) {
+  return (Array.isArray(pairs) ? pairs : [])
+    .map(p => Array.isArray(p) ? {a:p[0], b:p[1]} : (p && p.a && p.b ? {a:p.a, b:p.b} : null))
+    .filter(p => p && p.a && p.b);
+}
+function unpackSame(arr) {
+  return (Array.isArray(arr) ? arr : [])
+    .map(p => Array.isArray(p) ? p : (p && p.a && p.b ? [p.a, p.b] : null))
+    .filter(p => p && p[0] && p[1]);
+}
+function mergeData(d) {
+  const e = emptyData();
+  if (!d || typeof d !== 'object') return e;
+  return {
+    guests:   (Array.isArray(d.guests) ? d.guests : e.guests).map(g => ({
+      ...g,
+      sameTable:  Array.isArray(g.sameTable)  ? g.sameTable  : [],
+      avoidTable: Array.isArray(g.avoidTable) ? g.avoidTable : []
+    })),
+    // v5.3：拆分鎖定——舊 locked:true 視為「位置＋座位」皆鎖；新欄位優先
+    tables:   (Array.isArray(d.tables) ? d.tables : e.tables).map(t => ({
+      ...t,
+      posLocked:  t.posLocked  != null ? !!t.posLocked  : !!t.locked,
+      seatLocked: t.seatLocked != null ? !!t.seatLocked : !!t.locked
+    })),
+    // v5.5：環境設施遷移——舊 type 標記轉成 emoji+顏色；已是 emoji 則保留
+    markers:  Array.isArray(d.markers) ? d.markers.map(m=>{
+      if(m.emoji) return {locked:false, ...m};
+      const lm = LEGACY_MARKER_MAP[m.type] || LEGACY_MARKER_MAP.custom;
+      return {locked:false, ...m, emoji:lm.emoji, color:lm.color};
+    }) : e.markers,
+    photos:   Array.isArray(d.photos) && d.photos.length ? d.photos : e.photos,
+    config:   Object.assign({}, DEFAULT_CONFIG, d.config || {}),
+    versions: Array.isArray(d.versions) ? d.versions : e.versions,
+    avoidPairs: unpackAvoid(d.avoidPairs),
+    samePairs:  unpackSame(d.samePairs),
+    // v5.5：分區統一為 zones；相容舊「areas」資料（v5.4 分支）自動併入，避免資料遺失
+    zones: (((Array.isArray(d.zones)&&d.zones.length) ? d.zones
+            : (Array.isArray(d.areas)&&d.areas.length) ? d.areas
+            : [])).map((z,i)=>({id:z.id||uid(),name:z.name||'分區',x:+z.x||0,y:+z.y||0,w:+z.w||500,h:+z.h||600,
+              color:z.color||AREA_COLORS[i%AREA_COLORS.length], locked:!!z.locked}))
+  };
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function displayName(g, maxCN=2, maxEN=3) {
+  // v4.9：排位顯示一律取「姓名」（不抓暱稱）。中文取姓名後兩字；英文取最後一個單字。
+  const n = (g.name || '').trim();
+  if (!n) {
+    const nk = (g.nickname || '').trim();
+    return /[\u4e00-\u9fff]/.test(nk) ? nk.slice(-maxCN) : nk.slice(0, maxEN) || '?';
+  }
+  if (/[\u4e00-\u9fff]/.test(n)) return n.slice(-maxCN);
+  const last = n.split(/\s+/).filter(Boolean).pop() || n;
+  return last.slice(0, maxEN);
+}
+
+const toCSV = rows => {
+  const esc = v => { const s = String(v??'').replace(/"/g,'""'); return /[,\n"]/.test(s)?`"${s}"`:s; };
+  return '\ufeff' + rows.map(r => r.map(esc).join(',')).join('\n');
+};
+// v5.6：依桌子幾何位置找出所屬分區名稱（供匯出名單使用）
+const zoneNameOf = (data, tableId) => {
+  const t=(data.tables||[]).find(x=>x.id===tableId); if(!t) return '';
+  const z=(data.zones||[]).find(a=>t.x>=a.x&&t.x<=a.x+a.w&&t.y>=a.y&&t.y<=a.y+a.h);
+  return z?z.name:'';
+};
+const download = (name, content, type) => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type: type||'text/plain'}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// ============================================================
+// SEATING HELPERS
+// ============================================================
+function seatMap(table, guests) {
+  const m = new Array(table.capacity||10).fill(null);
+  guests.filter(g => g.tableId===table.id && g.attending && g.startSeat!=null)
+    .forEach(g => {
+      for(let i=0; i<(g.count||1); i++) m[((g.startSeat||0)+i)%(table.capacity||10)] = g;
+    });
+  return m;
+}
+function freeSeat(table, guests, count, excludeId) {
+  const cap = table.capacity||10;
+  const m = seatMap(table, guests.filter(g=>g.id!==excludeId));
+  for(let s=0; s<cap; s++) {
+    let ok=true;
+    for(let j=0;j<count;j++) if(m[(s+j)%cap]) {ok=false;break;}
+    if(ok) return s;
+  }
+  return -1;
+}
+function tableConflicts(table, guests, avoidPairs) {
+  const inside = new Set(guests.filter(g=>g.tableId===table.id&&g.attending).map(g=>g.id));
+  const avoid = [];
+  avoidPairs.forEach(([a,b]) => { if(inside.has(a) && inside.has(b)) avoid.push([a,b]); });
+  return avoid;
+}
+
+// v5.3：統一「有效配對」— 合併頂層 avoidPairs/samePairs 與各賓客 avoidTable/sameTable，
+// 解決「用賓客編輯設定避桌/同桌卻不被衝突偵測抓到」的 desync bug（兩處來源都納入）
+function effectiveAvoidPairs(data) {
+  const seen = new Set(); const out = [];
+  const add = (a,b) => { if(!a||!b||a===b) return; const k=[a,b].sort().join('|'); if(seen.has(k)) return; seen.add(k); out.push([a,b]); };
+  (data.avoidPairs||[]).forEach(([a,b])=>add(a,b));
+  (data.guests||[]).forEach(g=>(g.avoidTable||[]).forEach(o=>add(g.id,o)));
+  return out;
+}
+function effectiveSamePairs(data) {
+  const seen = new Set(); const out = [];
+  const add = (a,b) => { if(!a||!b||a===b) return; const k=[a,b].sort().join('|'); if(seen.has(k)) return; seen.add(k); out.push([a,b]); };
+  (data.samePairs||[]).forEach(([a,b])=>add(a,b));
+  (data.guests||[]).forEach(g=>(g.sameTable||[]).forEach(o=>add(g.id,o)));
+  return out;
+}
+
+
+// ============================================================
+// SHARED ATOMS
+// ============================================================
+const S = {
+  input: { width:'100%', padding:'9px 12px', fontSize:14, border:'1px solid #E5DDD0', borderRadius:2, background:'#FFFEFA', outline:'none' },
+  card:  { background:'#FFFEFA', borderRadius:3, boxShadow:'0 2px 16px rgba(0,0,0,0.05)' },
+};
+
+function Spinner({size=18,color='#B5895F'}) {
+  return <div className="wspin" style={{width:size,height:size,border:`2px solid ${color}30`,borderTopColor:color,borderRadius:'50%'}} />;
+}
+
+function Btn({children,v='gold',size='md',onClick,disabled,style,type='button'}) {
+  const vs={
+    gold:  {bg:'#B5895F',fg:'#FFFEFA',hov:'#9F754C'},
+    dark:  {bg:'#3A332B',fg:'#FFFEFA',hov:'#241F1A'},
+    ghost: {bg:'transparent',fg:'#6B6259',hov:'#F1EAE0',bd:'1px solid #E5DDD0'},
+    rose:  {bg:'#BF7090',fg:'#FFFEFA',hov:'#A85A7C'},
+    red:   {bg:'transparent',fg:'#C04040',hov:'#FAEEEE',bd:'1px solid #E0BCBC'},
+    green: {bg:'#7BA77B',fg:'#FFFEFA',hov:'#5F8F5F'},
+  };
+  const c=vs[v]||vs.gold;
+  const pads={sm:'5px 12px',md:'9px 20px',lg:'13px 28px'};
+  const fszs={sm:11,md:13,lg:15};
+  const [hov,setHov]=useState(false);
+  return (
+    <button type={type} onClick={onClick} disabled={disabled}
+      onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+      style={{background:hov&&!disabled?c.hov:c.bg,color:c.fg,border:c.bd||'none',
+        borderRadius:2,padding:pads[size],fontSize:fszs[size],letterSpacing:.5,fontWeight:500,
+        opacity:disabled?.5:1,cursor:disabled?'not-allowed':'pointer',
+        display:'inline-flex',alignItems:'center',gap:5,transition:'background .15s',...style}}>
+      {children}
+    </button>
+  );
+}
+
+function Modal({open,onClose,children,title,width=520}) {
+  if(!open) return null;
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(58,51,43,.45)',zIndex:1000,
+      display:'flex',alignItems:'center',justifyContent:'center',padding:16,backdropFilter:'blur(4px)'}}>
+      <div onClick={e=>e.stopPropagation()} className="wfadein wed-scroll"
+        style={{...S.card,padding:28,maxWidth:width,width:'100%',maxHeight:'92vh',overflowY:'auto',position:'relative'}}>
+        {title && <div style={{fontFamily:FONT_STACK,fontSize:20,fontWeight:500,letterSpacing:1,
+          borderBottom:'1px solid #E5DDD0',paddingBottom:14,marginBottom:20}}>{title}</div>}
+        <button onClick={onClose} style={{position:'absolute',top:14,right:14,fontSize:22,color:'#9A8F82',lineHeight:1}}>×</button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// CUSTOM DIALOG SYSTEM (v5.3) — 取代瀏覽器原生 confirm/alert/prompt
+// 模組層 imperative API：uiConfirm / uiAlert / uiPrompt 回傳 Promise
+// 由 <ConfirmDialogHost/> 掛在 WeddingApp 根節點統一渲染，質感與系統一致
+// ============================================================
+let _dialogSetter = null;
+function uiConfirm(opts) {
+  const o = (typeof opts==='string') ? {message:opts} : (opts||{});
+  return new Promise(resolve=>{
+    if(!_dialogSetter){ resolve(window.confirm(o.message||'')); return; }
+    _dialogSetter({mode:'confirm', ...o, _resolve:resolve});
+  });
+}
+function uiAlert(opts) {
+  const o = (typeof opts==='string') ? {message:opts} : (opts||{});
+  return new Promise(resolve=>{
+    if(!_dialogSetter){ window.alert(o.message||''); resolve(); return; }
+    _dialogSetter({mode:'alert', ...o, _resolve:resolve});
+  });
+}
+function uiPrompt(message, defaultValue) {
+  return new Promise(resolve=>{
+    if(!_dialogSetter){ resolve(window.prompt(message, defaultValue||'')); return; }
+    _dialogSetter({mode:'prompt', message, defaultValue:defaultValue||'', _resolve:resolve});
+  });
+}
+function ConfirmDialogHost() {
+  const [d,setD] = useState(null);
+  const [inputVal,setInputVal] = useState('');
+  useEffect(()=>{ _dialogSetter = (dlg)=>{ setInputVal(dlg&&dlg.defaultValue||''); setD(dlg); }; return ()=>{ _dialogSetter=null; }; },[]);
+  if(!d) return null;
+  const close = (val)=>{ const r=d._resolve; setD(null); r&&r(val); };
+  const isPrompt = d.mode==='prompt';
+  const isAlert  = d.mode==='alert';
+  return (
+    <div onClick={()=>{ if(isAlert) close(); else close(isPrompt?null:false); }}
+      style={{position:'fixed',inset:0,zIndex:10001,background:'rgba(58,51,43,.5)',
+        display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'blur(4px)'}}>
+      <div onClick={e=>e.stopPropagation()} className="wfadein"
+        style={{background:'#FFFEFA',borderRadius:8,maxWidth:420,width:'100%',
+          padding:'26px 26px 20px',boxShadow:'0 16px 56px rgba(0,0,0,.28)',border:'1px solid #E5DDD0'}}>
+        {d.title && <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,letterSpacing:.5,color:'#3A332B',marginBottom:12}}>{d.title}</div>}
+        <div style={{fontSize:14,lineHeight:1.75,color:'#6B6259',whiteSpace:'pre-wrap',marginBottom:isPrompt?14:22}}>{d.message}</div>
+        {isPrompt && <input autoFocus autoComplete="nope" value={inputVal} onChange={e=>setInputVal(e.target.value)}
+          onKeyDown={e=>{if(e.key==='Enter')close(inputVal);}}
+          style={{...S.input,marginBottom:20}} />}
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+          {!isAlert && <Btn v="ghost" onClick={()=>close(isPrompt?null:false)}>{d.cancelText||'取消'}</Btn>}
+          <Btn v={d.danger?'rose':'gold'} onClick={()=>close(isPrompt?inputVal:(isAlert?undefined:true))}>{d.confirmText||(isAlert?'知道了':'確定')}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({label,children,hint,required}) {
+  return (
+    <div style={{marginBottom:16}}>
+      {label && <label style={{display:'block',fontSize:12,color:'#6B6259',marginBottom:5,letterSpacing:.3,fontFamily:SANS_STACK}}>
+        {label}{required&&<span style={{color:'#BF7090',marginLeft:3}}>*</span>}
+      </label>}
+      {children}
+      {hint && <div style={{fontSize:11,color:'#9A8F82',marginTop:3}}>{hint}</div>}
+    </div>
+  );
+}
+function TInput({value,onChange,placeholder,type='text',disabled,style,onKeyDown}) {
+  return <input type={type} value={value} onChange={e=>onChange(e.target.value)}
+    placeholder={placeholder} disabled={disabled} onKeyDown={onKeyDown}
+    autoComplete="nope"
+    style={{...S.input,opacity:disabled?.6:1,...style}} />;
+}
+function TTextarea({value,onChange,placeholder,rows=3,style}) {
+  return <textarea value={value} onChange={e=>onChange(e.target.value)}
+    placeholder={placeholder} rows={rows}
+    style={{...S.input,resize:'vertical',minHeight:rows*22,...style}} />;
+}
+function TSelect({value,onChange,options,style}) {
+  return <select value={value} onChange={e=>onChange(e.target.value)} style={{...S.input,...style}}>
+    {options.map((o,i)=><option key={i} value={typeof o==='string'?o:o.v}>{typeof o==='string'?o:o.l}</option>)}
+  </select>;
+}
+function Tag({children,color,soft,onRemove,small}) {
+  return (
+    <span style={{display:'inline-flex',alignItems:'center',gap:3,
+      padding:small?'1px 7px':'3px 9px',fontSize:small?11:12,
+      background:soft||'#F1EAE0',color:color||'#6B6259',
+      border:`1px solid ${color?color+'40':'#E5DDD0'}`,borderRadius:2,
+      fontFamily:SANS_STACK,whiteSpace:'nowrap'}}>
+      {children}
+      {onRemove && <button onClick={onRemove} style={{marginLeft:2,opacity:.6,fontSize:13}}>×</button>}
+    </span>
+  );
+}
+
+function Dropdown({label,items,btnStyle,icon}) {
+  const [open,setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(()=>{
+    const h = e => { if(ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown',h);
+    return ()=>document.removeEventListener('mousedown',h);
+  },[]);
+  return (
+    <div ref={ref} style={{position:'relative',display:'inline-block'}}>
+      <Btn v="ghost" size="sm" onClick={()=>setOpen(p=>!p)} style={btnStyle}>
+        {label} ▾
+      </Btn>
+      {open && (
+        <div style={{position:'absolute',top:'100%',right:0,zIndex:200,marginTop:2,
+          background:'#FFFEFA',border:'1px solid #E5DDD0',borderRadius:2,
+          boxShadow:'0 4px 16px rgba(0,0,0,.1)',minWidth:160}}>
+          {items.map((item,i)=>
+            item === '---' ? <div key={i} style={{height:1,background:'#E5DDD0',margin:'4px 0'}}/> :
+            <button key={i} onClick={()=>{item.action();setOpen(false);}}
+              style={{display:'block',width:'100%',textAlign:'left',padding:'9px 16px',
+                fontSize:12,color:'#3A332B',fontFamily:SANS_STACK,whiteSpace:'nowrap'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#F9F5EF'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              {item.label}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// PHOTO CAROUSEL
+// ============================================================
+function PhotoCarousel({photos,speed=4500}) {
+  const active = useMemo(()=>[...photos].filter(p=>p.enabled).sort((a,b)=>(a.order||0)-(b.order||0)),[photos]);
+  const [idx,setIdx] = useState(0);
+  const timerRef = useRef(null);
+  const resetTimer = useCallback(()=>{
+    if(timerRef.current) clearInterval(timerRef.current);
+    if(active.length<=1) return;
+    timerRef.current = setInterval(()=>setIdx(i=>(i+1)%active.length), speed);
+  },[active.length, speed]);
+  useEffect(()=>{ resetTimer(); return ()=>clearInterval(timerRef.current); },[resetTimer]);
+  useEffect(()=>{ if(idx>=active.length) setIdx(0); },[active.length,idx]);
+  const prev = ()=>{ setIdx(i=>(i-1+active.length)%active.length); resetTimer(); };
+  const next = ()=>{ setIdx(i=>(i+1)%active.length); resetTimer(); };
+  const arrowStyle = (side)=>({position:'absolute',[side]:12,top:'50%',transform:'translateY(-50%)',
+    width:38,height:38,borderRadius:'50%',border:'1px solid rgba(255,254,250,.35)',
+    background:'rgba(0,0,0,.32)',color:'#FFFEFA',fontSize:22,cursor:'pointer',
+    display:'flex',alignItems:'center',justifyContent:'center',zIndex:2,
+    transition:'background .2s',userSelect:'none'});
+  if(!active.length) return <div style={{height:480,background:'#F1EAE0',display:'flex',alignItems:'center',justifyContent:'center',color:'#9A8F82'}}>尚未設定婚紗照</div>;
+  return (
+    <div style={{position:'relative',width:'100%',height:'100%',overflow:'hidden',background:'#3A332B'}}>
+      {active.map((p,i)=>(
+        <div key={p.id} style={{position:'absolute',inset:0,opacity:i===idx?1:0,transition:'opacity 1.2s ease-in-out',
+          backgroundImage:`url(${p.dataUrl||''})`,backgroundSize:'cover',backgroundPosition:`center ${p.focalY||50}%`}} />
+      ))}
+      {active.length>1 && <>
+        <button onClick={prev} style={arrowStyle('left')} aria-label="上一張">‹</button>
+        <button onClick={next} style={arrowStyle('right')} aria-label="下一張">›</button>
+        <div style={{position:'absolute',bottom:18,left:'50%',transform:'translateX(-50%)',display:'flex',gap:7,zIndex:2}}>
+          {active.map((_,i)=>(
+            <button key={i} onClick={()=>{setIdx(i);resetTimer();}} style={{width:i===idx?22:5,height:3,
+              background:i===idx?'#FFFEFA':'rgba(255,254,250,.5)',borderRadius:2,transition:'all .3s'}} />
+          ))}
+        </div>
+      </>}
+    </div>
+  );
+}
+
+// ============================================================
+// RSVP PAGE
+// ============================================================
+// ============================================================
+// IMAGE LIGHTBOX — full-screen, zoom/pan, share/download
+// Mouse wheel / buttons to zoom · drag to pan · pinch on mobile
+// ============================================================
+function ImageLightbox({src, onClose, canShare, shareText}) {
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({x:0,y:0});
+  const [dragging, setDragging] = useState(false);
+  const lastPos = useRef({x:0,y:0});
+  const lastDist = useRef(null);
+  const [copyStatus, setCopyStatus] = useState('');
+
+  const clampZoom = z => Math.max(0.5, Math.min(8, z));
+  const resetView = () => { setZoom(1); setPan({x:0,y:0}); };
+
+  // Mouse wheel zoom
+  const onWheel = e => {
+    e.preventDefault();
+    setZoom(z => clampZoom(z * (e.deltaY < 0 ? 1.15 : 0.87)));
+  };
+
+  // Mouse drag to pan
+  const onMouseDown = e => { if(e.button!==0) return; e.preventDefault(); setDragging(true); lastPos.current={x:e.clientX,y:e.clientY}; };
+  const onMouseMove = e => {
+    if(!dragging) return;
+    setPan(p=>({x:p.x+(e.clientX-lastPos.current.x), y:p.y+(e.clientY-lastPos.current.y)}));
+    lastPos.current={x:e.clientX,y:e.clientY};
+  };
+  const onMouseUp = () => setDragging(false);
+
+  // Touch: pinch-to-zoom + drag
+  const onTouchStart = e => {
+    if(e.touches.length===2){
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      lastDist.current=Math.sqrt(dx*dx+dy*dy);
+    } else if(e.touches.length===1){
+      lastPos.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    }
+  };
+  const onTouchMove = e => {
+    e.preventDefault();
+    if(e.touches.length===2 && lastDist.current){
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      setZoom(z=>clampZoom(z*(dist/lastDist.current)));
+      lastDist.current=dist;
+    } else if(e.touches.length===1){
+      setPan(p=>({x:p.x+(e.touches[0].clientX-lastPos.current.x),y:p.y+(e.touches[0].clientY-lastPos.current.y)}));
+      lastPos.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    }
+  };
+  const onTouchEnd = () => { lastDist.current=null; };
+
+  // Share/copy helpers
+  const doDownload = () => {
+    const a=document.createElement('a'); a.href=src; a.download='wedding.jpg';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+  const doCopy = async () => {
+    try {
+      const blob=await (await fetch(src)).blob();
+      await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);
+      setCopyStatus('✓ 已複製'); setTimeout(()=>setCopyStatus(''),2000);
+    } catch(e){ setCopyStatus('不支援複製：'+e.message); }
+  };
+  const doShare = async () => {
+    try {
+      const blob=await (await fetch(src)).blob();
+      const file=new File([blob],'wedding.jpg',{type:blob.type});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],text:shareText||''});
+      } else { doCopy(); }
+    } catch(e){ console.error(e); }
+  };
+
+  const btnStyle = {padding:'8px 16px',fontSize:12,borderRadius:2,cursor:'pointer',border:'1px solid rgba(255,255,255,.35)',color:'#FFFEFA',background:'rgba(58,51,43,.7)'};
+  const zoomBtnStyle = {padding:'6px 14px',fontSize:16,fontWeight:700,borderRadius:2,cursor:'pointer',border:'1px solid rgba(255,255,255,.35)',color:'#FFFEFA',background:'rgba(58,51,43,.7)',lineHeight:1};
+
+  return (
+    <div
+      onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
+      style={{position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:2000,display:'flex',flexDirection:'column',userSelect:'none'}}>
+      {/* Top bar */}
+      <div style={{position:'absolute',top:0,left:0,right:0,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',zIndex:10,background:'linear-gradient(to bottom,rgba(0,0,0,.5),transparent)'}}>
+        <div style={{display:'flex',gap:6}}>
+          <button style={zoomBtnStyle} onClick={e=>{e.stopPropagation();setZoom(z=>clampZoom(z*1.25));}}>＋</button>
+          <button style={zoomBtnStyle} onClick={e=>{e.stopPropagation();setZoom(z=>clampZoom(z*0.8));}}>－</button>
+          <button style={{...btnStyle,fontSize:12}} onClick={e=>{e.stopPropagation();resetView();}}>
+            {Math.round(zoom*100)}%
+          </button>
+        </div>
+        <button style={{...btnStyle,fontSize:18,fontWeight:300,padding:'4px 12px'}} onClick={onClose}>✕</button>
+      </div>
+      {/* Image area */}
+      <div style={{flex:1,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center'}}
+        onWheel={onWheel}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{flex:1,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',touchAction:'none'}}>
+        <img src={src} alt="" draggable={false}
+          onMouseDown={onMouseDown}
+          style={{maxWidth:'95vw',maxHeight:'88vh',objectFit:'contain',borderRadius:2,
+            transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'center',
+            cursor:dragging?'grabbing':(zoom>1?'grab':'zoom-in'),transition:dragging?'none':'transform .05s'}} />
+      </div>
+      {/* Bottom bar */}
+      <div style={{padding:'12px 16px',display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',background:'linear-gradient(to top,rgba(0,0,0,.5),transparent)'}}>
+        <button style={btnStyle} onClick={e=>{e.stopPropagation();doDownload();}}>下載圖片</button>
+        {canShare && navigator.clipboard && <button style={btnStyle} onClick={e=>{e.stopPropagation();doCopy();}}>{copyStatus||'複製圖片'}</button>}
+        {canShare && navigator.share && <button style={{...btnStyle,background:'rgba(6,199,85,.8)',border:'1px solid #06C755'}} onClick={e=>{e.stopPropagation();doShare();}}>分享圖片</button>}
+      </div>
+    </div>
+  );
+}
+
+
+function RSVPPage({data,onSubmit}) {
+  const cfg = data.config;
+  const heroTheme = getTheme(cfg);  // 取得當前主題用於 Hero 遮罩
+  const GI = getGroupInfo(cfg);
+  const defaultSide = Object.keys(GI)[2] || Object.keys(GI)[0];
+  const [enlargedImg, setEnlargedImg] = useState(null);
+  const [form,setForm] = useState({
+    name:'',nickname:'',side:defaultSide,subGroup:'',
+    attending:'yes',count:1,vegCount:0,special:'',
+    needInvitation:false,address:'',blessing:'',publicBlessing:true
+  });
+  const [submitted,setSubmitted] = useState(false);
+  const [submitting,setSubmitting] = useState(false);
+  const [sessionToken,setSessionToken] = useState('');
+  const [recaptchaToken,setRecaptchaToken] = useState('');
+  const [formStartTime] = useState(Date.now());
+  const [validationError,setValidationError] = useState('');
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  // 初始化 session token 和 reCAPTCHA v3
+  useEffect(()=>{
+    const token = 'session_'+Math.random().toString(36).slice(2,9)+Date.now().toString(36);
+    setSessionToken(token);
+    
+    // 載入 reCAPTCHA v3
+    const script = document.createElement('script');
+    script.src = 'https://www.google.com/recaptcha/api.js?render=6LcxP_0sAAAAAHe4Fe37bhtMDpKAKIgAUM08Q0P9';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+    
+    return ()=>document.head.removeChild(script);
+  },[]);
+
+  // 表單驗證加強
+  const validateForm = () => {
+    setValidationError('');
+    const name = form.name.trim();
+    
+    // 姓名檢查
+    if (!name) { setValidationError('請輸入姓名'); return false; }
+    if (name.length < 2 || name.length > 20) { setValidationError('姓名需 2-20 字'); return false; }
+    if (!/^[\u4e00-\u9fff\w\s\-\.]{2,20}$/.test(name)) { setValidationError('姓名格式不符'); return false; }
+    
+    // 禁用詞檢查
+    const banWords = ['test','123','aaa','demo','fake','robot','bot','xxx'];
+    if (banWords.some(w => name.toLowerCase().includes(w.toLowerCase()))) {
+      setValidationError('姓名不符合規範');
+      return false;
+    }
+    
+    // 表單填寫時間檢查（太快 < 2 秒可能是機器人）
+    const fillTime = Date.now() - formStartTime;
+    if (fillTime < 2000) {
+      setValidationError('請仔細填寫表單');
+      return false;
+    }
+    
+    // 人數檢查
+    if (form.attending === 'yes') {
+      if (form.count > 15) { setValidationError('人數過多，請聯繫新人'); return false; }
+      if (form.vegCount > form.count) { setValidationError('素食人數不能超過總人數'); return false; }
+    }
+    
+    return true;
+  };
+
+  // 速率限制檢查
+  const checkRateLimit = () => {
+    const key = 'rsvp_submits';
+    const submits = JSON.parse(localStorage.getItem(key) || '[]');
+    const now = Date.now();
+    const recent = submits.filter(t => now - t < 5 * 60 * 1000); // 5 分鐘
+    
+    if (recent.length >= 3) {
+      setValidationError('提交過於頻繁，請稍候 5 分鐘後再試');
+      return false;
+    }
+    
+    // 記錄本次提交
+    recent.push(now);
+    localStorage.setItem(key, JSON.stringify(recent));
+    return true;
+  };
+
+  // 獲取 reCAPTCHA token
+  const getReCaptchaToken = async () => {
+    if (!window.grecaptcha) {
+      console.warn('reCAPTCHA not loaded');
+      return '';
+    }
+    try {
+      const token = await window.grecaptcha.execute('6LcxP_0sAAAAAHe4Fe37bhtMDpKAKIgAUM08Q0P9', {action:'rsvp'});
+      return token;
+    } catch (e) {
+      console.error('reCAPTCHA error:', e);
+      return '';
+    }
+  };
+
+  const submit = async e => {
+    e.preventDefault();
+    setValidationError('');
+    
+    // 驗證表單
+    if (!validateForm()) return;
+    
+    // 檢查速率限制
+    if (!checkRateLimit()) return;
+    
+    setSubmitting(true);
+    try {
+      // 獲取 reCAPTCHA token
+      const token = await getReCaptchaToken();
+      setRecaptchaToken(token);
+      
+      await onSubmit({
+        id:uid(), name:form.name.trim(), nickname:form.nickname.trim(),
+        side:form.side, subGroup:form.subGroup||(GI[form.side]||GI[defaultSide]).subs[0],
+        attending:form.attending==='yes',
+        count:form.attending==='yes'?Math.max(1,+form.count||1):0,
+        vegCount:form.attending==='yes'?Math.max(0,Math.min(+form.count||1,+form.vegCount||0)):0,
+        special:form.special.trim(), needInvitation:form.needInvitation,
+        address:form.needInvitation?form.address.trim():'',
+        blessing:form.blessing.trim(),
+        publicBlessing: form.blessing.trim() ? form.publicBlessing===true : false,
+        sameTable:[],avoidTable:[],tableId:null,startSeat:null,notes:'',
+        submittedAt:Date.now(),
+        // 防護相關
+        sessionToken,recaptchaToken:token
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setValidationError(err.message || '提交失敗，請稍後再試');
+    } finally { setSubmitting(false); }
+  };
+
+  const thankLines = (cfg.thankYouMsg||'').split('\n');
+
+  if(submitted) {
+    const shareUrl = window.location.href;
+    const shareTitle = `${cfg.groomName} & ${cfg.brideName} 婚禮邀請`;
+    const shareText = `${cfg.weddingDate}\n${cfg.venue}\n${shareUrl}`;
+    const handleShare = async () => {
+      if (navigator.share) {
+        try { await navigator.share({title:shareTitle,text:`${shareTitle}\n${cfg.weddingDate}\n${cfg.venue}`,url:shareUrl}); } catch(e){}
+      } else {
+        try {
+          await navigator.clipboard.writeText(`${shareTitle}\n${cfg.weddingDate}\n${cfg.venue}\n${shareUrl}`);
+          uiAlert('已複製邀請資訊到剪貼簿！');
+        } catch(e) {
+          uiPrompt('複製此連結：', shareUrl);
+        }
+      }
+    };
+    const lineMsg = (cfg.lineShareText && cfg.lineShareText.trim())
+      ? cfg.lineShareText.trim()
+      : `${shareTitle}\n${cfg.weddingDate||''}\n${cfg.venue||''}`;
+    const lineUrl = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(lineMsg)}`;
+    return (
+      <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div className="wfadein" style={{textAlign:'center',maxWidth:500}}>
+          {cfg.thankYouImgDataUrl && <img src={cfg.thankYouImgDataUrl} alt="thank-top"
+            onClick={()=>setEnlargedImg(cfg.thankYouImgDataUrl)}
+            style={{width:'min(460px, 90vw)',height:'auto',objectFit:'contain',borderRadius:4,marginBottom:16,cursor:'zoom-in'}} />}
+          <div style={{fontSize:44,marginBottom:14}}>💐</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:2,marginBottom:10}}>{cfg.thankYouTitle||'感謝您的回覆'}</div>
+          {thankLines.map((l,i)=><div key={i} style={{color:'#6B6259',lineHeight:1.9,fontSize:15}}>{l}</div>)}
+          {cfg.thankYouExtra && <div style={{marginTop:16,padding:'12px 16px',background:'#F9F5EF',borderRadius:2,fontSize:13,color:'#6B6259',textAlign:'center',lineHeight:1.8}}>{cfg.thankYouExtra}</div>}
+          {cfg.transportInfo && <div style={{marginTop:12,fontSize:12,color:'#9A8F82'}}>{cfg.transportInfo}</div>}
+          <div style={{marginTop:24,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',alignItems:'center'}}>
+            <Btn v="ghost" size="sm" onClick={()=>{setSubmitted(false);setForm({name:'',nickname:'',side:'shared',subGroup:'',attending:'yes',count:1,vegCount:0,special:'',needInvitation:false,address:'',blessing:'',publicBlessing:true});}}>再填一筆</Btn>
+            <button
+              onClick={async ()=>{
+                // #9：純文字分享（不含網址與圖片）— iOS 不再 fetch 圖片 blob，分享快且穩定
+                if (navigator.share) {
+                  try { await navigator.share({ text: lineMsg }); return; }
+                  catch(e){ if(e && e.name==='AbortError') return; /* 否則 fall through */ }
+                }
+                // 桌面/不支援 navigator.share：開 LINE 分享網頁
+                const w = window.open(lineUrl,'_blank');
+                if(!w || w.closed){
+                  if(navigator.clipboard){
+                    try { await navigator.clipboard.writeText(lineMsg); uiAlert('彈出視窗被擋下，已複製邀請資訊到剪貼簿'); }
+                    catch(e){ uiPrompt('請複製此邀請資訊手動分享：', lineMsg); }
+                  } else { uiPrompt('請複製此邀請資訊手動分享：', lineMsg); }
+                }
+              }}
+              style={{padding:'6px 16px',borderRadius:2,fontSize:12,
+                border:'1px solid #06C755',color:'#06C755',background:'transparent',
+                fontWeight:500,letterSpacing:.3,cursor:'pointer',display:'inline-flex',alignItems:'center'}}>
+              分享至Line
+            </button>
+          </div>
+          {cfg.thankYouImgBottomDataUrl && <img src={cfg.thankYouImgBottomDataUrl} alt="transport-map"
+            onClick={()=>setEnlargedImg(cfg.thankYouImgBottomDataUrl)}
+            style={{width:'min(460px, 90vw)',height:'auto',objectFit:'contain',borderRadius:4,display:'block',margin:'24px auto 0',cursor:'zoom-in',boxShadow:'0 2px 12px rgba(0,0,0,.08)'}} />}
+        </div>
+        {enlargedImg && <ImageLightbox src={enlargedImg} onClose={()=>setEnlargedImg(null)} canShare={!!cfg.thankYouImgBottomDataUrl && enlargedImg===cfg.thankYouImgBottomDataUrl} shareText={lineMsg} />}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Hero */}
+      <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
+        <PhotoCarousel photos={data.photos} speed={data.config.carouselSpeed||4500} />
+        <div style={{position:'absolute',inset:0,
+          background:`linear-gradient(180deg,${heroTheme.heroOverlayTop} 0%,${heroTheme.heroOverlayMid} 65%,${heroTheme.heroOverlayBot} 100%)`,
+          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',
+          padding:'32px 20px 52px',color:'#FFFEFA'}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,letterSpacing:8,opacity:.8,marginBottom:10}}>WE INVITE YOU TO</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:'clamp(28px,5.5vw,52px)',fontWeight:500,letterSpacing:6,lineHeight:1.2,textAlign:'center'}}>
+            {cfg.groomName}<span style={{margin:'0 14px',color:'#E5D5BD',fontFamily:"'Cormorant Garamond',serif"}}>&amp;</span>{cfg.brideName}
+          </div>
+          <div style={{marginTop:14,fontSize:12,letterSpacing:3,opacity:.88}}>{cfg.weddingDate}</div>
+        </div>
+      </div>
+
+      {/* Info bar */}
+      <div style={{maxWidth:540,margin:'0 auto',padding:'48px 20px 24px',textAlign:'center'}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F',marginBottom:12}}>THE CEREMONY</div>
+        <div style={{fontFamily:FONT_STACK,fontSize:20,letterSpacing:1,marginBottom:3}}>{cfg.venue}</div>
+        <div style={{color:'#6B6259',fontSize:13,marginBottom:2}}>{cfg.address}</div>
+        <div style={{color:'#9A8F82',fontSize:12,marginBottom:14}}>{cfg.phone}</div>
+        <div style={{display:'inline-block',padding:'7px 18px',border:'1px solid #E5D5BD',borderRadius:2,fontSize:12,color:'#B5895F',letterSpacing:2}}>{cfg.weddingTime}</div>
+        {cfg.transportInfo && <div style={{marginTop:12,fontSize:11,color:'#9A8F82'}}>{cfg.transportInfo}</div>}
+      </div>
+
+      {/* Form */}
+      <div style={{maxWidth:540,margin:'0 auto',padding:'12px 20px 64px'}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F',marginBottom:10}}>RSVP</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:22,letterSpacing:2}}>賓客回覆</div>
+          <div style={{width:28,height:1,background:'#D4B894',margin:'14px auto'}} />
+        </div>
+
+        <form onSubmit={submit} style={{...S.card,padding:'28px 24px'}}>
+          <Field label="姓名" required>
+            <TInput value={form.name} onChange={v=>set('name',v)} placeholder="您的全名" />
+          </Field>
+          <Field label="暱稱" hint="新人習慣的稱呼">
+            <TInput value={form.nickname} onChange={v=>set('nickname',v)} placeholder="例：王哥、小芬" />
+          </Field>
+          <Field label="與新人關係" required>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:7,marginBottom:8}}>
+              {orderedGroupEntries(GI).map(([k,g])=>(
+                <button key={k} type="button" onClick={()=>set('side',k)} style={{
+                  padding:'9px 6px',fontSize:13,borderRadius:2,transition:'all .15s',
+                  background:form.side===k?g.color:'#F9F5EF',color:form.side===k?'#FFFEFA':'#6B6259',
+                  border:`1px solid ${form.side===k?g.color:'#E5DDD0'}`}}>{g.label}</button>
+              ))}
+            </div>
+            <TSelect value={form.subGroup} onChange={v=>set('subGroup',v)}
+              options={[{v:'',l:'— 請選擇細分類 —'},...(GI[form.side]||GI[defaultSide]).subs.map(s=>({v:s,l:s}))]} />
+          </Field>
+          <Field label="是否出席" required>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[{v:'yes',l:'我一定到！！',c:'#7BA77B'},{v:'no',l:'無法參與\n我想留下祝福',c:'#BF7090'}].map(o=>(
+                <button key={o.v} type="button" onClick={()=>set('attending',o.v)} style={{
+                  padding:'10px 8px',fontSize:13,borderRadius:2,whiteSpace:'pre-line',lineHeight:1.4,minHeight:48,
+                  background:form.attending===o.v?o.c:'#F9F5EF',color:form.attending===o.v?'#FFFEFA':'#6B6259',
+                  border:`1px solid ${form.attending===o.v?o.c:'#E5DDD0'}`,display:'flex',alignItems:'center',justifyContent:'center'}}>{o.l}</button>
+              ))}
+            </div>
+          </Field>
+          {form.attending==='yes' && (<>
+            <div className="wed-form-grid" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+              <Field label="出席人數（含本人）" required>
+                <TInput type="number" value={form.count} onChange={v=>set('count',v)} style={{textAlign:'center'}} />
+              </Field>
+              <Field label="其中素食人數">
+                <TInput type="number" value={form.vegCount} onChange={v=>set('vegCount',v)} style={{textAlign:'center'}} />
+              </Field>
+            </div>
+            <Field label="特殊需求" hint="帶太太、帶小孩、輪椅、兒童椅、過敏等">
+              <TTextarea value={form.special} onChange={v=>set('special',v)} placeholder="若無請留空" rows={2} />
+            </Field>
+            <Field label="">
+              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#6B6259'}}>
+                <input type="checkbox" checked={form.needInvitation} onChange={e=>set('needInvitation',e.target.checked)} />
+                需要紙本喜帖
+              </label>
+            </Field>
+            {form.needInvitation && (
+              <Field label="郵寄地址">
+                <TTextarea value={form.address} onChange={v=>set('address',v)} placeholder="完整地址含郵遞區號" rows={2} />
+              </Field>
+            )}
+          </>)}
+          <Field label="給新人的祝福（非必填）">
+            <TTextarea value={form.blessing} onChange={v=>set('blessing',v)} placeholder="留下您的祝福..." rows={3} />
+            <label style={{display:'flex',alignItems:'flex-start',gap:8,marginTop:10,fontSize:12,color:'#6B6259',cursor:'pointer',lineHeight:1.6}}>
+              <input type="checkbox" checked={form.publicBlessing||false} onChange={e=>set('publicBlessing',e.target.checked)} style={{cursor:'pointer',marginTop:2,flexShrink:0}} />
+              公開我的祝福：勾選後將顯示在「祝福牆」公開頁面（優先顯示您的暱稱）；如不希望公開，請取消勾選。
+            </label>
+          </Field>
+          {validationError && (
+            <div style={{padding:'10px 12px',background:'#F5DCE2',border:'1px solid #BF7090',borderRadius:3,color:'#BF7090',fontSize:12,marginBottom:12,lineHeight:1.5}}>
+              ⚠ {validationError}
+            </div>
+          )}
+          <Btn type="submit" disabled={submitting||!form.name.trim()||!!validationError} style={{width:'100%',marginTop:8,padding:'13px 0',fontSize:15,justifyContent:'center'}}>
+            {submitting?<><Spinner size={14} color="#FFFEFA" /> 送出中</>:'送出回覆'}
+          </Btn>
+        </form>
+      </div>
+      {cfg.footerText ? (
+        <div style={{textAlign:'center',padding:'24px 20px',borderTop:'1px solid #E5DDD0',color:'#9A8F82',fontSize:11,letterSpacing:.5,lineHeight:1.9,whiteSpace:'pre-line'}}>
+          {cfg.footerText}
+        </div>
+      ) : (
+        <div style={{textAlign:'center',padding:'24px 20px',borderTop:'1px solid #E5DDD0',color:'#9A8F82',fontSize:10,letterSpacing:3}}>
+          WEDDING OF {cfg.groomName} &amp; {cfg.brideName}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// BLESSING WALL PAGE — 公開祝福牆（瀑布流卡片）
+// ============================================================
+function BlessingWallPage({data}) {
+  const cfg = data.config || {};
+  const GI = getGroupInfo(cfg);
+  // 只取勾選公開的祝福
+  const blessings = useMemo(()=>{
+    return (data.guests||[])
+      .filter(g => g.blessing && g.blessing.trim() && g.publicBlessing === true)
+      .sort((a,b) => (b.submittedAt||0) - (a.submittedAt||0));
+  },[data.guests]);
+
+  // 卡片顏色 (依分類取色，無分類用預設)
+  const cardBgs = ['#FFF8F0','#F5F8FF','#FFF0F5','#F0FFF4','#FFFAF0','#F5F0FF','#FFFFF0'];
+
+  // 響應式欄數
+  const [cols, setCols] = useState(3);
+  useEffect(()=>{
+    const update = () => {
+      const w = window.innerWidth;
+      if (w < 640) setCols(1);
+      else if (w < 1024) setCols(2);
+      else setCols(3);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return ()=>window.removeEventListener('resize', update);
+  },[]);
+
+  // 把祝福分配到各欄（瀑布流：填入最短欄）
+  const columns = useMemo(()=>{
+    const cols_ = Array.from({length:cols}, ()=>[]);
+    const heights = Array(cols).fill(0);
+    blessings.forEach(b => {
+      const minIdx = heights.indexOf(Math.min(...heights));
+      cols_[minIdx].push(b);
+      // 估算高度：基於文字長度
+      heights[minIdx] += 120 + (b.blessing.length * 0.6);
+    });
+    return cols_;
+  },[blessings, cols]);
+
+  return (
+    <div style={{minHeight:'100vh',padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto'}}>
+      {/* 標題區 */}
+      <div style={{textAlign:'center',marginBottom:40}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,letterSpacing:6,color:'#B5895F',marginBottom:10}}>BLESSING WALL</div>
+        <div style={{fontFamily:FONT_STACK,fontSize:28,letterSpacing:3,color:'#3A332B',marginBottom:8}}>給新人的祝福</div>
+        <div style={{fontSize:13,color:'#9A8F82'}}>來自親友們的溫暖祝福　·　共 {blessings.length} 則</div>
+        <div style={{margin:'18px auto 0',width:60,height:1,background:'#E5DDD0'}} />
+      </div>
+
+      {/* 沒有祝福時 */}
+      {blessings.length === 0 ? (
+        <div style={{textAlign:'center',padding:'80px 20px',color:'#9A8F82'}}>
+          <div style={{fontSize:48,marginBottom:16,opacity:.5}}>💌</div>
+          <div style={{fontSize:14,marginBottom:6}}>目前還沒有公開的祝福</div>
+          <div style={{fontSize:12}}>歡迎在邀請函留下祝福，並勾選公開讓大家看到 💝</div>
+        </div>
+      ) : (
+        /* 瀑布流卡片 */
+        <div style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,gap:16,alignItems:'start'}}>
+          {columns.map((col, ci) => (
+            <div key={ci} style={{display:'flex',flexDirection:'column',gap:16}}>
+              {col.map((g, gi) => {
+                const info = GI[g.side] || {color:'#9A8F82',soft:'#E8E8E8',label:''};
+                const cardBg = cardBgs[(ci*7+gi) % cardBgs.length];
+                const seed = (g.id.charCodeAt(0)||0)*7 + (g.id.charCodeAt(1)||0)*3 + (g.id.charCodeAt(2)||0);
+                const rotate = ((seed % 17) - 8) * 0.35; // -2.8° ~ +2.8°，更隨機更自然
+                const nudgeY  = ((seed % 9) - 4) * 3;    // ±12px 垂直微移
+                return (
+                  <div key={g.id} data-tp="1" style={{
+                    background:cardBg,
+                    padding:'22px 22px 18px',
+                    borderRadius:6,
+                    boxShadow:'0 2px 12px rgba(58,51,43,.08), 0 1px 3px rgba(58,51,43,.05)',
+                    transform:`rotate(${rotate}deg) translateY(${nudgeY}px)`,
+                    transition:'transform .3s ease, box-shadow .3s ease',
+                    position:'relative',
+                    border:'1px solid rgba(255,255,255,.6)'
+                  }}
+                  onMouseEnter={e=>{e.currentTarget.style.transform=`rotate(0deg) translateY(-2px)`; e.currentTarget.style.boxShadow='0 8px 20px rgba(58,51,43,.12), 0 2px 5px rgba(58,51,43,.06)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform=`rotate(${rotate}deg) translateY(${nudgeY}px)`; e.currentTarget.style.boxShadow='0 2px 12px rgba(58,51,43,.08), 0 1px 3px rgba(58,51,43,.05)';}}
+                  >
+                    <div data-tp="1" style={{position:'absolute',top:14,right:18,fontSize:18,opacity:.3}}>💝</div>
+                    <div data-tp="1" style={{fontSize:14,lineHeight:1.85,color:'#3A332B',whiteSpace:'pre-line',
+                      fontFamily:'"Noto Serif TC", serif',marginBottom:16,letterSpacing:.3}}>
+                      "{g.blessing}"
+                    </div>
+                    <div data-tp="1" style={{borderTop:'1px dashed rgba(58,51,43,.15)',paddingTop:10,
+                      display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                      <div data-tp="1" style={{fontSize:13,fontWeight:600,color:'#3A332B'}}>
+                        — {g.nickname || g.name}
+                      </div>
+                      {info.label && <span data-tp="1" style={{fontSize:10,padding:'2px 7px',background:'rgba(255,255,255,.5)',color:info.color,borderRadius:10,border:`1px solid ${info.color}40`}}>{info.label}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// GUEST EDIT MODAL
+// ============================================================
+function GuestModal({open,guest,allGuests,onSave,onClose,onDelete,groupInfo}) {
+  const GI = groupInfo || GROUP_INFO;
+  const [g,setG] = useState(null);
+  useEffect(()=>{
+    if(open) setG(guest?{...guest}:{
+      id:uid(),name:'',nickname:'',side:Object.keys(GI)[2]||Object.keys(GI)[0],subGroup:(GI[Object.keys(GI)[2]]||GI[Object.keys(GI)[0]]).subs[0],
+      attending:true,count:1,vegCount:0,special:'',notes:'',
+      sameTable:[],avoidTable:[],tableId:null,startSeat:null,needInvitation:false,address:'',
+      blessing:'',publicBlessing:false
+    });
+  },[open,guest]);
+  if(!open||!g) return null;
+  const up = (k,v) => setG(p=>({...p,[k]:v}));
+  const others = allGuests.filter(x=>x.id!==g.id);
+  const stGuests = (g.sameTable||[]).map(id=>others.find(o=>o.id===id)).filter(Boolean);
+  const avGuests = (g.avoidTable||[]).map(id=>others.find(o=>o.id===id)).filter(Boolean);
+  const stOpts = others.filter(o=>!(g.sameTable||[]).includes(o.id));
+  const avOpts = others.filter(o=>!(g.avoidTable||[]).includes(o.id));
+  const save = () => {
+    if(!g.name.trim()){uiAlert('請輸入姓名');return;}
+    onSave({...g,name:g.name.trim(),count:Math.max(1,+g.count||1),vegCount:Math.max(0,Math.min(+g.count||1,+g.vegCount||0))});
+  };
+  return (
+    <Modal open={open} onClose={onClose} title={guest?'編輯賓客':'新增賓客'} width={680}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <Field label="姓名" required><TInput value={g.name} onChange={v=>up('name',v)} /></Field>
+        <Field label="暱稱"><TInput value={g.nickname||''} onChange={v=>up('nickname',v)} /></Field>
+      </div>
+      <Field label="分類">
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:7,marginBottom:8}}>
+          {orderedGroupEntries(GI).map(([k,info])=>(
+            <button key={k} type="button" onClick={()=>{up('side',k);if(!info.subs.includes(g.subGroup))up('subGroup',info.subs[0]);}}
+              style={{padding:'7px',fontSize:12,borderRadius:2,background:g.side===k?info.color:'#F9F5EF',
+                color:g.side===k?'#FFFEFA':'#6B6259',border:`1px solid ${g.side===k?info.color:'#E5DDD0'}`}}>{info.label}</button>
+          ))}
+        </div>
+        <TSelect value={g.subGroup||''} onChange={v=>up('subGroup',v)} options={(GI[g.side]||GI[Object.keys(GI)[0]]).subs} />
+      </Field>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14}}>
+        <Field label="出席">
+          <div style={{display:'flex',gap:4}}>
+            {[{v:true,l:'出席',c:'#7BA77B'},{v:false,l:'婉拒',c:'#BF7090'}].map(o=>(
+              <button key={String(o.v)} type="button" onClick={()=>up('attending',o.v)} style={{
+                flex:1,padding:'7px 4px',fontSize:12,borderRadius:2,
+                background:g.attending===o.v?o.c:'#F9F5EF',color:g.attending===o.v?'#FFFEFA':'#6B6259',
+                border:`1px solid ${g.attending===o.v?o.c:'#E5DDD0'}`}}>{o.l}</button>
+            ))}
+          </div>
+        </Field>
+        <Field label="人數"><TInput type="number" value={g.count} onChange={v=>up('count',v)} disabled={!g.attending} /></Field>
+        <Field label="素食人數"><TInput type="number" value={g.vegCount} onChange={v=>up('vegCount',v)} disabled={!g.attending} /></Field>
+      </div>
+      <Field label="特殊需求" hint="帶太太、輪椅、過敏等">
+        <TInput value={g.special||''} onChange={v=>up('special',v)} />
+      </Field>
+      <Field label="想同桌">
+        <div style={{minHeight:34,padding:7,border:'1px solid #E5DDD0',borderRadius:2,display:'flex',flexWrap:'wrap',gap:5,marginBottom:5}}>
+          {!stGuests.length&&<span style={{color:'#9A8F82',fontSize:12}}>未設定</span>}
+          {stGuests.map(o=><Tag key={o.id} color="#7BA77B" soft="#E5F0E5" small onRemove={()=>up('sameTable',(g.sameTable||[]).filter(x=>x!==o.id))}>{o.name}</Tag>)}
+        </div>
+        {stOpts.length>0&&<TSelect value="" onChange={v=>{if(v)up('sameTable',[...(g.sameTable||[]),v]);}}
+          options={[{v:'',l:'+ 新增同桌偏好'},...stOpts.map(o=>({v:o.id,l:o.name+(o.nickname?` (${o.nickname})`:'')}))]} />}
+      </Field>
+      <Field label="要避桌">
+        <div style={{minHeight:34,padding:7,border:'1px solid #E5DDD0',borderRadius:2,display:'flex',flexWrap:'wrap',gap:5,marginBottom:5}}>
+          {!avGuests.length&&<span style={{color:'#9A8F82',fontSize:12}}>未設定</span>}
+          {avGuests.map(o=><Tag key={o.id} color="#C04040" soft="#FAEEEE" small onRemove={()=>up('avoidTable',(g.avoidTable||[]).filter(x=>x!==o.id))}>{o.name}</Tag>)}
+        </div>
+        {avOpts.length>0&&<TSelect value="" onChange={v=>{if(v)up('avoidTable',[...(g.avoidTable||[]),v]);}}
+          options={[{v:'',l:'+ 新增避桌名單'},...avOpts.map(o=>({v:o.id,l:o.name+(o.nickname?` (${o.nickname})`:'')}))]} />}
+      </Field>
+      <Field label="備註（內部用）"><TTextarea value={g.notes||''} onChange={v=>up('notes',v)} rows={2} /></Field>
+      {g.blessing && g.blessing.trim() && (
+        <Field label="祝福公開">
+          <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#6B6259'}}>
+            <input type="checkbox" checked={g.publicBlessing||false} onChange={e=>up('publicBlessing',e.target.checked)} style={{cursor:'pointer'}} />
+            顯示在祝福牆（公開頁面）
+          </label>
+          {g.blessing && <div style={{marginTop:6,padding:'8px 10px',background:'#F9F5EF',borderRadius:2,fontSize:12,color:'#9A8F82',fontStyle:'italic',maxHeight:60,overflow:'hidden',lineHeight:1.5}}>「{g.blessing.slice(0,60)}{g.blessing.length>60?'…':''}」</div>}
+        </Field>
+      )}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20,paddingTop:16,borderTop:'1px solid #E5DDD0'}}>
+        {guest&&onDelete?<Btn v="red" size="sm" onClick={async()=>{if(await uiConfirm({title:'刪除賓客',message:'確定刪除這位賓客？此動作無法復原。',danger:true,confirmText:'刪除'})){onDelete(guest.id);onClose();}}}>🗑 刪除</Btn>:<div/>}
+        <div style={{display:'flex',gap:8}}>
+          <Btn v="ghost" onClick={onClose}>取消</Btn>
+          <Btn onClick={save}>儲存</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================
+// AVOID PAIRS MODAL
+// ============================================================
+function AvoidPairsModal({open,onClose,data,onUpdate}) {
+  const [a,setA] = useState('');
+  const [b,setB] = useState('');
+  // 本地 state 確保新增後立即反映在列表
+  const [localPairs, setLocalPairs] = useState([]);
+  const [flash, setFlash] = useState(''); // 新增成功的提示
+  const guests = data.guests;
+
+  // Modal 打開時：自動合併 avoidPairs 與 guest.avoidTable 衍生對（雙向同步初始化）
+  useEffect(()=>{
+    if (!open) return;
+    const existing = data.avoidPairs || [];
+    const derived = []; const seen = new Set();
+    existing.forEach(([pa,pb])=>{ seen.add([pa,pb].sort().join('|')); });
+    data.guests.forEach(g=>{
+      (g.avoidTable||[]).forEach(otherId=>{
+        const key = [g.id,otherId].sort().join('|');
+        if (seen.has(key)) return; seen.add(key);
+        derived.push([g.id,otherId]);
+      });
+    });
+    setLocalPairs([...existing, ...derived]);
+  },[open]);
+
+  const pairs = localPairs;
+
+  // 核心：更新時同步 avoidPairs 與 guest.avoidTable（雙向同步）
+  const syncToData = (newPairs) => {
+    // 從 newPairs 建立每位賓客的 avoidTable 集合
+    const avoidMap = {};
+    newPairs.forEach(([pa,pb])=>{
+      if (!avoidMap[pa]) avoidMap[pa] = new Set();
+      if (!avoidMap[pb]) avoidMap[pb] = new Set();
+      avoidMap[pa].add(pb);
+      avoidMap[pb].add(pa);
+    });
+    // 更新每位賓客的 avoidTable
+    const newGuests = data.guests.map(g => {
+      const set = avoidMap[g.id] || new Set();
+      return { ...g, avoidTable: Array.from(set) };
+    });
+    setLocalPairs(newPairs);
+    onUpdate({ ...data, avoidPairs: newPairs, guests: newGuests });
+  };
+
+  const gName = id => {
+    const g = guests.find(x=>x.id===id);
+    return g ? (g.nickname||g.name) : id;
+  };
+
+  const conflicts = useMemo(()=>{
+    return pairs.filter(([pa,pb])=>{
+      const ga = guests.find(g=>g.id===pa), gb = guests.find(g=>g.id===pb);
+      return ga&&gb&&ga.attending&&gb.attending&&ga.tableId&&ga.tableId===gb.tableId;
+    });
+  },[pairs,guests]);
+
+  const addPair = () => {
+    if(!a||!b||a===b) return;
+    const exists = pairs.some(([pa,pb])=>(pa===a&&pb===b)||(pa===b&&pb===a));
+    if(exists){uiAlert('這組配對已存在');return;}
+    syncToData([...pairs,[a,b]]);
+    const ga = guests.find(g=>g.id===a), gb = guests.find(g=>g.id===b);
+    setFlash(`✅ 已建立避桌：${ga?.nickname||ga?.name} ↔ ${gb?.nickname||gb?.name}`);
+    setTimeout(()=>setFlash(''), 2500);
+    setA(''); setB('');
+  };
+  const removePair = async i => {
+    const [pa,pb] = pairs[i];
+    const ga = guests.find(g=>g.id===pa), gb = guests.find(g=>g.id===pb);
+    if (!await uiConfirm(`確定移除「${ga?.nickname||ga?.name||pa} ↔ ${gb?.nickname||gb?.name||pb}」？`)) return;
+    const next = [...pairs]; next.splice(i,1);
+    syncToData(next);
+  };
+
+  const opts = [{v:'',l:'— 選擇賓客 —'},...guests.map(g=>({v:g.id,l:g.name+(g.nickname?` (${g.nickname})`:'')}))];
+
+  return (
+    <Modal open={open} onClose={onClose} title={`避免同桌管理　${pairs.length} 組`} width={600}>
+      {conflicts.length>0 && (
+        <div style={{background:'#FAEEEE',border:'1px solid #E0BCBC',borderRadius:2,padding:'10px 14px',marginBottom:16,color:'#C04040',fontSize:12}}>
+          ⚠ {conflicts.length} 組避桌關係的賓客目前被排在同一桌
+        </div>
+      )}
+      {flash && (
+        <div style={{background:'#E8F5E8',border:'1px solid #B5D5B5',borderRadius:2,padding:'10px 14px',marginBottom:16,color:'#2A6B2A',fontSize:13}}>
+          {flash}
+        </div>
+      )}
+      <div style={{fontSize:11,color:'#9A8F82',marginBottom:12,lineHeight:1.6}}>
+        💡 提示：在此新增的避桌配對會自動同步到對應賓客的個別設定，並顯示在名單列表的避桌欄位中。
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr auto',gap:8,alignItems:'center',marginBottom:16}}>
+        <TSelect value={a} onChange={setA} options={opts} />
+        <span style={{color:'#9A8F82',fontSize:12,padding:'0 4px'}}>vs</span>
+        <TSelect value={b} onChange={setB} options={opts} />
+        <Btn onClick={addPair} disabled={!a||!b||a===b} size="sm">新增</Btn>
+      </div>
+      <div style={{maxHeight:340,overflowY:'auto'}}>
+        {pairs.map(([pa,pb],i)=>{
+          const conflict = conflicts.some(([ca,cb])=>(ca===pa&&cb===pb)||(ca===pb&&cb===pa));
+          return (
+            <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'10px 12px',marginBottom:6,borderRadius:2,
+              background:conflict?'#FFF0F0':'#F9F5EF',border:`1px solid ${conflict?'#E0BCBC':'#E5DDD0'}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                <Tag small color="#B5895F" soft="#EFE3D0">{gName(pa)}</Tag>
+                <span style={{color:'#9A8F82',fontSize:11}}>避桌</span>
+                <Tag small color="#B5895F" soft="#EFE3D0">{gName(pb)}</Tag>
+                {conflict && <span style={{color:'#C04040',fontSize:11}}>⚠ 同桌衝突</span>}
+              </div>
+              <Btn v="red" size="sm" onClick={()=>removePair(i)}>移除</Btn>
+            </div>
+          );
+        })}
+        {pairs.length===0 && <div style={{padding:32,textAlign:'center',color:'#9A8F82',fontSize:13}}>尚未設定任何避桌配對</div>}
+      </div>
+    </Modal>
+  );
+}
+
+
+// ============================================================
+// SAME TABLE PAIRS MODAL  — 同桌偏好管理（v4.12）
+// ============================================================
+function SameTablePairsModal({open,onClose,data,onUpdate}) {
+  const [a,setA] = useState('');
+  const [b,setB] = useState('');
+  const [localPairs, setLocalPairs] = useState([]);
+  const [flash, setFlash] = useState('');
+  const guests = data.guests;
+
+  // Modal 打開時：合併 samePairs 與 guest.sameTable 衍生對
+  useEffect(()=>{
+    if (!open) return;
+    const existing = data.samePairs || [];
+    const derived = []; const seen = new Set();
+    existing.forEach(([pa,pb])=>{ seen.add([pa,pb].sort().join('|')); });
+    data.guests.forEach(g=>{
+      (g.sameTable||[]).forEach(otherId=>{
+        const key = [g.id,otherId].sort().join('|');
+        if (seen.has(key)) return; seen.add(key);
+        derived.push([g.id,otherId]);
+      });
+    });
+    setLocalPairs([...existing, ...derived]);
+  },[open]);
+
+  const pairs = localPairs;
+
+  // 雙向同步 samePairs ↔ guest.sameTable
+  const syncToData = (newPairs) => {
+    const sameMap = {};
+    newPairs.forEach(([pa,pb])=>{
+      if (!sameMap[pa]) sameMap[pa] = new Set();
+      if (!sameMap[pb]) sameMap[pb] = new Set();
+      sameMap[pa].add(pb);
+      sameMap[pb].add(pa);
+    });
+    const newGuests = data.guests.map(g => {
+      const set = sameMap[g.id] || new Set();
+      return { ...g, sameTable: Array.from(set) };
+    });
+    setLocalPairs(newPairs);
+    onUpdate({ ...data, samePairs: newPairs, guests: newGuests });
+  };
+
+  const gName = id => {
+    const g = guests.find(x=>x.id===id);
+    return g ? (g.nickname||g.name) : id;
+  };
+
+  // 「未滿足」= 兩人都有排桌卻不同桌，或其中一人未排桌
+  const unmet = useMemo(()=>{
+    return pairs.filter(([pa,pb])=>{
+      const ga = guests.find(g=>g.id===pa), gb = guests.find(g=>g.id===pb);
+      if (!ga||!gb||!ga.attending||!gb.attending) return false;
+      if (!ga.tableId || !gb.tableId) return true;   // 至少一人未排桌
+      return ga.tableId !== gb.tableId;               // 已排但不同桌
+    });
+  },[pairs,guests]);
+
+  const addPair = () => {
+    if(!a||!b||a===b) return;
+    const exists = pairs.some(([pa,pb])=>(pa===a&&pb===b)||(pa===b&&pb===a));
+    if(exists){uiAlert('這組配對已存在');return;}
+    syncToData([...pairs,[a,b]]);
+    const ga = guests.find(g=>g.id===a), gb = guests.find(g=>g.id===b);
+    setFlash(`✅ 已建立同桌偏好：${ga?.nickname||ga?.name} ↔ ${gb?.nickname||gb?.name}`);
+    setTimeout(()=>setFlash(''), 2500);
+    setA(''); setB('');
+  };
+  const removePair = async i => {
+    const [pa,pb] = pairs[i];
+    const ga = guests.find(g=>g.id===pa), gb = guests.find(g=>g.id===pb);
+    if (!await uiConfirm(`確定移除「${ga?.nickname||ga?.name||pa} ↔ ${gb?.nickname||gb?.name||pb}」？`)) return;
+    const next = [...pairs]; next.splice(i,1);
+    syncToData(next);
+  };
+
+  const opts = [{v:'',l:'— 選擇賓客 —'},...guests.map(g=>({v:g.id,l:g.name+(g.nickname?` (${g.nickname})`:'')}))];
+
+  return (
+    <Modal open={open} onClose={onClose} title={`同桌偏好管理　${pairs.length} 組`} width={600}>
+      {unmet.length>0 && (
+        <div style={{background:'#FFFBE8',border:'1px solid #E8D86A',borderRadius:2,padding:'10px 14px',marginBottom:16,color:'#7A5C00',fontSize:12}}>
+          💛 {unmet.length} 組同桌偏好尚未滿足（賓客未排桌或排在不同桌）
+        </div>
+      )}
+      {flash && (
+        <div style={{background:'#E8F5E8',border:'1px solid #B5D5B5',borderRadius:2,padding:'10px 14px',marginBottom:16,color:'#2A6B2A',fontSize:13}}>
+          {flash}
+        </div>
+      )}
+      <div style={{fontSize:11,color:'#9A8F82',marginBottom:12,lineHeight:1.6}}>
+        💡 提示：在此新增的同桌偏好會自動同步到對應賓客的個別設定，並顯示在名單列表的同桌欄位中。
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr auto',gap:8,alignItems:'center',marginBottom:16}}>
+        <TSelect value={a} onChange={setA} options={opts} />
+        <span style={{color:'#9A8F82',fontSize:12,padding:'0 4px'}}>同桌</span>
+        <TSelect value={b} onChange={setB} options={opts} />
+        <Btn onClick={addPair} disabled={!a||!b||a===b} size="sm">新增</Btn>
+      </div>
+      <div style={{maxHeight:340,overflowY:'auto'}}>
+        {pairs.map(([pa,pb],i)=>{
+          const isUnmet = unmet.some(([ca,cb])=>(ca===pa&&cb===pb)||(ca===pb&&cb===pa));
+          return (
+            <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'10px 12px',marginBottom:6,borderRadius:2,
+              background:isUnmet?'#FFFBE8':'#F9F5EF',border:`1px solid ${isUnmet?'#E8D86A':'#E5DDD0'}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                <Tag small color="#7BA77B" soft="#E5F0E5">{gName(pa)}</Tag>
+                <span style={{color:'#9A8F82',fontSize:11}}>同桌</span>
+                <Tag small color="#7BA77B" soft="#E5F0E5">{gName(pb)}</Tag>
+                {isUnmet && <span style={{color:'#7A5C00',fontSize:11}}>💛 未滿足</span>}
+              </div>
+              <Btn v="red" size="sm" onClick={()=>removePair(i)}>移除</Btn>
+            </div>
+          );
+        })}
+        {pairs.length===0 && <div style={{padding:32,textAlign:'center',color:'#9A8F82',fontSize:13}}>尚未設定任何同桌偏好</div>}
+      </div>
+    </Modal>
+  );
+}
+
+
+// ============================================================
+// ADMIN PAGE
+// ============================================================
+function AdminPage({data,onUpdate}) {
+  const GI = getGroupInfo(data.config);
+  const [search,setSearch] = useState('');
+  const [filterSide,setFilterSide] = useState('all');
+  const [showDeclined,setShowDeclined] = useState(false);
+  const [sortCol,setSortCol] = useState('submittedAt');
+  const [sortAsc,setSortAsc] = useState(true);
+  const [editG,setEditG] = useState(null);
+  const [blessingView,setBlessingView] = useState(null);  // 祝福浮窗
+  const [showAdd,setShowAdd] = useState(false);
+  const [showAvoid,setShowAvoid] = useState(false);
+  const [showSame,setShowSame]   = useState(false);
+
+  const attending = data.guests.filter(g=>g.attending);
+  const totalCount = attending.reduce((s,g)=>s+(g.count||0),0);
+  const vegTotal  = attending.reduce((s,g)=>s+(g.vegCount||0),0);
+  const meatTotal = totalCount-vegTotal;
+  const totalSeats= data.tables.reduce((s,t)=>s+(t.capacity||0),0);
+  const seated    = attending.filter(g=>g.tableId).reduce((s,g)=>s+(g.count||0),0);
+  const declined  = data.guests.filter(g=>!g.attending).length;
+
+  const avoidConflicts = useMemo(()=>effectiveAvoidPairs(data).filter(([a,b])=>{
+    const ga=data.guests.find(g=>g.id===a),gb=data.guests.find(g=>g.id===b);
+    return ga&&gb&&ga.attending&&gb.attending&&ga.tableId&&ga.tableId===gb.tableId;
+  }),[data.avoidPairs,data.guests]);
+
+  const sameUnmetCount = useMemo(()=>effectiveSamePairs(data).filter(([a,b])=>{
+    const ga=data.guests.find(g=>g.id===a),gb=data.guests.find(g=>g.id===b);
+    if (!ga||!gb||!ga.attending||!gb.attending) return false;
+    if (!ga.tableId||!gb.tableId) return true;
+    return ga.tableId!==gb.tableId;
+  }).length,[data.samePairs,data.guests]);
+
+  const toggleSort = col => {
+    if(sortCol===col) setSortAsc(p=>!p);
+    else { setSortCol(col); setSortAsc(true); }
+  };
+
+  const filtered = data.guests.filter(g=>{
+    if(!showDeclined&&!g.attending) return false;
+    if(filterSide!=='all'&&g.side!==filterSide) return false;
+    if(search){
+      const q=search.toLowerCase();
+      if(!(g.name||'').toLowerCase().includes(q)&&!(g.nickname||'').toLowerCase().includes(q)&&!(g.subGroup||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    let av='',bv='';
+    if(sortCol==='分類')   {av=GI[a.side]?.label||'';bv=GI[b.side]?.label||'';}
+    if(sortCol==='子分類') {av=a.subGroup||'';bv=b.subGroup||'';}
+    if(sortCol==='桌號')   {
+      const ta=data.tables.find(t=>t.id===a.tableId)?.name||'zzz';
+      const tb=data.tables.find(t=>t.id===b.tableId)?.name||'zzz';
+      av=ta;bv=tb;
+    }
+    if(!av&&!bv){return a.attending===b.attending?((a.submittedAt||0)-(b.submittedAt||0)):a.attending?-1:1;}
+    const r=av.localeCompare(bv,'zh');
+    return sortAsc?r:-r;
+  });
+
+  const saveGuest = g => {
+    const exists=data.guests.find(x=>x.id===g.id);
+    onUpdate({...data,guests:exists?data.guests.map(x=>x.id===g.id?g:x):[...data.guests,g]});
+    setEditG(null); setShowAdd(false);
+  };
+  const deleteGuest = id => {
+    onUpdate({...data,
+      guests:data.guests.filter(g=>g.id!==id).map(g=>({...g,sameTable:(g.sameTable||[]).filter(x=>x!==id),avoidTable:(g.avoidTable||[]).filter(x=>x!==id)})),
+      avoidPairs:(data.avoidPairs||[]).filter(([a,b])=>a!==id&&b!==id)
+    });
+  };
+  const toggleAtt = id => onUpdate({...data,guests:data.guests.map(g=>g.id===id?{...g,attending:!g.attending}:g)});
+  const updCount  = (id,d) => onUpdate({...data,guests:data.guests.map(g=>g.id===id?{...g,count:Math.max(1,(g.count||1)+d)}:g)});
+
+  const exportCSV = () => {
+    const tn = id => data.tables.find(t=>t.id===id)?.name||'';
+    const gn = id => data.guests.find(g=>g.id===id)?.name||'';
+    const h=['姓名','暱稱','分類','子分類','出席','人數','素食','特殊需求','想同桌','要避桌','分區','桌號','備註','紙本喜帖','地址','祝福語','提交時間'];
+    const rows=data.guests.map(g=>[
+      g.name,g.nickname||'',GI[g.side]?.label||'',g.subGroup||'',
+      g.attending?'出席':'婉拒',g.count,g.vegCount,g.special||'',
+      (g.sameTable||[]).map(gn).join('、'),(g.avoidTable||[]).map(gn).join('、'),
+      zoneNameOf(data,g.tableId),tn(g.tableId),g.notes||'',g.needInvitation?'是':'否',g.address||'',
+      g.blessing||'',g.submittedAt?new Date(g.submittedAt).toLocaleString('zh-TW'):''
+    ]);
+    download('賓客名單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
+  };
+
+  const exportInviteList = () => {
+    const h=['姓名','暱稱','人數','地址','特殊需求'];
+    const rows=data.guests.filter(g=>g.needInvitation&&g.attending).map(g=>[g.name,g.nickname||'',g.count,g.address||'',g.special||'']);
+    if(!rows.length){uiAlert('沒有需要紙本喜帖的賓客');return;}
+    download('索取紙本喜帖名單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
+  };
+
+  const exportVegList = () => {
+    const tn = id => data.tables.find(t=>t.id===id)?.name||'';
+    const h=['姓名','暱稱','分類','子分類','總人數','素食數','分區','桌號'];
+    const rows=data.guests.filter(g=>g.attending&&(g.vegCount||0)>0).map(g=>[
+      g.name,g.nickname||'',GI[g.side]?.label||'',g.subGroup||'',g.count||1,g.vegCount||0,zoneNameOf(data,g.tableId),tn(g.tableId)
+    ]);
+    if(!rows.length){uiAlert('沒有素食賓客');return;}
+    download('素食名單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
+  };
+
+  const exportSpecialList = () => {
+    const tn = id => data.tables.find(t=>t.id===id)?.name||'';
+    const h=['姓名','暱稱','分類','子分類','人數','特殊需求','分區','桌號'];
+    const rows=data.guests.filter(g=>g.attending&&g.special&&g.special.trim()).map(g=>[
+      g.name,g.nickname||'',GI[g.side]?.label||'',g.subGroup||'',g.count||1,g.special,zoneNameOf(data,g.tableId),tn(g.tableId)
+    ]);
+    if(!rows.length){uiAlert('沒有特殊需求賓客');return;}
+    download('特殊需求名單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
+  };
+
+  const SortTh = ({col,children}) => (
+    <th onClick={()=>toggleSort(col)} style={{padding:'11px 9px',textAlign:'left',fontWeight:500,color:'#6B6259',fontSize:12,letterSpacing:.3,whiteSpace:'nowrap',cursor:'pointer',userSelect:'none'}}>
+      {children}{sortCol===col?(sortAsc?' ▲':' ▼'):''}
+    </th>
+  );
+
+  return (
+    <div style={{maxWidth:1400,margin:'0 auto',padding:'20px 16px'}}>
+      {/* Header */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:20,flexWrap:'wrap',gap:10}}>
+        <div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>ADMIN · GUEST LIST</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:1,marginTop:2}}>名單管理</div>
+        </div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          <Btn v="ghost" size="sm" onClick={()=>setShowAvoid(true)}>
+            避桌管理 {avoidConflicts.length>0&&<span style={{background:'#C04040',color:'#fff',borderRadius:'50%',padding:'0 5px',fontSize:10,marginLeft:3}}>{avoidConflicts.length}</span>}
+          </Btn>
+          <Btn v="ghost" size="sm" onClick={()=>setShowSame(true)}>
+            同桌管理 {sameUnmetCount>0&&<span style={{background:'#B5895F',color:'#fff',borderRadius:'50%',padding:'0 5px',fontSize:10,marginLeft:3}}>{sameUnmetCount}</span>}
+          </Btn>
+          <Dropdown label="匯出" items={[
+            {label:'匯出 CSV (完整名單)', action: exportCSV},
+            {label:'匯出索取紙本喜帖名單', action: exportInviteList},
+            {label:'匯出素食名單', action: exportVegList},
+            {label:'匯出特殊需求名單', action: exportSpecialList}
+          ]} />
+          <Btn size="sm" onClick={()=>setShowAdd(true)}>＋ 新增賓客</Btn>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="wed-stats" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+        {[
+          {l:'確認出席',v:data.guests.filter(g=>g.attending).length,sub:declined+' 組婉拒'},
+          {l:'出席人數',v:totalCount,sub:`/ ${totalSeats||0} 席`},
+          {l:'葷食',v:meatTotal,c:'#B5895F'},
+          {l:'素食',v:vegTotal,c:'#7BA77B'},
+        ].map((s,i)=>(
+          <div key={i} style={{...S.card,padding:'14px 16px'}}>
+            <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>{s.l}</div>
+            <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:s.c||'#3A332B',lineHeight:1}}>{s.v}</div>
+            {s.sub&&<div style={{fontSize:10,color:'#9A8F82',marginTop:2}}>{s.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Progress bar */}
+      <div style={{...S.card,padding:'12px 18px',marginBottom:16}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+          <div style={{fontSize:11,color:'#6B6259',letterSpacing:.5}}>席次使用進度</div>
+          <div style={{fontSize:12,color:'#B5895F',fontWeight:500}}>{seated} / {totalSeats||0} 席　已排 {totalSeats?Math.round(seated/totalSeats*100):0}%</div>
+        </div>
+        <div style={{height:6,background:'#F1EAE0',borderRadius:3,overflow:'hidden'}}>
+          <div style={{width:totalSeats?Math.min(100,seated/totalSeats*100)+'%':'0%',height:'100%',background:'#B5895F',transition:'width .4s'}} />
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{...S.card,padding:'13px 16px',marginBottom:10,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+        <TInput value={search} onChange={setSearch} placeholder="🔍 搜尋姓名／暱稱／子分類" style={{flex:'1 1 220px'}} />
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {[{v:'all',l:'全部'},...Object.entries(GI).map(([k,info])=>({v:k,l:info.label}))].map(f=>(
+            <button key={f.v} onClick={()=>setFilterSide(f.v)} style={{
+              padding:'5px 11px',fontSize:11,letterSpacing:.3,borderRadius:2,
+              background:filterSide===f.v?'#B5895F':'transparent',
+              color:filterSide===f.v?'#FFFEFA':'#6B6259',
+              border:`1px solid ${filterSide===f.v?'#B5895F':'#E5DDD0'}`}}>{f.l}</button>
+          ))}
+        </div>
+        <label style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#6B6259',cursor:'pointer',whiteSpace:'nowrap'}}>
+          <input type="checkbox" checked={showDeclined} onChange={e=>setShowDeclined(e.target.checked)} />
+          顯示婉拒 ({declined})
+        </label>
+      </div>
+
+      {/* Table */}
+      <div style={{...S.card,overflow:'hidden'}}>
+        <div className="wed-scroll wed-guest-table" style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+            <thead>
+              <tr style={{background:'#F9F5EF',borderBottom:'1px solid #E5DDD0'}}>
+                <th style={{padding:'11px 9px',textAlign:'left',fontWeight:500,color:'#6B6259',fontSize:12}}>姓名</th>
+                <SortTh col="分類">分類</SortTh>
+                <SortTh col="子分類">子分類</SortTh>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>出席</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>人數</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>素食</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,maxWidth:140}}>想同桌</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,maxWidth:140}}>避桌</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>特殊需求</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>祝福</th>
+                <SortTh col="桌號">桌號{(data.zones||[]).length>0?' / 分區':''}</SortTh>
+                <th/>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(g=>{
+                const info=GI[g.side]||{color:'#9A8F82',soft:'#E8E8E8',label:g.side||'—'};
+                const tbl=data.tables.find(t=>t.id===g.tableId);
+                return (
+                  <tr key={g.id} style={{borderBottom:'1px solid #F1EAE0'}}>
+                    <td style={{padding:'11px 9px'}}>
+                      <button onClick={()=>setEditG(g)} style={{textAlign:'left'}}>
+                        <div style={{fontWeight:500}}>{g.name}{(g.count||1)>1&&<span style={{color:'#B5895F',fontSize:11,marginLeft:3}}>+{(g.count||1)-1}</span>}</div>
+                        {g.nickname&&<div style={{fontSize:11,color:'#9A8F82'}}>{g.nickname}</div>}
+                      </button>
+                    </td>
+                    <td style={{padding:'11px 9px'}}><Tag color={info.color} soft={info.soft} small>{info.label}</Tag></td>
+                    <td style={{padding:'11px 9px',fontSize:12,color:'#6B6259'}}>{g.subGroup||'—'}</td>
+                    <td style={{padding:'11px 9px'}}>
+                      <button onClick={()=>toggleAtt(g.id)} style={{padding:'2px 8px',fontSize:11,borderRadius:2,
+                        color:g.attending?'#7BA77B':'#BF7090',background:g.attending?'#E5F0E5':'#F5DCE2'}}>
+                        {g.attending?'✓ 出席':'✕ 婉拒'}
+                      </button>
+                    </td>
+                    <td style={{padding:'11px 9px',opacity:g.attending?1:.4}}>
+                      <div style={{display:'flex',alignItems:'center',gap:2}}>
+                        <button onClick={()=>updCount(g.id,-1)} disabled={!g.attending} style={{padding:'1px 5px',color:'#9A8F82'}}>−</button>
+                        <span style={{minWidth:16,textAlign:'center',fontWeight:500}}>{g.count}</span>
+                        <button onClick={()=>updCount(g.id,1)} disabled={!g.attending} style={{padding:'1px 5px',color:'#9A8F82'}}>＋</button>
+                      </div>
+                    </td>
+                    <td style={{padding:'11px 9px',textAlign:'left',fontSize:12,color:'#7BA77B'}}>{g.vegCount>0?g.vegCount:'—'}</td>
+                    <td style={{padding:'11px 9px'}}>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:3,maxWidth:160}}>
+                        {(g.sameTable||[]).slice(0,2).map(id=>{const o=data.guests.find(x=>x.id===id);return o?<Tag key={id} small color="#7BA77B" soft="#E5F0E5">{o.name}</Tag>:null;})}
+                        {(g.sameTable||[]).length>2&&<span style={{fontSize:10,color:'#9A8F82'}}>+{(g.sameTable||[]).length-2}</span>}
+                      </div>
+                    </td>
+                    <td style={{padding:'11px 9px'}}>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:3,maxWidth:160}}>
+                        {(g.avoidTable||[]).slice(0,2).map(id=>{const o=data.guests.find(x=>x.id===id);return o?<Tag key={id} small color="#C04040" soft="#FAEEEE">{o.name}</Tag>:null;})}
+                        {(g.avoidTable||[]).length>2&&<span style={{fontSize:10,color:'#9A8F82'}}>+{(g.avoidTable||[]).length-2}</span>}
+                      </div>
+                    </td>
+                    <td style={{padding:'11px 9px',fontSize:12,color:'#6B6259',maxWidth:130}}>{g.special||'—'}</td>
+                    <td style={{padding:'11px 9px'}}>
+                      {g.blessing ? (
+                        <button onClick={()=>setBlessingView(g)} title="點擊查看完整祝福"
+                          style={{padding:'3px 9px',fontSize:11,borderRadius:14,
+                            background:'#FDF3E8',color:'#B5895F',border:'1px solid #E5D5BD',cursor:'pointer'}}>
+                          💌 查看
+                        </button>
+                      ) : <span style={{fontSize:11,color:'#9A8F82'}}>—</span>}
+                    </td>
+                    <td style={{padding:'11px 9px'}}>
+                      {tbl ? (() => {
+                        const zoneList=data.zones||[];
+                        const zone=zoneList.find(a=>tbl.x>=a.x&&tbl.x<=a.x+a.w&&tbl.y>=a.y&&tbl.y<=a.y+a.h);
+                        const zc=zone?(zone.color||'#B5895F'):'#B5895F';
+                        return <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                          {zone&&<Tag small color={zc} soft={zc+'22'}>{zone.name}</Tag>}
+                          <Tag small color="#B5895F" soft="#EFE3D0">{tbl.name}</Tag>
+                        </div>;
+                      })() : (g.attending?<span style={{fontSize:11,color:'#9A8F82'}}>未排</span>:null)}
+                    </td>
+                    <td style={{padding:'11px 9px'}}><button onClick={()=>setEditG(g)} style={{fontSize:12,color:'#B5895F',padding:'3px 8px'}}>✎</button></td>
+                  </tr>
+                );
+              })}
+              {!filtered.length&&<tr><td colSpan={12} style={{padding:40,textAlign:'center',color:'#9A8F82'}}>沒有符合條件的賓客</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <GuestModal open={!!editG} guest={editG} allGuests={data.guests} onSave={saveGuest} onClose={()=>setEditG(null)} onDelete={deleteGuest} groupInfo={GI} />
+      <GuestModal open={showAdd} guest={null}  allGuests={data.guests} onSave={saveGuest} onClose={()=>setShowAdd(false)} groupInfo={GI} />
+      <AvoidPairsModal open={showAvoid} onClose={()=>setShowAvoid(false)} data={data} onUpdate={onUpdate} />
+      <SameTablePairsModal open={showSame} onClose={()=>setShowSame(false)} data={data} onUpdate={onUpdate} />
+
+      {/* 祝福查看 Modal — 卡片式設計 */}
+      {blessingView && (
+        <Modal open={!!blessingView} onClose={()=>setBlessingView(null)} title="" width={460}>
+          <div style={{margin:'-8px -4px 0',padding:'28px 28px 32px',
+            background:'linear-gradient(160deg,#FDF8F0 0%,#FAF0E8 100%)',borderRadius:6,position:'relative'}}>
+            <div style={{position:'absolute',top:18,right:22,fontSize:48,opacity:.12}}>💌</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:4,color:'#B5895F',marginBottom:6}}>BLESSING FROM</div>
+            <div style={{fontSize:20,fontWeight:600,color:'#3A332B',marginBottom:4}}>
+              {blessingView.name}
+              {blessingView.nickname && <span style={{fontSize:14,color:'#9A8F82',marginLeft:8,fontWeight:400}}>「{blessingView.nickname}」</span>}
+            </div>
+            <div style={{fontSize:11,color:'#9A8F82',marginBottom:20}}>
+              {(GI[blessingView.side]||{}).label || ''}{blessingView.subGroup ? ` · ${blessingView.subGroup}` : ''}
+            </div>
+            <div style={{borderTop:'1px dashed #D5C5A8',paddingTop:18,fontSize:15,lineHeight:2,color:'#3A332B',whiteSpace:'pre-line',fontFamily:'"Noto Serif TC", serif',letterSpacing:.5}}>
+              "{blessingView.blessing}"
+            </div>
+            {blessingView.submittedAt && (
+              <div style={{marginTop:20,textAlign:'right',fontSize:11,color:'#9A8F82'}}>
+                {new Date(blessingView.submittedAt).toLocaleString('zh-TW')}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// SEATING COMPONENTS
+// ============================================================
+function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDropSeat,onStartSeatDrag,onRemoveSeat,onClickGuest,posLocked,seatLocked,onUnlockPos,onUnlockSeat,groupInfo,tapPending,onTapPlace}) {
+  const GI = groupInfo || GROUP_INFO;
+  const cap = table.capacity||10;
+  const [hov,setHov] = useState(false);   // v5.3：hover 才浮出解鎖鈕
+  const seats = useMemo(()=>seatMap(table,guests),[table,guests]);
+  const occupied = guests.filter(g=>g.tableId===table.id&&g.attending).reduce((s,g)=>s+(g.count||1),0);
+  const conflictIds = useMemo(()=>{
+    const s=new Set();
+    conflicts.forEach(([a,b])=>{s.add(a);s.add(b);});
+    return s;
+  },[conflicts]);
+  const sz = (SEAT_OUTER+SEAT_SIZE)*2;
+  const anyLock = posLocked || seatLocked;
+  const badge = {display:'inline-flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:10,
+    fontSize:11,lineHeight:1,background:'rgba(249,245,239,.96)',border:'1px solid #D4B894',color:'#7A6E5E',
+    boxShadow:'0 1px 4px rgba(0,0,0,.12)',userSelect:'none'};
+  const unlockBtn = {marginLeft:1,width:15,height:15,borderRadius:'50%',border:'none',cursor:'pointer',
+    background:'#C04040',color:'#fff',fontSize:10,lineHeight:'15px',padding:0,fontFamily:'inherit'};
+
+  return (
+    <div data-tp="1" onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+      style={{position:'absolute',left:table.x,top:table.y,width:sz,height:sz}}>
+      {/* v5.3 鎖定狀態徽章 + hover 解鎖鈕（角落，不與點桌編輯重疊） */}
+      {anyLock && (
+        <div data-tp="1" style={{position:'absolute',top:2,left:2,zIndex:12,display:'flex',gap:5}}>
+          {posLocked && (
+            <span style={badge} title="位置已鎖定">📌
+              {hov && <button onClick={e=>{e.stopPropagation();onUnlockPos(table.id);}} onPointerDown={e=>e.stopPropagation()} title="解除位置鎖" style={unlockBtn}>✕</button>}
+            </span>
+          )}
+          {seatLocked && (
+            <span style={badge} title="座位已鎖定">🔒
+              {hov && <button onClick={e=>{e.stopPropagation();onUnlockSeat(table.id);}} onPointerDown={e=>e.stopPropagation()} title="解除座位鎖" style={unlockBtn}>✕</button>}
+            </span>
+          )}
+        </div>
+      )}
+      {/* Circle */}
+      <div data-tp="1" data-table={table.id}
+        onPointerDown={e=>{
+          if(posLocked||tapPending) return;   // v5.3：只有位置鎖擋拖曳
+          try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+          onDragStart(e,table.id);
+        }}
+        onClick={e=>{
+          e.stopPropagation();
+          if(tapPending&&onTapPlace){onTapPlace(table.id); return;}
+          onClickEdit(table.id);   // v5.3：鎖定時仍可開編輯視窗（去開關鎖）
+        }}
+        style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
+          width:TABLE_RADIUS*2,height:TABLE_RADIUS*2,borderRadius:'50%',
+          background:table.color||TABLE_COLORS[0],
+          border:tapPending?'2.5px solid #B5895F':posLocked?'2px dashed #B5895F':isMain?'3px double #B5895F':'1.5px solid rgba(58,51,43,.18)',
+          boxShadow:tapPending?'0 0 0 5px rgba(181,137,95,.25), 0 2px 10px rgba(0,0,0,.12)':'0 2px 10px rgba(0,0,0,.12)',
+          cursor:tapPending?'pointer':posLocked?'pointer':'grab',
+          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+          fontFamily:FONT_STACK,color:'#3A332B',userSelect:'none',zIndex:2,touchAction:'none'}}>
+        {tapPending && <div data-tp="1" className="wed-tap-ring" style={{position:'absolute',inset:-7,borderRadius:'50%',border:'2px solid #B5895F',pointerEvents:'none'}} />}
+        <div data-tp="1" style={{fontSize:13,fontWeight:600,letterSpacing:.5,color:'#3A332B'}}>{table.name}</div>
+        <div data-tp="1" style={{fontSize:10,color:'#6B6259',marginTop:1}}>{occupied}/{cap}</div>
+        {tapPending&&<div data-tp="1" style={{fontSize:9,color:'#B5895F',marginTop:2,letterSpacing:.5}}>點我放入</div>}
+        {!tapPending&&isMain&&<div data-tp="1" style={{fontSize:8,color:'#B5895F',letterSpacing:1.5,marginTop:1}}>主桌</div>}
+        {!tapPending&&<div data-tp="1" style={{marginTop:2,fontSize:11,color:'#6B6259',opacity:.6}}>✎</div>}
+      </div>
+      {/* Seats */}
+      {seats.map((g,i)=>{
+        const ang=(i/cap)*Math.PI*2-Math.PI/2;
+        const cx=(SEAT_OUTER+SEAT_SIZE)+Math.cos(ang)*SEAT_OUTER-SEAT_SIZE/2;
+        const cy=(SEAT_OUTER+SEAT_SIZE)+Math.sin(ang)*SEAT_OUTER-SEAT_SIZE/2;
+        const info=g?(GI[g.side]||{color:'#9A8F82',soft:'#E8E8E8'}):null;
+        const conflict=g&&conflictIds.has(g.id);
+        const isFirst=g&&(((g.startSeat||0)%cap)===i);
+        // 既有的人在座位鎖時凍結（不能拖/移除）；空位永遠可被放入（HTML5 onDrop 不擋）
+        const frozen = g && seatLocked;
+        return (
+          <div key={i} className="wed-seat"
+            data-seat={`${table.id}|${i}`}
+            onDragOver={e=>{e.preventDefault();e.currentTarget.style.transform='scale(1.2)';}}
+            onDragLeave={e=>{e.currentTarget.style.transform='scale(1)';}}
+            onDrop={e=>{
+              e.preventDefault();e.currentTarget.style.transform='scale(1)';
+              const p=e.dataTransfer.getData('text/plain');if(p)onDropSeat(table.id,i,p);
+            }}
+            draggable={false}
+            onDragStart={e=>{ e.preventDefault(); }}
+            style={{position:'absolute',left:cx,top:cy,width:SEAT_SIZE,height:SEAT_SIZE,borderRadius:'50%',
+              background:g?info.color:'#F9F5EF',
+              border:`1.5px solid ${conflict?'#C04040':frozen?'#B5895F':g?info.color:'#E5DDD0'}`,
+              boxShadow:conflict?'0 0 0 2px #C04040':frozen?'0 0 0 1.5px rgba(181,137,95,.4)':'none',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:9,fontWeight:700,color:g?'#FFFEFA':'#C0B8B0',
+              cursor:g&&!frozen?'grab':'default',zIndex:3,transition:'transform .12s',overflow:'visible'}}>
+            {g?(
+              <button
+                // v5.3：點擊本體只開賓客資料（不再誤刪）；拖曳 = 改派（Pointer Events）；移除 = 右上角 × 鈕
+                onPointerDown={e=>{
+                  if(e.button!=null && e.button!==0) return;
+                  if(frozen){ return; }            // 座位鎖：既有的人不能拖
+                  if(isFirst && onStartSeatDrag) onStartSeatDrag(e,{type:'seat',guestId:g.id},displayName(g,2,3),g);
+                }}
+                title={g.name+(g.count>1?` (${g.count}人)`:'')+(frozen?'（座位已鎖定）':' — 拖曳可改派、點擊看資料')}
+                style={{width:'100%',height:'100%',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:10,fontWeight:700,color:'#FFFEFA',whiteSpace:'nowrap',overflow:'hidden',
+                  border:'none',cursor:frozen?'default':'grab',
+                  letterSpacing:0,background:info.color,touchAction:'none'}}>
+                {displayName(g,2,3)}
+              </button>
+            ):(i+1)}
+            {/* 移除 × — 獨立小鈕，hover 才出現，與拖曳/點擊分離；座位鎖時不顯示 */}
+            {g&&isFirst&&!frozen&&(
+              <button className="wed-seat-x"
+                onPointerDown={e=>{e.stopPropagation();}}
+                onClick={e=>{e.stopPropagation(); onRemoveSeat(g.id);}}
+                title="移除此人"
+                style={{position:'absolute',top:-7,right:-7,width:16,height:16,borderRadius:'50%',
+                  border:'1.5px solid #fff',background:'#C04040',color:'#fff',fontSize:11,lineHeight:'13px',
+                  padding:0,cursor:'pointer',zIndex:6,fontFamily:'inherit'}}>×</button>
+            )}
+            {conflict&&<div style={{position:'absolute',top:-3,right:-3,fontSize:9,zIndex:5,lineHeight:1}}>⚠️</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// SEATING PAGE
+// ============================================================
+function SeatingPage({data,onUpdate,mainTableId,setMainTableId}) {
+  const GI = getGroupInfo(data.config);
+  // v5.3 畫布尺寸（場地規模）
+  const canvasW = (data.config && data.config.canvasW) || DEFAULT_CANVAS_W;
+  const canvasH = (data.config && data.config.canvasH) || DEFAULT_CANVAS_H;
+  const setVenueSize = (key)=>{
+    const v=VENUE_SIZES.find(s=>s.key===key); if(!v) return;
+    onUpdate({...data,config:{...data.config,canvasW:v.w,canvasH:v.h}});
+  };
+  const curVenueKey = (VENUE_SIZES.find(s=>s.w===canvasW&&s.h===canvasH)||{}).key || '';
+  // v5.3 分區（多場地）
+  const zones = Array.isArray(data.zones)?data.zones:[];
+  const addZone = ()=>{
+    const n=zones.length;
+    const z={id:uid(),name:`分區 ${n+1}`,x:40+n*40,y:40+n*40,w:Math.min(900,canvasW-120),h:Math.min(640,canvasH-120),
+      color:AREA_COLORS[n%AREA_COLORS.length], locked:false};
+    onUpdate({...data,zones:[...zones,z]});
+  };
+  // v5.6 分區編輯（名稱／顏色／鎖定）— 用 Modal
+  const [zoneEdit,setZoneEdit] = useState(null);   // {id,name,color,locked,...}
+  const saveZone = (z)=>{
+    if(!z.name?.trim()){ uiAlert('請輸入分區名稱'); return; }
+    onUpdate({...data,zones:zones.map(x=>x.id===z.id?{...x,name:z.name.trim(),color:z.color,locked:!!z.locked}:x)});
+    setZoneEdit(null);
+  };
+  const deleteZone = async(id)=>{
+    if(!await uiConfirm('刪除此分區？（不影響桌子，只移除框線）')) return;
+    onUpdate({...data,zones:zones.filter(x=>x.id!==id)});
+    setZoneEdit(null);
+  };
+  // v5.5 宴會環境設施（取代舊標記）— 用 Modal 建立/編輯
+  const [facilityEdit,setFacilityEdit]=useState(null); // {id?,label,emoji,color,locked,x,y,_isNew}
+  const openNewFacility=()=>setFacilityEdit({_isNew:true,label:'',emoji:FACILITY_EMOJIS[0],color:FACILITY_COLORS[0],locked:false,x:200,y:200});
+  const saveFacility=(f)=>{
+    if(!f.label?.trim()){ uiAlert('請輸入設施名稱'); return; }
+    if(f._isNew){
+      const {_isNew,...rest}=f;
+      onUpdate({...data,markers:[...data.markers,{...rest,id:uid()}]});
+    } else {
+      onUpdate({...data,markers:data.markers.map(m=>m.id===f.id?f:m)});
+    }
+    setFacilityEdit(null);
+  };
+  const deleteFacility=(id)=>{ onUpdate({...data,markers:data.markers.filter(m=>m.id!==id)}); setFacilityEdit(null); };
+  const [search,setSearch] = useState('');
+  const [sidebarOpen,setSidebarOpen] = useState(()=>typeof window!=='undefined' ? window.innerWidth>900 : true);
+  // v5.3 手機點選分配模式 — 所有新邏輯用 isMobile 隔離，桌機完全不影響
+  const [isMobile,setIsMobile] = useState(()=>typeof window!=='undefined' && window.innerWidth<=900);
+  const [tapSelected,setTapSelected] = useState([]);  // [{guestId,name,count}, ...] 多選
+  const [drawerOpen,setDrawerOpen]   = useState(false); // 底部抽屜開關
+  const [tapFlash,setTapFlash]       = useState('');    // 短暫的成功提示
+  useEffect(()=>{
+    const fn=()=>setIsMobile(window.innerWidth<=900);
+    window.addEventListener('resize',fn,{passive:true});
+    return ()=>window.removeEventListener('resize',fn);
+  },[]);
+  // 把 tapSelected 的多個宾客放進指定桌的連續空位
+  const assignToTable = (tableId)=>{
+    if(tapSelected.length === 0) return;
+    const t = data.tables.find(x => x.id === tableId); 
+    if(!t) return;   // v5.3：座位鎖允許往空位加新人，故不擋
+    
+    // 蒐集選中宾客及總人數
+    let totalPeople = 0, guestIds = [];
+    for(const sel of tapSelected){
+      const g = data.guests.find(x => x.id === sel.guestId);
+      if(!g) continue;
+      guestIds.push(g);
+      totalPeople += g.count || 1;
+    }
+    if(totalPeople === 0) return;
+    
+    // 驗證：座位足夠？
+    const cap = t.capacity || 8;
+    const occ = new Set(data.guests
+      .filter(x => x.tableId === tableId && x.attending && x.startSeat != null)
+      .flatMap(x => Array.from({length: x.count || 1}, (_, i) => (x.startSeat || 0) + i)));
+    const occupied = occ.size;
+    if(occupied + totalPeople > cap){
+      uiAlert(`座位不足。該桌剩餘 ${cap - occupied} 席，但選中 ${totalPeople} 人。`);
+      return;
+    }
+    
+    // 找連續空位
+    let start = -1;
+    outer: for(let s = 0; s <= cap - totalPeople; s++){
+      for(let i = 0; i < totalPeople; i++){
+        if(occ.has(s + i)) continue outer;
+      }
+      start = s;
+      break;
+    }
+    if(start < 0){
+      uiAlert('該桌沒有足夠連續空位');
+      return;
+    }
+    
+    // 批量放入——逐個分配到座位
+    let seatOffset = 0;
+    let updatedGuests = data.guests.map(x => {
+      const matched = guestIds.find(g => g.id === x.id);
+      return matched ? {...x, tableId, startSeat: start + seatOffset, attending: true} : x;
+    });
+    // 更新 seatOffset
+    seatOffset = 0;
+    updatedGuests = updatedGuests.map(x => {
+      const matched = guestIds.find(g => g.id === x.id);
+      if(matched){
+        const need = matched.count || 1;
+        const res = {...x, tableId, startSeat: start + seatOffset};
+        seatOffset += need;
+        return res;
+      }
+      return x;
+    });
+    
+    onUpdate({...data, guests: updatedGuests});
+    const successMsg = totalPeople > 1 ? `${totalPeople} 人` : '1 人';
+    setTapFlash(successMsg);
+    setTapSelected([]);
+    setDrawerOpen(false);
+    setTimeout(()=>setTapFlash(''),1400);
+  };
+  const [tableEdit,setTableEdit] = useState(null);
+  const [showVersions,setShowVersions] = useState(false);
+  const [editGuest,setEditGuest] = useState(null);
+  const [showAvoid,setShowAvoid] = useState(false);   // v4.9：點衝突開避桌管理
+  const [showSame,setShowSame]   = useState(false);    // v4.12：點同桌未滿足開同桌管理
+  const histRef = useRef({stack:[],idx:-1});
+  const canvasRef = useRef(null);
+  const dragTableRef = useRef(null);
+  const dragMovedRef = useRef(false);   // v4.9：拖桌是否真的移動過（用來抑制放開後的誤觸點擊）
+  const dragMarkerRef = useRef(null);
+  const autoSaveRef = useRef(null);
+
+  // History (undo/redo)
+  useEffect(()=>{
+    const snap=JSON.stringify({guests:data.guests,tables:data.tables,markers:data.markers,zones:data.zones||[]});
+    const h=histRef.current;
+    if(h.stack[h.idx]===snap) return;
+    h.stack=h.stack.slice(0,h.idx+1);
+    h.stack.push(snap);
+    if(h.stack.length>60) h.stack.shift(); else h.idx=h.stack.length-1;
+  },[data.guests,data.tables,data.markers]);
+
+  const undo=()=>{const h=histRef.current;if(h.idx<=0)return;h.idx--;const s=JSON.parse(h.stack[h.idx]);onUpdate({...data,...s},true);};
+  const redo=()=>{const h=histRef.current;if(h.idx>=h.stack.length-1)return;h.idx++;const s=JSON.parse(h.stack[h.idx]);onUpdate({...data,...s},true);};
+
+  // Auto-save every 10 min
+  useEffect(()=>{
+    if(autoSaveRef.current) clearInterval(autoSaveRef.current);
+    autoSaveRef.current = setInterval(()=>{
+      const name='自動暫存 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+      const existing=(data.versions||[]).findIndex(v=>v.name.startsWith('自動暫存'));
+      const newV={id:uid(),name,createdAt:Date.now(),snapshot:JSON.stringify({guests:data.guests,tables:data.tables,markers:data.markers,zones:data.zones||[],mainTableId})};
+      const versions=existing>=0?data.versions.map((v,i)=>i===existing?newV:v):[...(data.versions||[]),newV];
+      onUpdate({...data,versions},false);
+    },10*60*1000);
+    return ()=>clearInterval(autoSaveRef.current);
+  },[data,mainTableId,onUpdate]);
+
+  const attendingGuests=data.guests.filter(g=>g.attending);
+  const unassigned=attendingGuests.filter(g=>!g.tableId);
+  const filteredUnassigned=unassigned.filter(g=>{
+    if(!search) return true;
+    const q=search.toLowerCase();
+    return (g.name||'').toLowerCase().includes(q)||(g.nickname||'').toLowerCase().includes(q);
+  });
+  const grouped=Object.fromEntries(Object.keys(GI).map(k=>[k,[]]));
+  filteredUnassigned.forEach(g=>{if(grouped[g.side])grouped[g.side].push(g);else grouped[Object.keys(GI)[0]].push(g);});
+
+  const allConflicts=useMemo(()=>{
+    const m=new Map();
+    const eff=effectiveAvoidPairs(data);
+    data.tables.forEach(t=>m.set(t.id,tableConflicts(t,data.guests,eff)));
+    return m;
+  },[data.tables,data.guests,data.avoidPairs]);
+
+  // 計算避桌衝突詳情（同桌但有避桌設定）— 用 effective pairs 合併兩處來源
+  const conflictDetails = useMemo(()=>{
+    const out = [];
+    const eff = effectiveAvoidPairs(data);
+    data.tables.forEach(t => {
+      const inside = data.guests.filter(g=>g.tableId===t.id && g.attending);
+      const insideIds = new Set(inside.map(g=>g.id));
+      eff.forEach(([a,b])=>{
+        if (insideIds.has(a) && insideIds.has(b)) {
+          const ga = data.guests.find(g=>g.id===a);
+          const gb = data.guests.find(g=>g.id===b);
+          out.push({a:ga, b:gb, table:t});
+        }
+      });
+    });
+    return out;
+  },[data.tables, data.guests, data.avoidPairs]);
+
+  // 計算同桌需求未滿足的配對 — 用 effective pairs 合併兩處來源
+  const sameTableUnmet=useMemo(()=>{
+    const unmet=[];
+    const eff = effectiveSamePairs(data);
+    eff.forEach(([a,b])=>{
+      const ga=data.guests.find(g=>g.id===a), gb=data.guests.find(g=>g.id===b);
+      if(!ga||!gb||!ga.attending||!gb.attending) return;
+      if(!ga.tableId||!gb.tableId){ unmet.push({a:ga,b:gb,reason:'對方尚未入座'}); return; }
+      if(ga.tableId!==gb.tableId) unmet.push({a:ga,b:gb,reason:'分配在不同桌'});
+    });
+    return unmet;
+  },[data.guests, data.samePairs]);
+
+  const totalSeats=data.tables.reduce((s,t)=>s+(t.capacity||0),0);
+  const seated=attendingGuests.filter(g=>g.tableId).reduce((s,g)=>s+(g.count||0),0);
+  const totalAttending=attendingGuests.reduce((s,g)=>s+(g.count||0),0);
+  const totalConflicts=useMemo(()=>{let n=0;allConflicts.forEach(c=>n+=c.length);return n;},[allConflicts]);
+
+  // Drag table — v5.1.9：拖曳期間「直接改 DOM 位置」不觸發 React 重繪（手機才不會掉幀/吞觸控），
+  //                放開手指才寫入一次 state＋Firestore。搭配 setPointerCapture 鎖定觸控。
+  const startDragTable=(e,id)=>{
+    if(isMobile && tapSelected.length > 0) return;  // 手機有選中賓客待放入時才不啟動拖曳（v5.2 tapSelected 改陣列，空陣列 [] 是 truthy，必須檢查 length）
+    e.preventDefault();
+    const wrapper = e.currentTarget && e.currentTarget.parentElement; // 外層定位 div（left:table.x）
+    const rect=canvasRef.current.getBoundingClientRect();
+    const t=data.tables.find(x=>x.id===id); if(!t) return;
+    dragMovedRef.current=false;
+    const startX=e.clientX, startY=e.clientY;
+    const ox=e.clientX-rect.left-t.x, oy=e.clientY-rect.top-t.y;
+    let fx=t.x, fy=t.y, moved=false;
+    const move=ev=>{
+      if(Math.abs(ev.clientX-startX)>4||Math.abs(ev.clientY-startY)>4){dragMovedRef.current=true;moved=true;}
+      const r=canvasRef.current.getBoundingClientRect();
+      fx=Math.max(0,ev.clientX-r.left-ox);
+      fy=Math.max(0,ev.clientY-r.top-oy);
+      if(wrapper){ 
+        wrapper.style.left=fx+'px'; 
+        wrapper.style.top=fy+'px';
+      }
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      setTimeout(()=>{dragMovedRef.current=false;},0);
+      if(moved) onUpdate({...data,tables:data.tables.map(tb=>tb.id===id?{...tb,x:fx,y:fy}:tb)}); // 放開才寫入一次
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+
+  // Drag marker — 同上策略：拖曳直接改 DOM，放開才寫入
+  const startDragMarker=(e,id)=>{
+    e.preventDefault();
+    const el = e.currentTarget; // marker 本身即定位元素（left:m.x）
+    const rect=canvasRef.current.getBoundingClientRect();
+    const m=data.markers.find(x=>x.id===id); if(!m) return;
+    dragMovedRef.current=false;   // v5.5：供設施「點擊編輯」判斷是否為拖曳
+    const ox=e.clientX-rect.left-m.x, oy=e.clientY-rect.top-m.y;
+    let fx=m.x, fy=m.y, moved=false;
+    const move=ev=>{
+      moved=true; dragMovedRef.current=true;
+      const r=canvasRef.current.getBoundingClientRect();
+      fx=Math.max(0,ev.clientX-r.left-ox);
+      fy=Math.max(0,ev.clientY-r.top-oy);
+      if(el){ el.style.left=fx+'px'; el.style.top=fy+'px'; }
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      if(moved) onUpdate({...data,markers:data.markers.map(mk=>mk.id===id?{...mk,x:fx,y:fy}:mk)});
+      setTimeout(()=>{dragMovedRef.current=false;},0);   // 放開後才允許點擊
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+
+  // v5.3：分區框拖移 / 縮放 — 直接改 DOM，放開才寫入
+  const startDragZone=(e,id)=>{
+    const z0=zones.find(x=>x.id===id); if(z0&&z0.locked) return;   // v5.6：鎖定分區不可拖移
+    e.preventDefault(); e.stopPropagation();
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+    const el = e.currentTarget.closest('[data-zone]');
+    const rect=canvasRef.current.getBoundingClientRect();
+    const z=zones.find(x=>x.id===id); if(!z) return;
+    const ox=e.clientX-rect.left-z.x, oy=e.clientY-rect.top-z.y;
+    let fx=z.x, fy=z.y, moved=false;
+    const move=ev=>{
+      moved=true;
+      const r=canvasRef.current.getBoundingClientRect();
+      fx=Math.max(0,ev.clientX-r.left-ox);
+      fy=Math.max(0,ev.clientY-r.top-oy);
+      if(el){ el.style.left=fx+'px'; el.style.top=fy+'px'; }
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      if(moved) onUpdate({...data,zones:zones.map(zz=>zz.id===id?{...zz,x:fx,y:fy}:zz)});
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+  const startResizeZone=(e,id)=>{
+    const z0=zones.find(x=>x.id===id); if(z0&&z0.locked) return;   // v5.6：鎖定分區不可縮放
+    e.preventDefault(); e.stopPropagation();
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+    const el = e.currentTarget.closest('[data-zone]');
+    const z=zones.find(x=>x.id===id); if(!z) return;
+    let fw=z.w, fh=z.h, moved=false;
+    const sx=e.clientX, sy=e.clientY;
+    const move=ev=>{
+      moved=true;
+      fw=Math.max(160,z.w+(ev.clientX-sx));
+      fh=Math.max(120,z.h+(ev.clientY-sy));
+      if(el){ el.style.width=fw+'px'; el.style.height=fh+'px'; }
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      if(moved) onUpdate({...data,zones:zones.map(zz=>zz.id===id?{...zz,w:fw,h:fh}:zz)});
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+  // v5.4 #5c：手機/平板觸控拖曳 — HTML5 drag 在觸控裝置無效，改用 touch 事件 + elementFromPoint
+  const [touchDrag,setTouchDrag] = useState(null);   // {guestId,type,name,x,y}
+  const touchDragRef = useRef(null);
+  const touchDragMovedRef = useRef(false);
+  const beginTouchDrag = (e, payload, name) => {
+    const t = e.touches && e.touches[0]; if(!t) return;
+    touchDragRef.current = payload;
+    touchDragMovedRef.current = false;
+    setTouchDrag({...payload, name, x:t.clientX, y:t.clientY});
+  };
+  useEffect(()=>{
+    if(!touchDrag) return;
+    const onMove = (e)=>{
+      const t = e.touches && e.touches[0]; if(!t) return;
+      e.preventDefault();   // 拖曳時阻止頁面捲動
+      touchDragMovedRef.current = true;
+      setTouchDrag(d=> d ? {...d, x:t.clientX, y:t.clientY} : null);
+    };
+    const onEnd = (e)=>{
+      const t = e.changedTouches && e.changedTouches[0];
+      const payload = touchDragRef.current;
+      touchDragRef.current = null;
+      setTouchDrag(null);
+      if(!t || !payload) return;
+      if(!touchDragMovedRef.current) return;   // 只是點擊，不處理拖放
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if(!el) { if(payload.type==='seat') removeFromTable(payload.guestId); return; }
+      const seatEl = el.closest('[data-seat]');
+      if(seatEl){
+        const [tid,si] = seatEl.getAttribute('data-seat').split('|');
+        dropOnSeat(tid, parseInt(si,10), JSON.stringify({type:payload.type,guestId:payload.guestId}));
+        return;
+      }
+      const tableEl = el.closest('[data-table]');
+      if(tableEl){
+        dropOnSeat(tableEl.getAttribute('data-table'), 0, JSON.stringify({type:payload.type,guestId:payload.guestId}));
+        return;
+      }
+      // 拖到桌外 → 若是已入座者則移回待安排
+      if(payload.type==='seat') removeFromTable(payload.guestId);
+    };
+    window.addEventListener('touchmove', onMove, {passive:false});
+    window.addEventListener('touchend', onEnd);
+    window.addEventListener('touchcancel', onEnd);
+    return ()=>{ window.removeEventListener('touchmove',onMove); window.removeEventListener('touchend',onEnd); window.removeEventListener('touchcancel',onEnd); };
+  },[!!touchDrag, data]);   // eslint-disable-line
+
+  // v5.3：判斷某桌是否座位鎖
+  const isSeatLocked = (tableId)=>{ const t=data.tables.find(x=>x.id===tableId); return !!(t&&t.seatLocked); };
+
+  const dropOnSeat=(tableId,seatIdx,payloadStr)=>{
+    let p; try{p=JSON.parse(payloadStr);}catch{return;}
+    const table=data.tables.find(t=>t.id===tableId); if(!table) return;
+    const guest=data.guests.find(g=>g.id===p.guestId); if(!guest) return;
+    // v5.3：移動「既有已排的人」時，若其原本所在的桌座位已鎖，則禁止（空位加新人不受限）
+    if(p.type==='seat' && guest.tableId && isSeatLocked(guest.tableId)){ uiAlert('該桌座位已鎖定，無法移動已排好的賓客'); return; }
+    const cnt=guest.count||1;
+    if(cnt>table.capacity){uiAlert('該桌座位不足');return;}
+    const others=data.guests.filter(g=>g.id!==guest.id);
+    const occ=new Array(table.capacity).fill(null);
+    others.filter(g=>g.tableId===tableId&&g.attending&&g.startSeat!=null).forEach(o=>{
+      for(let i=0;i<(o.count||1);i++) occ[((o.startSeat||0)+i)%table.capacity]=o.id;
+    });
+    let start=seatIdx;
+    let canPlace=true;
+    for(let i=0;i<cnt;i++) if(occ[(seatIdx+i)%table.capacity]){canPlace=false;break;}
+    if(!canPlace){
+      start=freeSeat(table,others,cnt);
+      if(start<0){uiAlert('該桌沒有足夠連續空位');return;}
+    }
+    onUpdate({...data,guests:data.guests.map(g=>g.id===guest.id?{...g,tableId,startSeat:start}:g)});
+  };
+
+  const removeFromTable=id=>{
+    const g=data.guests.find(x=>x.id===id);
+    // v5.3：座位鎖時，既有的人不可被移除
+    if(g && g.tableId && isSeatLocked(g.tableId)){ uiAlert('該桌座位已鎖定，無法移除已排好的賓客'); return; }
+    onUpdate({...data,guests:data.guests.map(x=>x.id===id?{...x,tableId:null,startSeat:null}:x)});
+  };
+
+  // v5.3：座位「拖曳改派」改用 Pointer Events（桌機＋手機一致），放開用 elementFromPoint 命中落點。
+  //        未移動 = 視為點擊 → 開賓客資料；移動到桌外 = 移回待安排。
+  const [dragGhost,setDragGhost] = useState(null);   // {name,x,y}
+  const startSeatDrag = (e, payload, name)=>{
+    const startX=e.clientX, startY=e.clientY;
+    let moved=false;
+    const move=(ev)=>{
+      if(!moved && (Math.abs(ev.clientX-startX)>5||Math.abs(ev.clientY-startY)>5)) moved=true;
+      if(moved){ ev.preventDefault(); setDragGhost({name,x:ev.clientX,y:ev.clientY}); }
+    };
+    const up=(ev)=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      setDragGhost(null);
+      if(!moved){ const g=data.guests.find(x=>x.id===payload.guestId); if(g) setEditGuest(g); return; }
+      const el=document.elementFromPoint(ev.clientX,ev.clientY);
+      if(!el){ if(payload.type==='seat') removeFromTable(payload.guestId); return; }
+      const seatEl=el.closest('[data-seat]');
+      if(seatEl){ const [tid,si]=seatEl.getAttribute('data-seat').split('|'); dropOnSeat(tid,parseInt(si,10),JSON.stringify(payload)); return; }
+      const tableEl=el.closest('[data-table]');
+      if(tableEl){ dropOnSeat(tableEl.getAttribute('data-table'),0,JSON.stringify(payload)); return; }
+      if(payload.type==='seat') removeFromTable(payload.guestId);   // 拖到桌外 → 移回待安排
+    };
+    window.addEventListener('pointermove',move,{passive:false});
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+
+  const addTable=()=>{
+    const n=data.tables.length;
+    const cols=Math.max(1,Math.floor((canvasW-60)/280));   // v5.3：欄數隨畫布寬度
+    const t={id:uid(),name:`第 ${n+1} 桌`,capacity:10,x:60+(n%cols)*280,y:60+Math.floor(n/cols)*280,color:TABLE_COLORS[n%TABLE_COLORS.length],posLocked:false,seatLocked:false};
+    onUpdate({...data,tables:[...data.tables,t]});
+  };
+
+  const saveGuest=g=>{
+    const exists=data.guests.find(x=>x.id===g.id);
+    onUpdate({...data,guests:exists?data.guests.map(x=>x.id===g.id?g:x):[...data.guests,g]});
+    setEditGuest(null);
+  };
+  const deleteGuest=id=>{
+    onUpdate({...data,guests:data.guests.filter(g=>g.id!==id).map(g=>({...g,sameTable:(g.sameTable||[]).filter(x=>x!==id),avoidTable:(g.avoidTable||[]).filter(x=>x!==id)})),avoidPairs:(data.avoidPairs||[]).filter(([a,b])=>a!==id&&b!==id)});
+    setEditGuest(null);
+  };
+
+  const saveVersion=async()=>{
+    const name=await uiPrompt('版本名稱：','版本 '+new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}));
+    if(!name) return;
+    if((data.versions||[]).find(v=>v.name===name)){if(!await uiConfirm(`已有「${name}」版本，確定覆蓋？`))return;}
+    const newV={id:uid(),name,createdAt:Date.now(),snapshot:JSON.stringify({guests:data.guests,tables:data.tables,markers:data.markers,zones:data.zones||[],mainTableId})};
+    const versions=data.versions.some(v=>v.name===name)?data.versions.map(v=>v.name===name?newV:v):[...(data.versions||[]),newV];
+    onUpdate({...data,versions});
+  };
+
+  const loadVersion=async vid=>{
+    const v=(data.versions||[]).find(x=>x.id===vid); if(!v) return;
+    if(!await uiConfirm(`載入版本「${v.name}」？建議先存版本。`)) return;
+    const s=JSON.parse(v.snapshot);
+    onUpdate({...data,guests:s.guests||data.guests,tables:s.tables||data.tables,markers:s.markers||data.markers,zones:s.zones||s.areas||data.zones||[]});
+    if(s.mainTableId!==undefined) setMainTableId(s.mainTableId);
+    setShowVersions(false);
+  };
+
+  const exportItems=[
+    {label:'匯出 JPG',action:()=>exportImg('jpg')},
+    {label:'匯出 PDF（整體一頁）',action:()=>exportImg('pdf')},
+    {label:'匯出 PDF（每區一頁）',action:()=>exportImg('pdf-zones')},
+    {label:'列印',action:()=>window.print()},
+    '---',
+    {label:'服務生帶位清單',action:exportSeating},
+  ];
+
+  // v5.3：計算實際內容（桌/標記/分區）的外接矩形，匯出時只取有東西的範圍 → A4 不被空白拖累
+  function contentBBox(){
+    const sz=(SEAT_OUTER+SEAT_SIZE)*2;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    (data.tables||[]).forEach(t=>{minX=Math.min(minX,t.x);minY=Math.min(minY,t.y);maxX=Math.max(maxX,t.x+sz);maxY=Math.max(maxY,t.y+sz);});
+    (data.markers||[]).forEach(m=>{minX=Math.min(minX,m.x);minY=Math.min(minY,m.y);maxX=Math.max(maxX,m.x+170);maxY=Math.max(maxY,m.y+46);});
+    (zones||[]).forEach(z=>{minX=Math.min(minX,z.x);minY=Math.min(minY,z.y);maxX=Math.max(maxX,z.x+z.w);maxY=Math.max(maxY,z.y+z.h);});
+    if(minX===Infinity){return {x:0,y:0,w:canvasW,h:canvasH};}
+    const pad=40;
+    minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
+    maxX=Math.min(canvasW,maxX+pad); maxY=Math.min(canvasH,maxY+pad);
+    return {x:minX,y:minY,w:Math.max(1,maxX-minX),h:Math.max(1,maxY-minY)};
+  }
+  function cropToDataURL(full,scale,r){
+    const sx=Math.max(0,Math.round(r.x*scale)), sy=Math.max(0,Math.round(r.y*scale));
+    const sw=Math.max(1,Math.min(full.width-sx,Math.round(r.w*scale)));
+    const sh=Math.max(1,Math.min(full.height-sy,Math.round(r.h*scale)));
+    const c=document.createElement('canvas'); c.width=sw; c.height=sh;
+    const ctx=c.getContext('2d'); ctx.fillStyle='#F9F5EF'; ctx.fillRect(0,0,sw,sh);
+    ctx.drawImage(full, sx,sy,sw,sh, 0,0,sw,sh);
+    return {dataURL:c.toDataURL('image/jpeg',.92), wpx:sw, hpx:sh};
+  }
+  function fitA4(pdf,dataURL,wpx,hpx,first){
+    const landscape = wpx>=hpx;                 // 依內容比例自動選直/橫式
+    const pageW=landscape?297:210, pageH=landscape?210:297;
+    if(first){ pdf.deletePage(1); }             // 先移除預設首頁，再用對的方向加頁
+    pdf.addPage('a4', landscape?'landscape':'portrait');
+    const m=8, availW=pageW-2*m, availH=pageH-2*m, ratio=wpx/hpx;
+    let dW=availW, dH=dW/ratio;
+    if(dH>availH){ dH=availH; dW=dH*ratio; }
+    pdf.addImage(dataURL,'JPEG',(pageW-dW)/2,(pageH-dH)/2,dW,dH);
+  }
+
+  async function exportImg(mode){
+    try{
+      if(!window.html2canvas){await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s);});}
+      const scale=2;
+      const full=await window.html2canvas(canvasRef.current,{backgroundColor:'#F9F5EF',scale});
+      if(mode==='jpg'){
+        const {dataURL}=cropToDataURL(full,scale,contentBBox());
+        const a=document.createElement('a');a.href=dataURL;a.download='座位圖.jpg';a.click();
+        return;
+      }
+      if(!window.jspdf){await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s);});}
+      const pdf=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      let rects;
+      if(mode==='pdf-zones' && zones.length){
+        rects = zones.map(z=>({x:z.x,y:z.y,w:z.w,h:z.h}));
+      } else {
+        if(mode==='pdf-zones') uiAlert('尚未建立任何分區，改以整體匯出一頁。');
+        rects = [contentBBox()];
+      }
+      rects.forEach((r,i)=>{ const {dataURL,wpx,hpx}=cropToDataURL(full,scale,r); fitA4(pdf,dataURL,wpx,hpx,i===0); });
+      pdf.save(mode==='pdf-zones'&&zones.length?'座位圖_分區.pdf':'座位圖.pdf');
+    }catch(e){uiAlert('匯出失敗：'+e.message);}
+  }
+
+  function exportSeating(){
+    const h=['桌名','分區','姓名','人數','葷食','素食','特殊需求'];
+    const rows=[];
+    data.tables.forEach(t=>{
+      const sm=seatMap(t,data.guests);
+      const seen=new Set();
+      const zn=zoneNameOf(data,t.id);
+      sm.forEach(g=>{
+        if(g&&!seen.has(g.id)){
+          seen.add(g.id);
+          rows.push([t.name,zn,g.name,g.count,(g.count||1)-(g.vegCount||0),g.vegCount||0,g.special||'']);
+        }
+      });
+    });
+    download('帶位清單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
+  }
+
+  return (
+    <div style={{display:'flex',height:'calc(100vh - 58px)'}}>
+      {/* v5.4 #5c：觸控拖曳浮動標籤 */}
+      {touchDrag && (
+        <div data-tp="1" style={{position:'fixed',left:touchDrag.x,top:touchDrag.y,zIndex:9998,
+          transform:'translate(-50%,-130%)',pointerEvents:'none',
+          padding:'6px 12px',borderRadius:4,background:'#B5895F',color:'#FFFEFA',
+          fontSize:13,fontWeight:600,boxShadow:'0 6px 20px rgba(0,0,0,.3)',whiteSpace:'nowrap'}}>
+          {touchDrag.name}
+        </div>
+      )}
+      {/* v5.3：座位改派（Pointer）浮動標籤 */}
+      {dragGhost && (
+        <div data-tp="1" style={{position:'fixed',left:dragGhost.x,top:dragGhost.y,zIndex:9998,
+          transform:'translate(-50%,-130%)',pointerEvents:'none',
+          padding:'6px 12px',borderRadius:4,background:'#B5895F',color:'#FFFEFA',
+          fontSize:13,fontWeight:600,boxShadow:'0 6px 20px rgba(0,0,0,.3)',whiteSpace:'nowrap'}}>
+          {dragGhost.name}
+        </div>
+      )}
+      {/* Sidebar — 桌機顯示；手機賓客清單改由底部抽屜提供 */}
+      <div className="no-print" style={{width:(isMobile||!sidebarOpen)?0:272,flexShrink:0,overflow:'hidden',transition:'width .25s',background:'var(--wed-card, #FFFEFA)',borderRight:'1px solid var(--wed-border, #E5DDD0)',position:'relative'}}>
+
+        <div style={{width:272,padding:14,height:'100%',overflowY:'auto'}} className="wed-scroll">
+          <div style={{marginBottom:12}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,letterSpacing:4,color:'#B5895F'}}>UNASSIGNED</div>
+            <div style={{fontFamily:FONT_STACK,fontSize:17,marginTop:2}}>待安排 <span style={{color:'#B5895F'}}>{filteredUnassigned.reduce((s,g)=>s+(g.count||1),0)}</span> 人</div>
+          </div>
+          <TInput value={search} onChange={setSearch} placeholder="🔍 搜尋" style={{marginBottom:10,fontSize:12}} />
+          {Object.entries(GI).map(([k,info])=>{
+            const list=grouped[k]||[];
+            if(!list.length) return null;
+            return (
+              <div key={k} style={{marginBottom:14}}>
+                <div style={{fontSize:10,letterSpacing:.8,color:info.color,marginBottom:6,paddingBottom:3,borderBottom:`1px solid ${info.soft}`,display:'flex',justifyContent:'space-between',fontWeight:600}}>
+                  <span>{info.label}</span><span style={{color:'#9A8F82'}}>{list.reduce((s,g)=>s+(g.count||1),0)} 人</span>
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                  {list.map(g=>(
+                    <div key={g.id} draggable
+                      onDragStart={e=>{e.dataTransfer.setData('text/plain',JSON.stringify({type:'guest',guestId:g.id}));e.dataTransfer.effectAllowed='move';}}
+                      onTouchStart={e=>beginTouchDrag(e,{type:'guest',guestId:g.id},displayName(g,2,3))}
+                      onClick={()=>{ if(!touchDragMovedRef.current) setEditGuest(g); }}
+                      style={{padding:'3px 7px',fontSize:11,background:info.soft,color:info.color,border:`1px solid ${info.color}40`,borderRadius:2,cursor:'grab',display:'inline-flex',alignItems:'center',gap:3,touchAction:'none'}}
+                      title={g.name+(g.special?` · ${g.special}`:'')+' (點擊編輯／長按拖曳)'}>
+                      {displayName(g,2,3)}{(g.count||1)>1&&<span style={{fontSize:9,opacity:.7}}>+{(g.count||1)-1}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {filteredUnassigned.length===0&&<div style={{padding:20,textAlign:'center',color:'#9A8F82',fontSize:12}}>{unassigned.length===0?'✨ 全部已排位':'查無賓客'}</div>}
+        </div>
+      </div>
+
+      {/* Canvas area */}
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',position:'relative'}}>
+        {/* Sidebar toggle：手機已有底部抽屜把手，不需此鈕，隱藏避免遮蓋 */}
+        {!isMobile && (
+        <button onClick={()=>setSidebarOpen(p=>!p)} className="wed-sidebar-toggle"
+          title={sidebarOpen?'收起待安排側欄':'展開待安排側欄'}
+          style={{position:'absolute',bottom:20,left:16,zIndex:60,
+            height:36,borderRadius:18,border:'1px solid #D4B894',
+            background:'rgba(249,245,239,.97)',color:'#7A6E5E',fontSize:13,
+            cursor:'pointer',boxShadow:'0 2px 10px rgba(0,0,0,.18)',
+            display:'flex',alignItems:'center',justifyContent:'center',gap:5,
+            padding:'0 14px',lineHeight:'36px',whiteSpace:'nowrap'}}>
+          {sidebarOpen ? '◀ 收起名單' : '▶ 待安排名單'}
+        </button>
+        )}
+        {/* Toolbar */}
+        <div className="no-print" style={{padding:'10px 14px',borderBottom:'1px solid var(--wed-border, #E5DDD0)',background:'var(--wed-card, #FFFEFA)',display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+
+
+          <div style={{flex:1,minWidth:160}}>
+            <div style={{fontSize:11,color:'#9A8F82'}}>排位進度</div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:13,color:'#B5895F'}}><strong style={{fontSize:17}}>{seated}</strong> / {totalSeats||0} 席</span>
+            </div>
+            <div style={{height:3,background:'#F1EAE0',borderRadius:2,marginTop:3,overflow:'hidden',width:160}}>
+              <div style={{width:totalSeats?(seated/totalSeats*100)+'%':'0%',height:'100%',background:'#B5895F',transition:'width .3s'}} />
+            </div>
+          </div>
+          {/* 衝突徽章 — 置中，尺寸與復原/重做一致 */}
+          <div style={{display:'flex',gap:6,flex:'0 0 auto'}}>
+            {totalConflicts>0&&(
+              <button
+                title={'點擊開啟避桌管理。目前衝突：\n'+conflictDetails.map(c=>`${c.a?.nickname||c.a?.name||'?'} ↔ ${c.b?.nickname||c.b?.name||'?'}（避桌卻同桌：${c.table.name}）`).join('\n')}
+                onClick={()=>setShowAvoid(true)}
+                style={{padding:'4px 10px',fontSize:12,borderRadius:2,border:'1px solid #E0BCBC',background:'#FAEEEE',color:'#C04040',cursor:'pointer',fontFamily:'inherit',lineHeight:1.5}}>
+                ⚠️ {totalConflicts} 避桌衝突
+              </button>
+            )}
+            {sameTableUnmet.length>0&&(
+              <button
+                title={'同桌需求尚未滿足：\n'+sameTableUnmet.map(u=>`${u.a?.nickname||u.a?.name||'?'} ↔ ${u.b?.nickname||u.b?.name||'?'}（${u.reason}）`).join('\n')}
+                onClick={()=>setShowSame(true)}
+                style={{padding:'4px 10px',fontSize:12,borderRadius:2,border:'1px solid #E8D86A',background:'#FFFBE8',color:'#7A5C00',cursor:'pointer',fontFamily:'inherit',lineHeight:1.5}}>
+                💛 {sameTableUnmet.length} 同桌未滿足
+              </button>
+            )}
+          </div>
+          <Btn v="ghost" size="sm" onClick={undo}>↶ 復原</Btn>
+          <Btn v="ghost" size="sm" onClick={redo}>↷ 重做</Btn>
+          <Btn v="ghost" size="sm" onClick={addTable}>＋ 新桌</Btn>
+          <Btn v="ghost" size="sm" onClick={openNewFacility}>＋ 環境設施</Btn>
+          <Btn v="ghost" size="sm" onClick={addZone}>＋ 分區</Btn>
+          <select value={curVenueKey} onChange={e=>setVenueSize(e.target.value)} title="場地規模（畫布尺寸）"
+            style={{height:30,border:'1px solid #E5DDD0',borderRadius:2,background:'#FFFEFA',color:'#7A6E5E',
+              fontSize:12,fontFamily:'inherit',padding:'0 6px',cursor:'pointer'}}>
+            {!curVenueKey && <option value="">自訂尺寸</option>}
+            {VENUE_SIZES.map(s=> <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+          <Btn v="ghost" size="sm" onClick={saveVersion}>💾 存版本</Btn>
+          <Btn v="ghost" size="sm" onClick={()=>setShowVersions(true)}>版本紀錄 ({(data.versions||[]).length})</Btn>
+          <Dropdown label="匯出" icon="⬇" items={exportItems} />
+        </div>
+
+        {/* Canvas */}
+        <div className="wed-scroll" style={{flex:1,overflow:'auto',position:'relative',backgroundImage:'radial-gradient(var(--wed-border, #E5DDD0) 1px,transparent 1px)',backgroundSize:'20px 20px',background:'var(--wed-bg, #F9F5EF)'}}
+          onDragOver={e=>e.preventDefault()}
+          onDrop={e=>{
+            e.preventDefault();
+            const p=e.dataTransfer.getData('text/plain');
+            try{const q=JSON.parse(p);if(q.type==='seat')removeFromTable(q.guestId);}catch{}
+          }}>
+
+          {/* v5.2 多選分配 Bar（僅手機顯示、有選中時才出現） */}
+          {isMobile && tapSelected.length > 0 && (
+            <div data-tp="1" style={{position:'fixed',top:0,left:0,right:0,zIndex:200,
+              background:'#B5895F',color:'#FFFEFA',
+              padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,
+              boxShadow:'0 2px 12px rgba(181,137,95,.5)',fontSize:13}}>
+              <span data-tp="1">✓ 已選 {tapSelected.reduce((s,sel)=>s+(sel.count||1),0)} 人　點任一桌放入</span>
+              <button data-tp="1" onClick={()=>setTapSelected([])}
+                style={{padding:'4px 12px',borderRadius:2,border:'1px solid rgba(255,255,255,.4)',
+                  background:'transparent',color:'#FFFEFA',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+                取消
+              </button>
+            </div>
+          )}
+          {/* 成功放入短暫提示 */}
+          {tapFlash && (
+            <div data-tp="1" style={{position:'fixed',top:0,left:0,right:0,zIndex:200,background:'#4A8A4A',color:'#FFFEFA',
+              padding:'8px 14px',fontSize:12,textAlign:'center',animation:'wedFadeIn .2s ease'}}>
+              ✓ {tapFlash} 已放入
+            </div>
+          )}
+          <div ref={canvasRef} style={{width:canvasW,height:canvasH,position:'relative'}}>
+            {/* v5.6 分區框（在桌子下層；框體 pointerEvents:none 讓底下設施/桌子可點） */}
+            {zones.map(z=>{
+              const zc=z.color||'#C9A876';
+              return (
+              <div key={z.id} data-zone={z.id}
+                style={{position:'absolute',left:z.x,top:z.y,width:z.w,height:z.h,zIndex:1,pointerEvents:'none',
+                  border:`2px dashed ${zc}`,borderRadius:6,background:zc+'0D',boxSizing:'border-box'}}>
+                <div data-tp="1"
+                  onPointerDown={e=>{ if(z.locked) return; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} startDragZone(e,z.id); }}
+                  style={{position:'absolute',top:0,left:0,display:'flex',alignItems:'center',gap:6,pointerEvents:'auto',
+                    padding:'3px 8px',background:zc,color:'#FFFEFA',fontFamily:FONT_STACK,fontSize:12,letterSpacing:1,
+                    borderRadius:'4px 0 6px 0',cursor:z.locked?'default':'grab',userSelect:'none',touchAction:'none'}}>
+                  <span>{z.name}{z.locked&&' 🔒'}</span>
+                  <span onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setZoneEdit({...z});}} title="編輯分區" style={{cursor:'pointer',opacity:.9}}>✎</span>
+                  <span onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();deleteZone(z.id);}} title="刪除分區" style={{cursor:'pointer',opacity:.9}}>✕</span>
+                </div>
+                {/* 縮放把手（右下角）；鎖定時隱藏 */}
+                {!z.locked && (
+                  <div onPointerDown={e=>{ try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} startResizeZone(e,z.id); }}
+                    title="拖曳調整大小"
+                    style={{position:'absolute',right:-2,bottom:-2,width:16,height:16,cursor:'nwse-resize',pointerEvents:'auto',
+                      borderRight:`3px solid ${zc}`,borderBottom:`3px solid ${zc}`,borderRadius:'0 0 4px 0',touchAction:'none'}} />
+                )}
+              </div>
+              );
+            })}
+            {data.tables.map(t=>(
+              <RoundTable key={t.id} table={t} guests={data.guests} isMain={mainTableId===t.id}
+                posLocked={!!t.posLocked} seatLocked={!!t.seatLocked}
+                groupInfo={GI}
+                onDragStart={startDragTable}
+                onClickEdit={id=>{ if(dragMovedRef.current) return; setTableEdit(data.tables.find(x=>x.id===id)); }}
+                onUnlockPos={id=>onUpdate({...data,tables:data.tables.map(x=>x.id===id?{...x,posLocked:false}:x)})}
+                onUnlockSeat={id=>onUpdate({...data,tables:data.tables.map(x=>x.id===id?{...x,seatLocked:false}:x)})}
+                conflicts={allConflicts.get(t.id)||[]}
+                onDropSeat={dropOnSeat}
+                onStartSeatDrag={startSeatDrag}
+                onRemoveSeat={removeFromTable}
+                tapPending={isMobile && tapSelected.length > 0}
+                onTapPlace={isMobile ? assignToTable : null}
+                onClickGuest={setEditGuest} />
+            ))}
+            {/* v5.5 宴會環境設施（emoji + 自訂顏色 + 鎖定 + 點擊編輯） */}
+            {data.markers.map(m=>{
+              const bg=m.color||'#8A7BAF';
+              return (
+                <div key={m.id} data-tp="1"
+                  onPointerDown={e=>{ if(m.locked) return; try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){} startDragMarker(e,m.id); }}
+                  onClick={e=>{ if(dragMovedRef.current) return; e.stopPropagation(); setFacilityEdit({...m}); }}
+                  style={{position:'absolute',left:m.x,top:m.y,padding:'8px 18px',zIndex:2,
+                    background:bg,color:'#FFFEFA',
+                    fontFamily:FONT_STACK,fontSize:13,letterSpacing:2,borderRadius:2,
+                    cursor:m.locked?'default':'grab',userSelect:'none',
+                    boxShadow:'0 2px 8px rgba(0,0,0,.15)',touchAction:'none',
+                    opacity:m.locked?.85:1,display:'flex',alignItems:'center',gap:6}}>
+                  {m.emoji||'📍'} {m.label}
+                  {m.locked && <span data-tp="1" style={{fontSize:11,opacity:.7}}>🔒</span>}
+                </div>
+              );
+            })}
+            {data.tables.length===0&&(
+              <div style={{position:'absolute',top:'38%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center',color:'#9A8F82'}}>
+                <div style={{fontSize:44,marginBottom:12}}>🪑</div>
+                <div style={{fontSize:13,marginBottom:14}}>還沒有桌子</div>
+                <Btn onClick={addTable}>＋ 新增第一張桌</Btn>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Table edit modal */}
+      {tableEdit && (
+        <TableEditModal table={tableEdit} onSave={t=>{onUpdate({...data,tables:data.tables.map(x=>x.id===t.id?t:x)});setTableEdit(null);}}
+          onDelete={async id=>{if(!await uiConfirm({title:'刪除桌次',message:'刪除此桌？已排賓客回到待安排清單。',danger:true,confirmText:'刪除'}))return;
+            onUpdate({...data,tables:data.tables.filter(t=>t.id!==id),guests:data.guests.map(g=>g.tableId===id?{...g,tableId:null,startSeat:null}:g)});
+            if(mainTableId===id)setMainTableId(null);setTableEdit(null);}}
+          onClear={async id=>{
+            const tbl=data.tables.find(t=>t.id===id);
+            if(tbl&&tbl.seatLocked){uiAlert('此桌座位已鎖定，請先解除座位鎖才能清空。');return;}
+            if(!await uiConfirm({title:'清空桌次',message:'清空此桌（重排）？所有人移回待安排。',confirmText:'清空'}))return;
+            onUpdate({...data,guests:data.guests.map(g=>g.tableId===id?{...g,tableId:null,startSeat:null}:g)});setTableEdit(null);}}
+          onSetLock={(id,key,val)=>onUpdate({...data,tables:data.tables.map(t=>t.id===id?{...t,[key]:val}:t)})}
+          onSetMain={id=>{setMainTableId(mainTableId===id?null:id);setTableEdit(null);}}
+          mainTableId={mainTableId}
+          onClose={()=>setTableEdit(null)} />
+      )}
+
+      {/* v5.5 宴會環境設施 建立/編輯 Modal */}
+      {facilityEdit && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
+          onClick={()=>setFacilityEdit(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'var(--wed-card,#FFFEFA)',borderRadius:8,padding:24,width:'100%',maxWidth:420,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,.18)'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,color:'#3A332B',marginBottom:18}}>
+              {facilityEdit._isNew?'新增環境設施':'編輯環境設施'}
+            </div>
+            {/* 預覽 */}
+            <div style={{display:'flex',justifyContent:'center',marginBottom:18}}>
+              <div style={{padding:'8px 18px',background:facilityEdit.color,color:'#FFFEFA',
+                fontFamily:FONT_STACK,fontSize:14,letterSpacing:2,borderRadius:2,
+                display:'inline-flex',alignItems:'center',gap:6,boxShadow:'0 2px 8px rgba(0,0,0,.15)'}}>
+                {facilityEdit.emoji} {facilityEdit.label||'設施名稱'}
+                {facilityEdit.locked && <span style={{fontSize:11,opacity:.7}}>🔒</span>}
+              </div>
+            </div>
+            {/* 名稱 */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:'#6B6259',marginBottom:5}}>名稱</div>
+              <TInput value={facilityEdit.label} onChange={v=>setFacilityEdit(f=>({...f,label:v}))} placeholder="如：舞台、收禮桌、投影布幕" />
+            </div>
+            {/* 符號 */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:'#6B6259',marginBottom:5}}>符號</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
+                {FACILITY_EMOJIS.map(em=>(
+                  <button key={em} onClick={()=>setFacilityEdit(f=>({...f,emoji:em}))}
+                    style={{fontSize:18,padding:'6px 0',borderRadius:6,cursor:'pointer',
+                      border:`2px solid ${facilityEdit.emoji===em?'#B5895F':'transparent'}`,
+                      background:facilityEdit.emoji===em?'#F0E4D0':'#F7F2EA',lineHeight:1.2}}>
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* 顏色 */}
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:12,color:'#6B6259',marginBottom:5}}>顏色</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                {FACILITY_COLORS.map(c=>(
+                  <button key={c} onClick={()=>setFacilityEdit(f=>({...f,color:c}))}
+                    style={{width:30,height:30,borderRadius:'50%',background:c,cursor:'pointer',
+                      border:facilityEdit.color===c?'3px solid #3A332B':'2px solid #E5DDD0',
+                      boxShadow:facilityEdit.color===c?'0 0 0 2px #FFFEFA inset':'none'}} />
+                ))}
+              </div>
+            </div>
+            {/* 鎖定 */}
+            <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:20,cursor:'pointer',fontSize:13,color:'#6B6259'}}>
+              <input type="checkbox" autoComplete="nope" checked={!!facilityEdit.locked} onChange={e=>setFacilityEdit(f=>({...f,locked:e.target.checked}))} />
+              🔒 鎖定（不可移動）
+            </label>
+            {/* 按鈕（與其他浮窗一致：刪除靠左、取消+儲存靠右、上分隔線） */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20,paddingTop:16,borderTop:'1px solid #E5DDD0'}}>
+              {!facilityEdit._isNew
+                ? <Btn v="red" size="sm" onClick={()=>deleteFacility(facilityEdit.id)}>🗑 刪除</Btn>
+                : <span/>}
+              <div style={{display:'flex',gap:7}}>
+                <Btn v="ghost" onClick={()=>setFacilityEdit(null)}>取消</Btn>
+                <Btn onClick={()=>saveFacility(facilityEdit)}>{facilityEdit._isNew?'建立':'儲存'}</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* v5.6 分區 建立/編輯 Modal（名稱／顏色／鎖定） */}
+      {zoneEdit && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
+          onClick={()=>setZoneEdit(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'var(--wed-card,#FFFEFA)',borderRadius:8,padding:24,width:'100%',maxWidth:420,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,.18)'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,color:'#3A332B',marginBottom:18}}>編輯分區</div>
+            {/* 預覽 */}
+            <div style={{display:'flex',justifyContent:'center',marginBottom:18}}>
+              <div style={{padding:'4px 12px',background:zoneEdit.color,color:'#FFFEFA',
+                fontFamily:FONT_STACK,fontSize:13,letterSpacing:1,borderRadius:3,
+                display:'inline-flex',alignItems:'center',gap:6,boxShadow:'0 2px 8px rgba(0,0,0,.15)'}}>
+                {zoneEdit.name||'分區名稱'}{zoneEdit.locked&&<span style={{fontSize:11,opacity:.7}}>🔒</span>}
+              </div>
+            </div>
+            {/* 名稱 */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:12,color:'#6B6259',marginBottom:5}}>名稱</div>
+              <TInput value={zoneEdit.name} onChange={v=>setZoneEdit(z=>({...z,name:v}))} placeholder="如：主廳、VIP 區、2F" />
+            </div>
+            {/* 顏色 */}
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:12,color:'#6B6259',marginBottom:5}}>顏色（同步套用到名單分區標籤）</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                {FACILITY_COLORS.map(c=>(
+                  <button key={c} onClick={()=>setZoneEdit(z=>({...z,color:c}))}
+                    style={{width:30,height:30,borderRadius:'50%',background:c,cursor:'pointer',
+                      border:zoneEdit.color===c?'3px solid #3A332B':'2px solid #E5DDD0',
+                      boxShadow:zoneEdit.color===c?'0 0 0 2px #FFFEFA inset':'none'}} />
+                ))}
+              </div>
+            </div>
+            {/* 鎖定 */}
+            <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:20,cursor:'pointer',fontSize:13,color:'#6B6259'}}>
+              <input type="checkbox" autoComplete="nope" checked={!!zoneEdit.locked} onChange={e=>setZoneEdit(z=>({...z,locked:e.target.checked}))} />
+              🔒 鎖定（不可拖移／縮放）
+            </label>
+            {/* 按鈕 */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20,paddingTop:16,borderTop:'1px solid #E5DDD0'}}>
+              <Btn v="red" size="sm" onClick={()=>deleteZone(zoneEdit.id)}>🗑 刪除</Btn>
+              <div style={{display:'flex',gap:7}}>
+                <Btn v="ghost" onClick={()=>setZoneEdit(null)}>取消</Btn>
+                <Btn onClick={()=>saveZone(zoneEdit)}>儲存</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <Modal open={showVersions} onClose={()=>setShowVersions(false)} title="排位版本管理">
+        <Btn onClick={saveVersion} style={{marginBottom:14}}>💾 儲存當前為新版本</Btn>
+        <div style={{maxHeight:360,overflowY:'auto'}}>
+          {[...(data.versions||[])].reverse().map(v=>(
+            <div key={v.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 12px',borderBottom:'1px solid #F1EAE0'}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:500}}>{v.name}</div>
+                <div style={{fontSize:10,color:'#9A8F82',marginTop:1}}>{new Date(v.createdAt).toLocaleString('zh-TW')}</div>
+              </div>
+              <div style={{display:'flex',gap:5}}>
+                <Btn size="sm" v="ghost" onClick={()=>loadVersion(v.id)}>載入</Btn>
+                <Btn size="sm" v="red" onClick={async()=>{if(!await uiConfirm({title:'刪除版本',message:'確定刪除此版本？',danger:true,confirmText:'刪除'}))return;onUpdate({...data,versions:data.versions.filter(x=>x.id!==v.id)});}}>刪除</Btn>
+              </div>
+            </div>
+          ))}
+          {!(data.versions||[]).length&&<div style={{padding:28,textAlign:'center',color:'#9A8F82'}}>尚未儲存任何版本</div>}
+        </div>
+      </Modal>
+
+      {/* v5.3 A方案：手機底部賓客抽屜 — 僅 isMobile 時渲染 */}
+      {isMobile && (
+        <>
+          {/* 遮罩：點擊關閉抽屜 */}
+          {drawerOpen && <div onClick={()=>setDrawerOpen(false)} data-tp="1"
+            style={{position:'fixed',inset:0,zIndex:99,background:'rgba(58,51,43,.25)'}} />}
+
+          <div data-tp="1" style={{position:'fixed',bottom:0,left:0,right:0,zIndex:100,
+            background:'var(--wed-card, #FFFEFA)',borderTop:'1px solid var(--wed-border, #E5DDD0)',
+            borderRadius:'14px 14px 0 0',
+            transform:`translateY(${drawerOpen?'0':'calc(100% - 50px)'})`  ,
+            transition:'transform .3s cubic-bezier(.4,0,.2,1)',
+            maxHeight:'65vh',display:'flex',flexDirection:'column',
+            boxShadow:'0 -4px 24px rgba(58,51,43,.14)'}}>
+
+            {/* 抽屜把手 + 標題列 */}
+            <div data-tp="1" onClick={()=>setDrawerOpen(p=>!p)}
+              style={{padding:'8px 16px',cursor:'pointer',flexShrink:0,
+                borderBottom:drawerOpen?'1px solid var(--wed-border, #E5DDD0)':'none'}}>
+              <div data-tp="1" style={{width:36,height:4,background:'#E5DDD0',borderRadius:2,margin:'0 auto 8px'}}/>
+              <div data-tp="1" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div data-tp="1" style={{fontFamily:FONT_STACK,fontSize:15,color:'#3A332B'}}>
+                  待安排 <span data-tp="1" style={{color:'#B5895F'}}>{unassigned.reduce((s,g)=>s+(g.count||1),0)}</span> 人
+                  {tapSelected.length > 0 && <span data-tp="1" style={{marginLeft:12,color:'#B5895F'}}>✓ 已選 {tapSelected.reduce((s,sel)=>s+(sel.count||1),0)} 人</span>}
+                </div>
+                <div data-tp="1" style={{fontSize:11,color:'#9A8F82'}}>
+                  {drawerOpen ? '▼ 收起' : '▲ 展開・複選後點桌放入'}
+                </div>
+              </div>
+            </div>
+
+            {/* 賓客清單 — 抽屜展開時顯示 */}
+            {drawerOpen && (
+              <div data-tp="1" style={{overflowY:'auto',padding:'10px 14px 20px',flex:1}} className="wed-scroll">
+                <div data-tp="1" style={{fontSize:11,color:'#9A8F82',marginBottom:10,lineHeight:1.7,
+                  background:'#FDF6EC',border:'1px solid #E8D0A8',borderRadius:3,padding:'7px 10px'}}>
+                  💡 <strong data-tp="1" style={{color:'#B5895F'}}>使用方法</strong>：可複選多人（最多 10 人）→點任一桌位全數放入。不需要拖曳。
+                </div>
+                {Object.entries(GI).map(([k,info])=>{
+                  const list=grouped[k]||[];
+                  if(!list.length) return null;
+                  return (
+                    <div key={k} data-tp="1" style={{marginBottom:16}}>
+                      <div data-tp="1" style={{fontSize:10,letterSpacing:.8,color:info.color,marginBottom:8,
+                        paddingBottom:3,borderBottom:`1px solid ${info.soft}`,
+                        display:'flex',justifyContent:'space-between',fontWeight:600}}>
+                        <span data-tp="1">{info.label}</span>
+                        <span data-tp="1" style={{color:'#9A8F82'}}>{list.reduce((s,g)=>s+(g.count||1),0)} 人</span>
+                      </div>
+                      <div data-tp="1" style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                        {list.map(g=>{
+                          const isSel = tapSelected.some(s => s.guestId === g.id);
+                          const toggleSelect = () => {
+                            if(isSel){
+                              setTapSelected(tapSelected.filter(s => s.guestId !== g.id));
+                            } else {
+                              const currentTotal = tapSelected.reduce((sum, s) => sum + (s.count || 1), 0);
+                              const newTotal = currentTotal + (g.count || 1);
+                              if(newTotal > 10){
+                                uiAlert('最多只能選擇 10 人');
+                                return;
+                              }
+                              setTapSelected([...tapSelected, {guestId:g.id,name:g.nickname||g.name,count:g.count||1}]);
+                            }
+                          };
+                          return (
+                            <button key={g.id} data-tp="1"
+                              onClick={toggleSelect}
+                              style={{padding:'8px 14px',fontSize:13,background:isSel?info.color:info.soft,
+                                color:isSel?'#FFFEFA':info.color,
+                                border:`1.5px solid ${isSel?info.color:info.color+'60'}`,
+                                borderRadius:20,cursor:'pointer',fontFamily:'inherit',fontWeight:isSel?700:400,
+                                display:'inline-flex',alignItems:'center',gap:4,
+                                boxShadow:isSel?`0 0 0 3px ${info.color}40`:'none',
+                                transition:'all .15s'}}>
+                              {g.nickname||g.name}
+                              {(g.count||1)>1&&<span data-tp="1" style={{fontSize:10,opacity:.8}}>+{(g.count||1)-1}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {unassigned.length===0&&(
+                  <div data-tp="1" style={{padding:30,textAlign:'center',color:'#9A8F82',fontSize:13}}>✨ 全部已排位</div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <GuestModal open={!!editGuest} guest={editGuest} allGuests={data.guests}
+        onSave={saveGuest} onClose={()=>setEditGuest(null)} onDelete={null} groupInfo={GI} />
+
+      <AvoidPairsModal open={showAvoid} onClose={()=>setShowAvoid(false)} data={data} onUpdate={onUpdate} />
+      <SameTablePairsModal open={showSame} onClose={()=>setShowSame(false)} data={data} onUpdate={onUpdate} />
+    </div>
+  );
+}
+
+// ============================================================
+// TABLE EDIT MODAL (with Lock / Clear / Main options)
+// ============================================================
+function TableEditModal({table,onSave,onDelete,onClear,onSetLock,onSetMain,mainTableId,onClose}) {
+  const [t,setT] = useState({...table});
+  const [isMain,setIsMain] = useState(mainTableId===table.id);   // v5.6：主桌改為按儲存才套用
+  const up=(k,v)=>setT(p=>({...p,[k]:v}));
+  const save=()=>{                                               // v5.6：鎖定/主桌一併在儲存時套用
+    onSave(t);
+    if(isMain !== (mainTableId===t.id)) onSetMain(t.id);
+  };
+  const lockBtn = (key,onLabel,offLabel)=>{
+    const on=!!t[key];
+    return (
+      <Btn v="ghost" size="sm"
+        onClick={()=>up(key,!t[key])}
+        style={{flex:1, background:on?'#F9F5EF':'transparent',
+          borderColor:on?'#B5895F':undefined, color:on?'#B5895F':undefined}}>
+        {on?onLabel:offLabel}
+      </Btn>
+    );
+  };
+  return (
+    <Modal open={true} onClose={onClose} title="桌次設定" width={440}>
+      <Field label="桌名"><TInput value={t.name} onChange={v=>up('name',v)} /></Field>
+      <Field label="座位數">
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>up('capacity',Math.max(4,t.capacity-1))} style={{width:30,height:30,border:'1px solid #E5DDD0',borderRadius:2}}>−</button>
+          <span style={{fontSize:20,fontWeight:500,minWidth:28,textAlign:'center'}}>{t.capacity}</span>
+          <button onClick={()=>up('capacity',Math.min(20,t.capacity+1))} style={{width:30,height:30,border:'1px solid #E5DDD0',borderRadius:2}}>＋</button>
+        </div>
+      </Field>
+      <Field label="桌色">
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {TABLE_COLORS.map(c=>(
+            <button key={c} onClick={()=>up('color',c)} style={{width:28,height:28,borderRadius:'50%',background:c,border:t.color===c?'2.5px solid #3A332B':'2px solid transparent'}} />
+          ))}
+        </div>
+      </Field>
+      {/* v5.3：兩種獨立鎖定 */}
+      <Field label="鎖定">
+        <div style={{display:'flex',gap:8}}>
+          {lockBtn('posLocked','📌 已鎖位置','📌 鎖定位置')}
+          {lockBtn('seatLocked','🔒 已鎖座位','🔒 鎖定座位')}
+        </div>
+        <div style={{fontSize:11,color:'#9A8F82',marginTop:5,lineHeight:1.6}}>
+          位置鎖：桌子不能移動，座位照常編輯。<br/>座位鎖：已排好的人凍結（空位仍可加新人），桌子可移動。
+        </div>
+      </Field>
+      <div style={{display:'flex',gap:8,marginTop:8}}>
+        <Btn v="ghost" size="sm" onClick={()=>setIsMain(m=>!m)} style={{flex:1,
+          background:isMain?'#F9F5EF':'transparent', borderColor:isMain?'#B5895F':undefined, color:isMain?'#B5895F':undefined}}>
+          {isMain?'★ 已設為主桌':'☆ 設為主桌'}
+        </Btn>
+        <Btn v="ghost" size="sm" onClick={()=>onClear(t.id)} style={{flex:1}}
+          disabled={!!t.seatLocked} title={t.seatLocked?'請先解除座位鎖才能清空':undefined}>
+          🔄 重排（清空）{t.seatLocked&&' 🔒'}
+        </Btn>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',marginTop:20,paddingTop:16,borderTop:'1px solid #E5DDD0'}}>
+        <Btn v="red" size="sm" onClick={()=>onDelete(t.id)}>🗑 刪除此桌</Btn>
+        <div style={{display:'flex',gap:7}}>
+          <Btn v="ghost" onClick={onClose}>取消</Btn>
+          <Btn onClick={save}>儲存</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+
+// ============================================================
+// PHOTO CARD — drag handle + draggable focal line
+// ============================================================
+function PhotoCard({photo, index, totalCount, onReorder, onFocalChange, onDelete}) {
+  const [dragOver, setDragOver] = useState(false);
+  const imgWrapRef = useRef(null);
+  const draggingFocal = useRef(false);
+
+  const startFocalDrag = (clientY) => {
+    const rect = imgWrapRef.current.getBoundingClientRect();
+    const update = (y) => {
+      const pct = ((y - rect.top) / rect.height) * 100;
+      onFocalChange(Math.max(0, Math.min(100, Math.round(pct))));
+    };
+    update(clientY);
+    draggingFocal.current = true;
+    const moveMouse = ev => update(ev.clientY);
+    const moveTouch = ev => { if(ev.touches[0]) update(ev.touches[0].clientY); };
+    const stop = () => {
+      draggingFocal.current = false;
+      window.removeEventListener('mousemove', moveMouse);
+      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('touchmove', moveTouch);
+      window.removeEventListener('touchend', stop);
+    };
+    window.addEventListener('mousemove', moveMouse);
+    window.addEventListener('mouseup', stop);
+    window.addEventListener('touchmove', moveTouch);
+    window.addEventListener('touchend', stop);
+  };
+
+  return (
+    <div
+      onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+      onDragLeave={()=>setDragOver(false)}
+      onDrop={e=>{
+        e.preventDefault();setDragOver(false);
+        const payload = e.dataTransfer.getData('text/plain');
+        if(!payload.startsWith('photo:')) return;
+        onReorder(payload.slice(6), photo.id);
+      }}
+      style={{borderRadius:3,border:'1px solid '+(dragOver?'#B5895F':'#E5DDD0'),background:'#FFFEFA',transition:'border-color .15s'}}>
+      {/* Drag handle */}
+      <div
+        draggable
+        onDragStart={e=>{e.dataTransfer.setData('text/plain','photo:'+photo.id);e.dataTransfer.effectAllowed='move';}}
+        title="拖拉以調整順序"
+        style={{padding:'4px 8px',background:'#F9F5EF',borderBottom:'1px solid #E5DDD0',cursor:'grab',
+          display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#9A8F82',
+          borderRadius:'3px 3px 0 0',userSelect:'none'}}>
+        <span style={{letterSpacing:2}}>⠿</span>
+        <span>第 {index+1} 張</span>
+      </div>
+      {/* Photo with draggable focal line */}
+      <div ref={imgWrapRef}
+        onMouseDown={e=>{e.preventDefault();startFocalDrag(e.clientY);}}
+        onTouchStart={e=>{if(e.touches[0])startFocalDrag(e.touches[0].clientY);}}
+        style={{position:'relative',aspectRatio:'3/4',overflow:'hidden',cursor:'ns-resize',userSelect:'none'}}>
+        <div style={{position:'absolute',inset:0,
+          backgroundImage:`url(${photo.dataUrl||''})`,
+          backgroundSize:'cover',
+          backgroundPosition:`center ${photo.focalY||50}%`,
+          pointerEvents:'none'}} />
+        {!photo.dataUrl && <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:'#9A8F82',fontSize:11,background:'#F1EAE0'}}>讀取中...</div>}
+        {/* Focal line indicator */}
+        <div style={{position:'absolute',left:0,right:0,top:`${photo.focalY||50}%`,
+          height:0,borderTop:'2px dashed #FFFEFA',boxShadow:'0 0 0 1px rgba(58,51,43,.4)',
+          pointerEvents:'none',transform:'translateY(-1px)'}} />
+        <div style={{position:'absolute',right:6,top:`${photo.focalY||50}%`,transform:'translateY(-50%)',
+          padding:'1px 6px',background:'rgba(58,51,43,.85)',color:'#FFFEFA',fontSize:10,borderRadius:2,pointerEvents:'none'}}>
+          聚焦 {photo.focalY||50}%
+        </div>
+      </div>
+      {/* Delete */}
+      <div style={{padding:'6px 8px'}}>
+        <button onClick={onDelete}
+          style={{width:'100%',padding:'5px 0',fontSize:11,color:'#FFFEFA',background:'#C04040',
+            borderRadius:2,fontWeight:500,letterSpacing:.5}}>
+          刪除照片
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// STORAGE METER — show usage so user can see they're under the 1MB limit
+// ============================================================
+function StorageMeter({data, photoMap}) {
+  // 統一以主文件 photos 陣列為唯一真實來源（Task B）
+  const photoCount = (data.photos||[]).length;
+  const cloudSize = useMemo(()=>{
+    try { return Object.values(photoMap||{}).reduce((s,p)=>s+(p.size||p.dataUrl?.length*0.75||0),0); } catch { return 0; }
+  },[photoMap]);
+  const sizeMB = (cloudSize/(1024*1024)).toFixed(2);
+  const sizeKB = (cloudSize/1024).toFixed(0);
+  const sizeStr = cloudSize > 1024*1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+  return (
+    <div style={{textAlign:'right',fontSize:11,color:'#9A8F82',minWidth:200}}>
+      <div style={{marginBottom:3}}>
+        <span style={{color:'#B5895F'}}>☁ Cloud Storage</span>
+        <span style={{color:'#9A8F82',margin:'0 6px'}}>·</span>
+        <span>{photoCount} 張</span>
+        <span style={{color:'#9A8F82',margin:'0 6px'}}>·</span>
+        <span style={{color:'#6B6259'}}>{sizeStr}</span>
+      </div>
+      <div style={{fontSize:10,marginTop:2}}>免費額度 5 GB</div>
+    </div>
+  );
+}
+
+// ============================================================
+// GROUPS TAB — 關係分類管理
+// ============================================================
+const BASE_KEYS = ['groom','bride','shared'];
+const PRESET_COLORS = [
+  {color:"#3A60A8",soft:"#DCE4F2"},{color:"#BF7090",soft:"#F5DCE2"},{color:"#B5895F",soft:"#EFE3D0"},
+  {color:"#7BA77B",soft:"#DCF0DC"},{color:"#A87B3A",soft:"#F0DFCA"},{color:"#6B86B3",soft:"#D8E2F2"},
+  {color:"#A67BB0",soft:"#EBD8F2"},{color:"#B07B7B",soft:"#F2D8D8"},{color:"#7BA8A0",soft:"#D8EEE9"},
+  {color:"#9EA87B",soft:"#EAF0D8"},{color:"#A89B7B",soft:"#F0EBD8"},{color:"#808080",soft:"#E8E8E8"},
+];
+
+function GroupsTab({data,onUpdate}) {
+  const cfg = data.config;
+  // Working draft: deep clone of effective group info
+  const initDraft = () => {
+    const gi = getGroupInfo(cfg);
+    return JSON.parse(JSON.stringify(gi));
+  };
+  const [draft,setDraft] = useState(initDraft);
+  const [newGroupLabel,setNewGroupLabel] = useState('');
+  const [addingGroup,setAddingGroup] = useState(false);
+  const [newSubInputs,setNewSubInputs] = useState({}); // key -> text
+  const [editingLabel,setEditingLabel] = useState({}); // key -> bool
+  const [saved,setSaved] = useState(false);
+
+  useEffect(()=>{setDraft(initDraft());},[data.config.customGroups]);
+
+  const saveGroups = () => {
+    onUpdate({...data,config:{...cfg,customGroups:draft}});
+    setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  };
+
+  const resetToDefault = async () => {
+    if(!await uiConfirm('確定重設為預設分類？已自訂的分類將全部清除。')) return;
+    onUpdate({...data,config:{...cfg,customGroups:null}});
+    setDraft(JSON.parse(JSON.stringify(GROUP_INFO)));
+  };
+
+  const updateLabel = (key,val) => setDraft(d=>({...d,[key]:{...d[key],label:val}}));
+  const updateColor = (key,color,soft) => setDraft(d=>({...d,[key]:{...d[key],color,soft}}));
+
+  const addSub = (key) => {
+    const txt = (newSubInputs[key]||'').trim();
+    if(!txt) return;
+    if(draft[key].subs.includes(txt)){uiAlert('此子分類已存在');return;}
+    setDraft(d=>({...d,[key]:{...d[key],subs:[...d[key].subs,txt]}}));
+    setNewSubInputs(p=>({...p,[key]:''}));
+  };
+
+  const removeSub = (key,idx) => {
+    if(draft[key].subs.length<=1){uiAlert('至少保留一個子分類');return;}
+    setDraft(d=>({...d,[key]:{...d[key],subs:d[key].subs.filter((_,i)=>i!==idx)}}));
+  };
+
+  const moveSub = (key,idx,dir) => {
+    const subs=[...draft[key].subs];
+    const ni=idx+dir;
+    if(ni<0||ni>=subs.length) return;
+    [subs[idx],subs[ni]]=[subs[ni],subs[idx]];
+    setDraft(d=>({...d,[key]:{...d[key],subs}}));
+  };
+
+  const addGroup = () => {
+    const lbl = newGroupLabel.trim();
+    if(!lbl){uiAlert('請輸入分類名稱');return;}
+    // Generate a unique key
+    const key = 'custom_'+uid();
+    // Pick a color not yet used
+    const usedColors = Object.values(draft).map(g=>g.color);
+    const col = PRESET_COLORS.find(c=>!usedColors.includes(c.color)) || PRESET_COLORS[3];
+    setDraft(d=>({...d,[key]:{label:lbl,color:col.color,soft:col.soft,subs:[lbl+'親友']}}));
+    setNewGroupLabel('');
+    setAddingGroup(false);
+  };
+
+  const removeGroup = async (key) => {
+    if(BASE_KEYS.includes(key)){uiAlert('預設分類（新郎方/新娘方/共同）無法刪除');return;}
+    const affected = data.guests.filter(g=>g.side===key).length;
+    const msg = affected>0
+      ? `確定刪除「${draft[key].label}」？此分類有 ${affected} 位賓客，刪除後他們的分類將顯示為未知。`
+      : `確定刪除「${draft[key].label}」？`;
+    if(!await uiConfirm(msg)) return;
+    setDraft(d=>{const nd={...d};delete nd[key];return nd;});
+  };
+
+  const keys = Object.keys(draft);
+  const isBase = key => BASE_KEYS.includes(key);
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div>
+          <div style={{fontSize:16,fontFamily:FONT_STACK,letterSpacing:1}}>關係分類管理</div>
+          <div style={{fontSize:12,color:'#9A8F82',marginTop:4}}>自訂 RSVP 邀請函中「與新人關係」的分類與細分類選項</div>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
+          <Btn v="ghost" size="sm" onClick={resetToDefault}>重設預設</Btn>
+          <Btn size="sm" onClick={saveGroups}>{saved?'✓ 已儲存':'✓ 儲存分類'}</Btn>
+        </div>
+      </div>
+
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        {keys.map(key=>{
+          const grp = draft[key];
+          const base = isBase(key);
+          return (
+            <div key={key} style={{border:'1px solid #E5DDD0',borderRadius:4,overflow:'hidden'}}>
+              {/* Header */}
+              <div data-tp="1" style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',background:grp.soft||'#F9F5EF',borderBottom:'1px solid #E5DDD0'}}>
+                {/* Color picker */}
+                <div data-tp="1" style={{position:'relative',flexShrink:0}}>
+                  <div style={{width:22,height:22,borderRadius:11,background:grp.color,cursor:'pointer',border:'2px solid white',boxShadow:'0 0 0 1px #ccc'}}
+                    onClick={e=>{e.currentTarget.nextSibling.style.display=e.currentTarget.nextSibling.style.display==='flex'?'none':'flex';}}
+                  />
+                  <div style={{display:'none',position:'absolute',top:28,left:0,zIndex:99,background:'white',border:'1px solid #E5DDD0',borderRadius:4,padding:8,flexWrap:'wrap',gap:5,width:164,boxShadow:'0 4px 12px rgba(0,0,0,.12)'}}>
+                    {PRESET_COLORS.map((c,i)=>(
+                      <div key={i} style={{width:22,height:22,borderRadius:11,background:c.color,cursor:'pointer',border:grp.color===c.color?'2px solid #3A332B':'2px solid white',boxShadow:'0 0 0 1px #ccc'}}
+                        onClick={e=>{updateColor(key,c.color,c.soft);e.currentTarget.closest('[style]').style.display='none';}} />
+                    ))}
+                  </div>
+                </div>
+                {/* Label edit */}
+                <div style={{flex:1,minWidth:0}}>
+                  {editingLabel[key]
+                    ? <input autoFocus autoComplete="nope" value={grp.label} onChange={e=>updateLabel(key,e.target.value)}
+                        onBlur={()=>setEditingLabel(p=>({...p,[key]:false}))}
+                        onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape')setEditingLabel(p=>({...p,[key]:false}));}}
+                        style={{fontSize:14,fontWeight:600,color:'#3A332B',border:'none',borderBottom:'1px solid #B5895F',background:'transparent',outline:'none',width:'100%',padding:'2px 0'}} />
+                    : <span data-tp="1" style={{fontSize:14,fontWeight:600,color:'#3A332B',cursor:'pointer'}} onClick={()=>setEditingLabel(p=>({...p,[key]:true}))} title="點擊編輯名稱">
+                        {grp.label} <span data-tp="1" style={{fontSize:11,color:'#9A8F82',fontWeight:400}}>✎</span>
+                      </span>
+                  }
+                  {base&&<span data-tp="1" style={{marginLeft:8,fontSize:10,color:'#B5895F',letterSpacing:.5}}>預設</span>}
+                  {!base&&<span data-tp="1" style={{marginLeft:8,fontSize:10,color:'#9A8F82',letterSpacing:.5}}>自訂</span>}
+                </div>
+                {/* Delete */}
+                {!base&&(
+                  <button onClick={()=>removeGroup(key)} style={{flexShrink:0,padding:'3px 8px',fontSize:11,color:'#BF7090',border:'1px solid #BF709040',borderRadius:2,background:'transparent'}}>刪除</button>
+                )}
+              </div>
+              {/* Sub-categories */}
+              <div style={{padding:'12px 16px',background:'white'}}>
+                <div style={{fontSize:11,color:'#9A8F82',marginBottom:8,letterSpacing:.5}}>細分類選項</div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                  {grp.subs.map((sub,idx)=>(
+                    <div key={idx} style={{display:'inline-flex',alignItems:'center',gap:3,padding:'4px 8px',background:'#F9F5EF',border:'1px solid #E5DDD0',borderRadius:2,fontSize:12}}>
+                      <button onClick={()=>moveSub(key,idx,-1)} disabled={idx===0} style={{fontSize:9,color:idx===0?'#ccc':'#9A8F82',padding:'0 2px',lineHeight:1}}>▲</button>
+                      <button onClick={()=>moveSub(key,idx,1)} disabled={idx===grp.subs.length-1} style={{fontSize:9,color:idx===grp.subs.length-1?'#ccc':'#9A8F82',padding:'0 2px',lineHeight:1}}>▼</button>
+                      <span style={{color:'#3A332B'}}>{sub}</span>
+                      <button onClick={()=>removeSub(key,idx)} style={{fontSize:11,color:'#BF7090',padding:'0 2px',lineHeight:1}} title="刪除此子分類">✕</button>
+                    </div>
+                  ))}
+                </div>
+                {/* Add sub */}
+                <div style={{display:'flex',gap:6}}>
+                  <input autoComplete="nope" value={newSubInputs[key]||''} onChange={e=>setNewSubInputs(p=>({...p,[key]:e.target.value}))}
+                    onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addSub(key);}}}
+                    placeholder="新增子分類名稱…"
+                    style={{flex:1,padding:'6px 10px',fontSize:12,border:'1px solid #E5DDD0',borderRadius:2,outline:'none',fontFamily:'inherit'}} />
+                  <button onClick={()=>addSub(key)} style={{padding:'6px 14px',fontSize:12,background:'#F9F5EF',border:'1px solid #E5DDD0',borderRadius:2,cursor:'pointer',color:'#6B6259'}}>＋ 新增</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add new group */}
+      <div style={{marginTop:16,padding:'14px 16px',border:'1px dashed #E5DDD0',borderRadius:4}}>
+        {addingGroup
+          ? <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <input autoFocus autoComplete="nope" value={newGroupLabel} onChange={e=>setNewGroupLabel(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter')addGroup();if(e.key==='Escape'){setAddingGroup(false);setNewGroupLabel('');}}}
+                placeholder="新分類名稱（例：老師、同學）"
+                style={{flex:1,padding:'8px 12px',fontSize:13,border:'1px solid #B5895F',borderRadius:2,outline:'none',fontFamily:'inherit'}} />
+              <Btn size="sm" onClick={addGroup}>確認新增</Btn>
+              <Btn v="ghost" size="sm" onClick={()=>{setAddingGroup(false);setNewGroupLabel('');}}>取消</Btn>
+            </div>
+          : <button onClick={()=>setAddingGroup(true)} style={{width:'100%',padding:'10px',fontSize:13,color:'#B5895F',background:'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+              <span style={{fontSize:18,lineHeight:1}}>＋</span> 新增關係分類
+            </button>
+        }
+      </div>
+
+      <div style={{marginTop:14,padding:'10px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',borderRadius:3,fontSize:12,color:'#9A8F82',lineHeight:1.7}}>
+        💡 <strong>注意：</strong>修改後請點「儲存分類」。已填寫的賓客資料不會自動更新分類標籤，但名單中仍可正常顯示。預設分類（新郎方／新娘方／共同）的鍵值不變，標籤可自由修改。
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// INFO MANAGEMENT PAGE
+// ============================================================
+// ============================================================
+// BACKUP TAB — 資料備份與還原
+// ============================================================
+function BackupTab({data, onUpdate, fbRef, deletePhotoData, weddingId}) {
+  const [backups, setBackups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [preview, setPreview] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [localMirrors, setLocalMirrors] = useState([]);
+  const [cleaningOrphans, setCleaningOrphans] = useState(false);
+
+  // 讀取本地鏡像
+  const loadLocalMirrors = () => {
+    try {
+      const hist = JSON.parse(localStorage.getItem('wedding_mirror_hist') || '[]');
+      setLocalMirrors(hist);
+    } catch { setLocalMirrors([]); }
+  };
+
+  const loadBackups = useCallback(async () => {
+    if (!fbRef?.current?.db) return;
+    setLoading(true);
+    try {
+      const db = fbRef.current.db;
+      const snap = await backupsColRef(db, weddingId).orderBy('createdAt','desc').get();
+      const list = [];
+      snap.forEach(d => list.push({id:d.id, ...d.data()}));
+      setBackups(list);
+    } catch(e) {
+      console.error(e);
+      uiAlert('讀取備份失敗：'+e.message);
+    } finally {
+      setLoading(false);
+    }
+  },[]);
+
+  useEffect(()=>{ loadBackups(); loadLocalMirrors(); }, [loadBackups]);
+
+  const createManualBackup = async () => {
+    if (!fbRef?.current?.db) return;
+    setCreating(true);
+    try {
+      const db = fbRef.current.db;
+      const now = Date.now();
+      const cleanPhotos = (data.photos||[]).map(p=>({
+        id:p.id, enabled:p.enabled!==false, order:p.order||0, focalY:p.focalY||50
+      }));
+      const isB64 = s => typeof s === 'string' && s.startsWith('data:');
+      const cfg = data.config || {};
+      const cleanData = {
+        ...data,
+        photos: cleanPhotos,
+        avoidPairs: packAvoid(data.avoidPairs),
+        samePairs:  packSame(data.samePairs),
+        config: {
+          ...cfg,
+          thankYouImgDataUrl:       isB64(cfg.thankYouImgDataUrl)       ? '__USE_PHOTO__' : (cfg.thankYouImgDataUrl ?? ''),
+          thankYouImgBottomDataUrl: isB64(cfg.thankYouImgBottomDataUrl) ? '__USE_PHOTO__' : (cfg.thankYouImgBottomDataUrl ?? ''),
+          logoDataUrl:              isB64(cfg.logoDataUrl)              ? '__USE_PHOTO__' : (cfg.logoDataUrl ?? ''),
+        }
+      };
+
+      // A5：檢查是否為當天第一份備份，標記 daily:true
+      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+      const alreadyHasDaily = backups.some(b => b.daily && b.createdAt >= todayStart.getTime());
+      const isDaily = !alreadyHasDaily;
+
+      await backupsColRef(db, weddingId).doc(String(now)).set({
+        data: cleanData,
+        createdAt: now,
+        manual: true,
+        daily: isDaily,
+        summary: {
+          guestCount: (cleanData.guests||[]).length,
+          tableCount: (cleanData.tables||[]).length,
+          photoCount: cleanPhotos.length,
+        }
+      });
+      uiAlert('✅ 手動備份完成！');
+      loadBackups();
+    } catch(e) {
+      uiAlert('備份失敗：'+e.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const restoreBackup = async (b) => {
+    if (!await uiConfirm(`⚠️ 確定要還原至此備份？\n\n時間：${new Date(b.createdAt).toLocaleString()}\n賓客：${b.summary?.guestCount||0} 人\n桌數：${b.summary?.tableCount||0} 桌\n照片：${b.summary?.photoCount||0} 張\n\n當前資料將被覆蓋（但會自動先做一次新備份）。`)) return;
+    try {
+      // 先備份當前狀態（A4）
+      await createManualBackup();
+      // 還原
+      onUpdate(b.data, true);
+      uiAlert('✅ 還原完成！頁面將自動重新整理');
+      setTimeout(()=>window.location.reload(), 800);
+    } catch(e) {
+      uiAlert('還原失敗：'+e.message);
+    }
+  };
+
+  const restoreLocalMirror = async (mirror) => {
+    if (!await uiConfirm(`⚠️ 確定從本地鏡像還原？\n\n時間：${new Date(mirror.savedAt).toLocaleString()}\n賓客：${(mirror.data?.guests||[]).length} 人\n\n當前資料將被覆蓋。`)) return;
+    try {
+      onUpdate(mirror.data, true);
+      uiAlert('✅ 從本地鏡像還原完成！頁面將自動重新整理');
+      setTimeout(()=>window.location.reload(), 800);
+    } catch(e) {
+      uiAlert('還原失敗：'+e.message);
+    }
+  };
+
+  const deleteBackup = async (b) => {
+    if (!await uiConfirm('確定刪除此備份？此操作無法復原。')) return;
+    try {
+      const db = fbRef.current.db;
+      await backupsColRef(db, weddingId).doc(b.id).delete();
+      loadBackups();
+    } catch(e) {
+      uiAlert('刪除失敗：'+e.message);
+    }
+  };
+
+  // B: 清理孤兒元資料（子集合有但主文件 photos 陣列沒有的）
+  const cleanOrphanPhotos = async () => {
+    if (!fbRef?.current?.db) return;
+    setCleaningOrphans(true);
+    try {
+      const db = fbRef.current.db;
+      const storage = fbRef.current.storage;
+      const photosCol = photosColRef(db, weddingId);
+      const snap = await photosCol.get();
+      const mainPhotoIds = new Set((data.photos||[]).map(p=>p.id));
+      const orphans = [];
+      snap.forEach(d => {
+        if (!mainPhotoIds.has(d.id)) orphans.push({id:d.id, ...d.data()});
+      });
+      if (orphans.length === 0) { uiAlert('✅ 無孤兒元資料，資料乾淨！'); return; }
+      if (!await uiConfirm(`發現 ${orphans.length} 筆孤兒元資料（子集合有但主文件沒有）：\n${orphans.map(o=>o.id).join('\n')}\n\n確定刪除？`)) return;
+      await Promise.all(orphans.map(async o => {
+        if (o.storagePath) {
+          try { await storage.ref(o.storagePath).delete(); } catch {}
+        }
+        await photosCol.doc(o.id).delete();
+      }));
+      uiAlert(`✅ 已清理 ${orphans.length} 筆孤兒元資料`);
+    } catch(e) {
+      uiAlert('清理失敗：'+e.message);
+    } finally {
+      setCleaningOrphans(false);
+    }
+  };
+
+  return (
+    <div style={{...S.card, padding:28}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+        <div>
+          <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:4}}>資料備份與還原</div>
+          <div style={{color:'#9A8F82',fontSize:12}}>每 30 分鐘自動備份一次；每日第一份標記每日備份（保留 90 天）；一般備份保留最近 30 份</div>
+        </div>
+        <Btn size="sm" onClick={createManualBackup} disabled={creating}>
+          {creating?'備份中...':'＋ 立即備份'}
+        </Btn>
+      </div>
+
+      {/* A6: PITR 說明 */}
+      <div style={{background:'#EFF8EF',border:'1px solid #B5D5B5',borderRadius:2,padding:'8px 14px',marginBottom:16,fontSize:11,color:'#2A6B2A',lineHeight:1.7}}>
+        🛡 <b>多層資料保護已啟用：</b>Transaction 版本鎖 · 寫入前驟減偵測 · localStorage 本地鏡像 · 自動備份 · <b>PITR 時間點復原（已開啟，7 天內可聯繫 Firebase 還原）</b>
+      </div>
+
+      {/* 雲端備份列表 */}
+      {loading ? (
+        <div style={{padding:40,textAlign:'center',color:'#9A8F82'}}><Spinner/></div>
+      ) : backups.length === 0 ? (
+        <div style={{padding:32,textAlign:'center',color:'#9A8F82',background:'#F9F5EF',borderRadius:2}}>
+          尚無備份。點擊「立即備份」建立第一份。
+        </div>
+      ) : (
+        <div style={{maxHeight:400,overflowY:'auto',border:'1px solid #E5DDD0',borderRadius:2,marginBottom:16}}>
+          {backups.map((b,i)=>(
+            <div key={b.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'12px 14px',borderBottom:i<backups.length-1?'1px solid #E5DDD0':'none',
+              background:i===0?'#FAFCF7':'#FFFEFA'}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500,color:'#3A332B'}}>
+                  {new Date(b.createdAt).toLocaleString('zh-TW')}
+                  {b.manual && <span data-tp="1" style={{marginLeft:6,fontSize:10,padding:'1px 5px',background:'#EFE3D0',color:'#B5895F',borderRadius:2}}>手動</span>}
+                  {b.daily && <span data-tp="1" style={{marginLeft:6,fontSize:10,padding:'1px 5px',background:'#E0F0E0',color:'#2A6B2A',borderRadius:2}}>每日</span>}
+                  {i===0 && <span data-tp="1" style={{marginLeft:6,fontSize:10,padding:'1px 5px',background:'#DCE4F2',color:'#3A60A8',borderRadius:2}}>最新</span>}
+                </div>
+                <div style={{fontSize:11,color:'#9A8F82',marginTop:4}}>
+                  👥 {b.summary?.guestCount||0} 賓客 · 🪑 {b.summary?.tableCount||0} 桌 · 🖼 {b.summary?.photoCount||0} 照片
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <Btn size="sm" v="ghost" onClick={()=>setPreview(b)}>預覽</Btn>
+                <Btn size="sm" v="gold" onClick={()=>restoreBackup(b)}>還原</Btn>
+                <Btn size="sm" v="red" onClick={()=>deleteBackup(b)}>刪除</Btn>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* A2: 本地鏡像還原 */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:500,color:'#3A332B',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+          💾 本地鏡像（最後防線）
+          <Btn size="sm" v="ghost" onClick={loadLocalMirrors}>重新整理</Btn>
+        </div>
+        {localMirrors.length === 0 ? (
+          <div style={{padding:'10px 14px',background:'#F9F5EF',borderRadius:2,fontSize:12,color:'#9A8F82'}}>尚無本地鏡像（資料同步後會自動建立）</div>
+        ) : (
+          <div style={{border:'1px solid #E5DDD0',borderRadius:2,maxHeight:200,overflowY:'auto'}}>
+            {localMirrors.map((m,i)=>(
+              <div key={m.savedAt} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 12px',borderBottom:i<localMirrors.length-1?'1px solid #F0EBE0':'none',background:i===0?'#FAFCF7':'#FFFEFA'}}>
+                <div>
+                  <div style={{fontSize:12,color:'#3A332B'}}>{new Date(m.savedAt).toLocaleString('zh-TW')}</div>
+                  <div style={{fontSize:11,color:'#9A8F82'}}>👥 {(m.data?.guests||[]).length} 賓客 · 🪑 {(m.data?.tables||[]).length} 桌</div>
+                </div>
+                <Btn size="sm" v="ghost" onClick={()=>restoreLocalMirror(m)}>從本地鏡像還原</Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* B: 清理孤兒元資料 */}
+      <div style={{paddingTop:12,borderTop:'1px solid #E5DDD0',display:'flex',alignItems:'center',gap:10}}>
+        <Btn size="sm" v="ghost" onClick={cleanOrphanPhotos} disabled={cleaningOrphans}>
+          {cleaningOrphans?'清理中...':'🧹 清理孤兒元資料'}
+        </Btn>
+        <span style={{fontSize:11,color:'#9A8F82'}}>掃描並刪除子集合中不在主文件 photos 陣列的殘留元資料</span>
+      </div>
+
+      {preview && (
+        <Modal open={!!preview} onClose={()=>setPreview(null)} title={`備份預覽 - ${new Date(preview.createdAt).toLocaleString('zh-TW')}`} width={680}>
+          <div style={{marginBottom:12,padding:'10px 14px',background:'#F9F5EF',borderRadius:2,fontSize:12,color:'#6B6259'}}>
+            👥 {preview.summary?.guestCount||0} 賓客 · 🪑 {preview.summary?.tableCount||0} 桌 · 🖼 {preview.summary?.photoCount||0} 照片
+          </div>
+          <div style={{maxHeight:360,overflowY:'auto'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:13,fontWeight:500,marginBottom:8}}>賓客名單（前 20 筆）</div>
+            <div style={{fontSize:12,color:'#6B6259',marginBottom:12}}>
+              {(preview.data?.guests||[]).slice(0,20).map((g,i)=>(
+                <div key={i} style={{padding:'4px 0',borderBottom:'1px dotted #E5DDD0'}}>
+                  {g.name||'(無名)'} {g.nickname?`(${g.nickname})`:''} · {g.side||'-'} · {g.attending==='yes'?'出席':g.attending==='no'?'婉拒':'未回'}
+                </div>
+              ))}
+              {(preview.data?.guests||[]).length > 20 && <div style={{padding:'8px 0',color:'#9A8F82'}}>...還有 {preview.data.guests.length - 20} 筆</div>}
+            </div>
+          </div>
+          <div style={{marginTop:12,display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <Btn v="ghost" onClick={()=>setPreview(null)}>關閉</Btn>
+            <Btn v="gold" onClick={()=>{setPreview(null); restoreBackup(preview);}}>還原此備份</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+
+function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPreview,weddingId,fbRef}) {
+  const [tab,setTab] = useState('basic');
+  // 外觀頁籤開啟時預載所有字體，讓字體預覽卡片能即時顯示
+  useEffect(()=>{ if(tab==='theme') preloadAllFonts(); },[tab]);
+  const cfg = data.config;
+  const update = (k,v) => onUpdate({...data,config:{...cfg,[k]:v}});
+  const [draft,setDraft] = useState({...cfg});
+  const [previewing,setPreviewing] = useState(false);
+  const [pw1,setPw1] = useState('');
+  const [pw2,setPw2] = useState('');
+  const [pwMsg,setPwMsg] = useState('');
+  const fileInput = useRef(null);
+  const logoInput = useRef(null);
+  const [uploadingThankTop, setUploadingThankTop] = useState(false);
+  const [uploadingThankBottom, setUploadingThankBottom] = useState(false);
+  const [enlargedImg, setEnlargedImg] = useState(null);  // #6e：小圖點擊放大
+
+  useEffect(()=>{
+    // 保留上傳中/待刪除的圖片標記，避免 data.config 更新時的 race 把標記洗掉（#6c）
+    setDraft(prev=>{
+      const next={...data.config};
+      ['thankYouImgDataUrl','thankYouImgBottomDataUrl','logoDataUrl'].forEach(k=>{
+        if(prev && (prev[k]==='__USE_PHOTO__'||prev[k]==='__REMOVED__')) next[k]=prev[k];
+      });
+      return next;
+    });
+  },[data.config]);
+  const setD=(k,v)=>setDraft(p=>({...p,[k]:v}));
+  // 解析草稿中的圖片值 → 實際可顯示 URL（標記從 photoMap 即時解析，待刪除回空）
+  const resolveDraftImg=(val,photoKey)=>{
+    if(val==='__REMOVED__') return '';
+    if(val==='__USE_PHOTO__') return photoMap[photoKey]?.url||photoMap[photoKey]?.dataUrl||'';
+    return val||'';
+  };
+
+  const publish=()=>{
+    const finalCfg={...draft};
+    // #6b：圖片移除延遲到發佈才真正刪除
+    [['thankYouImgDataUrl','__thankTop'],['thankYouImgBottomDataUrl','__thankBottom'],['logoDataUrl','__logo']].forEach(([k,pk])=>{
+      if(finalCfg[k]==='__REMOVED__'){ deletePhotoData(pk).catch(()=>{}); finalCfg[k]=''; }
+      else if(photoMap[pk]){ finalCfg[k]='__USE_PHOTO__'; }      // 有照片 → 存標記
+      else if(finalCfg[k]==='__USE_PHOTO__'){ finalCfg[k]=''; }  // 標記但無照片 → 清空
+    });
+    onUpdate({...data,config:finalCfg});
+    uiAlert('已發佈！');
+    setPreviewing(false);
+  };
+  const changePw=()=>{
+    if(!pw1){setPwMsg('請輸入新密碼');return;}
+    if(pw1!==pw2){setPwMsg('兩次密碼不一致');return;}
+    if(pw1.length<4){setPwMsg('密碼至少 4 碼');return;}
+    onUpdate({...data,config:{...cfg,adminPw:pw1}});
+    setPw1(''); setPw2(''); setPwMsg('密碼已更新 ✓');
+    setTimeout(()=>setPwMsg(''),2500);
+  };
+
+  // Photo upload — no compression, just enforce file size
+  const PHOTO_LIMIT_KB = 800; // ~800KB raw → ~1067KB base64 — 接近 Firestore 1MB 上限，請留意
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const readAsDataURL = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('讀取失敗'));
+    r.readAsDataURL(file);
+  });
+  const handlePhotoUpload=async e=>{
+    const files=Array.from(e.target.files||[]);
+    if(!files.length) return;
+    setUploadingCount(files.length);
+    let nextOrder = (data.photos.length ? Math.max(...data.photos.map(p=>p.order||0)) : 0) + 1;
+    const newMeta = [];
+    for (const f of files) {
+      try {
+        if(!f.type.startsWith('image/')) { setUploadingCount(c=>c-1); continue; }
+        // Cloud Storage limit: 20MB per file (generous)
+        if(f.size > 20 * 1024 * 1024) {
+          uiAlert(f.name + ' 超過 20MB（實際 ' + Math.round(f.size/1024/1024) + 'MB），請自行壓縮後上傳');
+          setUploadingCount(c=>c-1);
+          continue;
+        }
+        const id = uid();
+        await savePhotoData(id, f);  // Pass File directly → uploads to Cloud Storage
+        newMeta.push({id, enabled:true, order:nextOrder++, focalY:50});
+      } catch(err) {
+        console.error('Upload failed:', err);
+        uiAlert(f.name + ' 上傳失敗：'+err.message);
+      } finally {
+        setUploadingCount(c=>c-1);
+      }
+    }
+    if(newMeta.length) onUpdate({...data, photos:[...data.photos, ...newMeta]});
+    if(fileInput.current) fileInput.current.value='';
+  };
+
+  const removePhoto=async id=>{
+    if(!await uiConfirm('確定刪除這張照片？')) return;
+    try { await deletePhotoData(id); } catch(e){console.error(e);}
+    onUpdate({...data,photos:data.photos.filter(p=>p.id!==id)});
+  };
+
+  const updatePhotoFocalY = (id, focalY) => {
+    onUpdate({...data, photos: data.photos.map(p=>p.id===id?{...p,focalY}:p)});
+  };
+  const movePhoto=(id,dir)=>{
+    const list=[...data.photos].sort((a,b)=>(a.order||0)-(b.order||0));
+    const idx=list.findIndex(p=>p.id===id);
+    if(idx<0) return;
+    const ni=idx+dir;
+    if(ni<0||ni>=list.length) return;
+    [list[idx],list[ni]]=[list[ni],list[idx]];
+    onUpdate({...data,photos:list.map((p,i)=>({...p,order:i}))});
+  };
+
+  const sortedPhotos=[...data.photos].sort((a,b)=>(a.order||0)-(b.order||0));
+
+  const tabs=[
+    {id:'basic',l:'📋 基本資訊'},
+    {id:'photos',l:'🎠 輪播圖'},
+    {id:'thanks',l:'💌 謝謝頁面'},
+    {id:'groups',l:'👥 關係分類'},
+    {id:'theme',l:'🎨 外觀'},
+    {id:'backup',l:'📦 備份'},
+    {id:'password',l:'🔒 密碼管理'},
+  ];
+
+  return (
+    <div style={{maxWidth:900,margin:'0 auto',padding:'20px 16px'}}>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>SETTINGS</div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginTop:2,marginBottom:20,flexWrap:'wrap',gap:10}}>
+        <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:1}}>資訊管理</div>
+        <StorageMeter data={data} photoMap={photoMap} />
+      </div>
+
+      {/* Tabs */}
+      <div className="wed-nav-menu" style={{display:'flex',gap:0,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'10px 18px',fontSize:13,letterSpacing:.3,whiteSpace:'nowrap',flexShrink:0,
+            color:tab===t.id?'#3A332B':'#9A8F82',fontWeight:tab===t.id?600:400,
+            borderBottom:tab===t.id?'2px solid #B5895F':'2px solid transparent',transition:'all .15s'}}>
+            {t.l}
+          </button>
+        ))}
+      </div>
+
+      {/* BASIC INFO */}
+      {tab==='basic' && (
+        <div style={{...S.card,padding:28}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+            <div style={{fontSize:16,fontFamily:FONT_STACK,letterSpacing:1}}>婚禮基本資訊</div>
+            <div style={{display:'flex',gap:8}}>
+              <Btn v="ghost" size="sm" onClick={()=>setPreviewing(p=>!p)}>{previewing?'隱藏預覽':'預覽效果'}</Btn>
+              <Btn size="sm" onClick={publish}>✓ 發佈</Btn>
+            </div>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:previewing?'1fr 1fr':'1fr',gap:20}}>
+            <div>
+              {/* Logo section */}
+              <Field label="顯示 LOGO / 識別文字">
+                <div style={{display:'flex',gap:8,marginBottom:6}}>
+                  {['text','image'].map(t=>(
+                    <button key={t} data-tp="1" type="button" onClick={()=>setD('logoType',t)} style={{
+                      padding:'5px 12px',fontSize:12,borderRadius:2,
+                      background:draft.logoType===t?'#B5895F':'#F9F5EF',
+                      color:draft.logoType===t?'#FFFEFA':'#6B6259',
+                      border:`1px solid ${draft.logoType===t?'#B5895F':'#E5DDD0'}`}}>
+                      {t==='text'?'文字':'上傳圖片'}
+                    </button>
+                  ))}
+                </div>
+                {draft.logoType==='text'
+                  ? <TInput value={draft.logoText||''} onChange={v=>setD('logoText',v)} placeholder="例：馨&語" />
+                  : <div>
+                    {draft.logoDataUrl&&<div style={{marginBottom:6}}><img src={draft.logoDataUrl} alt="logo" style={{maxHeight:48,maxWidth:160,objectFit:'contain'}} /></div>}
+                    <Btn v="ghost" size="sm" onClick={()=>logoInput.current?.click()}>上傳圖片</Btn>
+                    {draft.logoDataUrl&&<Btn v="red" size="sm" onClick={async()=>{await deletePhotoData('__logo').catch(()=>{}); setD('logoDataUrl','');}} style={{marginLeft:6}}>移除</Btn>}
+                    <input ref={logoInput} type="file" accept="image/*" onChange={async e=>{
+                      const f=e.target.files?.[0];if(!f)return;
+                      if(f.size > 20*1024*1024){ uiAlert('Logo 檔案 '+Math.round(f.size/1024/1024)+'MB 超過 20MB'); e.target.value=''; return; }
+                      try {
+                        await savePhotoData('__logo', f);
+                        setD('logoDataUrl', '__USE_PHOTO__');
+                      } catch(err){ uiAlert('上傳失敗：'+err.message); }
+                      e.target.value='';
+                    }} style={{display:'none'}} />
+                  </div>}
+              </Field>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                <Field label="新郎姓名"><TInput value={draft.groomName||''} onChange={v=>setD('groomName',v)} /></Field>
+                <Field label="新娘姓名"><TInput value={draft.brideName||''} onChange={v=>setD('brideName',v)} /></Field>
+              </div>
+              <Field label="婚禮日期"><TInput value={draft.weddingDate||''} onChange={v=>setD('weddingDate',v)} /></Field>
+              <Field label="時間（入席/開席）"><TInput value={draft.weddingTime||''} onChange={v=>setD('weddingTime',v)} /></Field>
+              <Field label="宴客地點名稱"><TInput value={draft.venue||''} onChange={v=>setD('venue',v)} /></Field>
+              <Field label="地址"><TInput value={draft.address||''} onChange={v=>setD('address',v)} /></Field>
+              <Field label="電話"><TInput value={draft.phone||''} onChange={v=>setD('phone',v)} /></Field>
+              <Field label="交通資訊" hint="顯示在邀請函下方及謝謝頁面">
+                <TTextarea value={draft.transportInfo||''} onChange={v=>setD('transportInfo',v)} rows={2} />
+              </Field>
+              <Field label="邀請函頁尾文字" hint="顯示在邀請函最底部（可換行）">
+                <TTextarea value={draft.footerText||''} onChange={v=>setD('footerText',v)} rows={3} placeholder={"例：© 2025 陳馨諺 & 蘇珮語 婚禮邀請\n聯絡：02-xxxx-xxxx"} />
+              </Field>
+            </div>
+
+            {/* Preview */}
+            {previewing && (
+              <div style={{border:'1px solid #E5DDD0',borderRadius:3,padding:16,background:'#F9F5EF',maxHeight:500,overflowY:'auto'}} className="wed-scroll">
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9,letterSpacing:5,color:'#B5895F',textAlign:'center',marginBottom:8}}>WE INVITE YOU TO</div>
+                <div style={{textAlign:'center',fontFamily:FONT_STACK,fontSize:22,fontWeight:500,letterSpacing:4,marginBottom:4}}>
+                  {draft.groomName} <span style={{color:'#B5895F',fontFamily:"'Cormorant Garamond',serif"}}>&amp;</span> {draft.brideName}
+                </div>
+                <div style={{textAlign:'center',fontSize:10,color:'#9A8F82',letterSpacing:2,marginBottom:12}}>{draft.weddingDate}</div>
+                <div style={{height:1,background:'#E5DDD0',marginBottom:12}} />
+                <div style={{fontSize:13,fontWeight:500,color:'#3A332B',marginBottom:3}}>{draft.venue}</div>
+                <div style={{fontSize:11,color:'#6B6259',marginBottom:2}}>{draft.address}</div>
+                <div style={{fontSize:10,color:'#9A8F82',marginBottom:8}}>{draft.phone}</div>
+                <div style={{display:'inline-block',padding:'4px 10px',border:'1px solid #E5D5BD',fontSize:10,color:'#B5895F',letterSpacing:1}}>{draft.weddingTime}</div>
+                {draft.transportInfo&&<div style={{fontSize:10,color:'#9A8F82',marginTop:8}}>{draft.transportInfo}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PHOTOS */}
+      {tab==='photos' && (
+        <div style={{...S.card,padding:28}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1}}>婚紗照輪播管理</div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11,color:'#9A8F82'}}>單張圖片檔案上限 800KB</span>
+              <Btn size="sm" onClick={()=>fileInput.current?.click()}>＋ 上傳照片</Btn>
+              <input ref={fileInput} type="file" accept="image/*" multiple onChange={handlePhotoUpload} style={{display:'none'}} />
+            </div>
+          </div>
+          {uploadingCount > 0 && (
+            <div style={{padding:'10px 14px',background:'#FFF8E8',border:'1px solid #E5D5BD',borderRadius:2,marginBottom:12,fontSize:12,color:'#B5895F',display:'flex',alignItems:'center',gap:8}}>
+              <Spinner size={14} /> 正在上傳 {uploadingCount} 張圖片...
+            </div>
+          )}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))',gap:12,marginTop:16}}>
+            {sortedPhotos.map((p,i)=>(
+              <PhotoCard key={p.id} photo={p} index={i} totalCount={sortedPhotos.length}
+                onReorder={(fromId,toId)=>{
+                  if(fromId===toId) return;
+                  const list = [...sortedPhotos];
+                  const from = list.findIndex(x=>x.id===fromId);
+                  const to   = list.findIndex(x=>x.id===toId);
+                  if(from<0||to<0) return;
+                  const [moved] = list.splice(from,1);
+                  list.splice(to,0,moved);
+                  onUpdate({...data, photos: list.map((x,idx)=>({...x,order:idx}))});
+                }}
+                onFocalChange={(focalY)=>updatePhotoFocalY(p.id,focalY)}
+                onDelete={()=>removePhoto(p.id)} />
+            ))}
+            {!sortedPhotos.length&&<div style={{gridColumn:'1/-1',padding:40,textAlign:'center',color:'#9A8F82',border:'1px dashed #E5DDD0',borderRadius:2,fontSize:13}}>尚未上傳照片</div>}
+          </div>
+          {sortedPhotos.length > 0 && (
+            <Btn v="red" size="sm" style={{marginTop:12}}
+              onClick={async ()=>{
+                if(!await uiConfirm(`確定刪除全部 ${sortedPhotos.length} 張輪播照片？此動作無法復原`)) return;
+                // A4: 破壞性操作前先備份
+                try {
+                  const _fb = window.__wedFB ? await window.__wedFB : null;
+                  if(_fb){
+                    const now=Date.now(), cleanPhotos=(data.photos||[]).map(p=>({id:p.id,enabled:p.enabled!==false,order:p.order||0,focalY:p.focalY||50}));
+                    const isB64=s=>typeof s==='string'&&s.startsWith('data:'); const cfg=data.config||{};
+                    await backupsColRef(_fb.db, weddingId).doc(String(now)).set({
+                      data:{...data,photos:cleanPhotos,config:{...cfg,thankYouImgDataUrl:isB64(cfg.thankYouImgDataUrl)?'__USE_PHOTO__':cfg.thankYouImgDataUrl||'',thankYouImgBottomDataUrl:isB64(cfg.thankYouImgBottomDataUrl)?'__USE_PHOTO__':cfg.thankYouImgBottomDataUrl||'',logoDataUrl:isB64(cfg.logoDataUrl)?'__USE_PHOTO__':cfg.logoDataUrl||''}},
+                      createdAt:now, preDestruct:true, summary:{guestCount:(data.guests||[]).length,tableCount:(data.tables||[]).length,photoCount:cleanPhotos.length}
+                    });
+                  }
+                } catch(backupErr){ console.warn('Pre-destruct backup failed:', backupErr); }
+                try {
+                  await Promise.all(sortedPhotos.map(p=>deletePhotoData(p.id).catch(()=>{})));
+                  onUpdate({...data, photos:[]});
+                } catch(e) { uiAlert('刪除失敗：'+e.message); }
+              }}>
+              刪除全部 {sortedPhotos.length} 張照片
+            </Btn>
+          )}
+          <div style={{marginTop:10,fontSize:11,color:'#9A8F82',lineHeight:1.7}}>
+            💡 提示：點⠿ 拖拉可調整順序 ・ 直接拖動照片上的虛線可調整聚焦線位置 ・ 圖片儲存於 Cloud Storage，單張上限 20MB（免費額度共 5GB）
+          </div>
+        </div>
+      )}
+
+      {/* THANKS PAGE */}
+      {tab==='thanks' && (
+        <div style={{...S.card,padding:28}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1}}>RSVP 謝謝頁面設定</div>
+            <div style={{display:'flex',gap:8}}>
+              <Btn v="ghost" size="sm" onClick={()=>setPreviewing(p=>!p)}>{previewing?'隱藏預覽':'預覽效果'}</Btn>
+              <Btn size="sm" onClick={publish}>✓ 發佈</Btn>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:previewing?'1fr 1fr':'1fr',gap:20}}>
+            <div>
+              <Field label="頁面置頂圖片（自行選擇是否要放）">
+              <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                {resolveDraftImg(draft.thankYouImgDataUrl,'__thankTop')
+                  ? <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <img src={resolveDraftImg(draft.thankYouImgDataUrl,'__thankTop')} alt="" onClick={()=>setEnlargedImg(resolveDraftImg(draft.thankYouImgDataUrl,'__thankTop'))}
+                        style={{maxHeight:64,maxWidth:120,objectFit:'cover',borderRadius:3,border:'1px solid #E5DDD0',cursor:'zoom-in'}} />
+                      <Btn v="red" size="sm" onClick={()=>setD('thankYouImgDataUrl','__REMOVED__')}>移除</Btn>
+                    </div>
+                  : null}
+                <Btn v="ghost" size="sm" onClick={()=>document.getElementById('tyImgInput').click()}>
+                  {resolveDraftImg(draft.thankYouImgDataUrl,'__thankTop')?'更換圖片':'上傳圖片'}
+                </Btn>
+                <input id="tyImgInput" type="file" accept="image/*" style={{display:'none'}}
+                  onChange={async e=>{
+                    const f=e.target.files?.[0]; if(!f) return;
+                    if(f.size > 20*1024*1024){ uiAlert('檔案 '+Math.round(f.size/1024/1024)+'MB 超過 20MB'); e.target.value=''; return; }
+                    setUploadingThankTop(true);
+                    try {
+                      await savePhotoData('__thankTop', f);
+                      setD('thankYouImgDataUrl', '__USE_PHOTO__'); // marker so we know it exists
+                    } catch(err){ uiAlert('上傳失敗：'+err.message); }
+                    finally { setUploadingThankTop(false); }
+                    e.target.value='';
+                  }} />
+                {uploadingThankTop && <span style={{fontSize:12,color:'#B5895F',display:'flex',alignItems:'center',gap:5}}><Spinner size={13}/> 上傳中，請稍候…</span>}
+                {!uploadingThankTop && <span style={{fontSize:11,color:'#9A8F82'}}>上限 20MB</span>}
+              </div>
+            </Field>
+          <Field label="頁面標題"><TInput value={draft.thankYouTitle||''} onChange={v=>setD('thankYouTitle',v)} /></Field>
+              <Field label="感謝內文" hint="換行符號會直接顯示成換行">
+                <TTextarea value={draft.thankYouMsg||''} onChange={v=>setD('thankYouMsg',v)} rows={4} />
+              </Field>
+              <Field label="額外資訊區塊" hint="顯示在感謝文字下方（可放入注意事項等）">
+                <TTextarea value={draft.thankYouExtra||''} onChange={v=>setD('thankYouExtra',v)} rows={3} placeholder="例：婚禮當天請至 3F 繁複廳入座" />
+              </Field>
+              <Field label="LINE 分享內容" hint="賓客按「分享至Line」時複製的文字。留空則自動使用：新人名稱＋婚禮日期＋宴客地點。不含網址與圖片。">
+                <TTextarea value={draft.lineShareText||''} onChange={v=>setD('lineShareText',v)} rows={4}
+                  placeholder={`例：周杰倫 & 昆凌 婚禮邀請\n民國 115 年 05 月 20 日 (日) 12:00\n台北晶華酒店 | 四樓寰宇廳`} />
+              </Field>
+              <Field label="頁面底部圖片（自行選擇是否要放，建議放交通停車辦法）" hint="顯示在感謝頁面最下方">
+                <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                  {resolveDraftImg(draft.thankYouImgBottomDataUrl,'__thankBottom')
+                    ? <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <img src={resolveDraftImg(draft.thankYouImgBottomDataUrl,'__thankBottom')} alt="" onClick={()=>setEnlargedImg(resolveDraftImg(draft.thankYouImgBottomDataUrl,'__thankBottom'))}
+                          style={{maxHeight:64,maxWidth:120,objectFit:'cover',borderRadius:3,border:'1px solid #E5DDD0',cursor:'zoom-in'}} />
+                        <Btn v="red" size="sm" onClick={()=>setD('thankYouImgBottomDataUrl','__REMOVED__')}>移除</Btn>
+                      </div>
+                    : null}
+                  <Btn v="ghost" size="sm" onClick={()=>document.getElementById('tyBotImgInput').click()}>
+                    {resolveDraftImg(draft.thankYouImgBottomDataUrl,'__thankBottom')?'更換底部圖片':'上傳底部圖片'}
+                  </Btn>
+                  <input id="tyBotImgInput" type="file" accept="image/*" style={{display:'none'}}
+                    onChange={async e=>{
+                      const f=e.target.files?.[0]; if(!f) return;
+                      if(f.size > 20*1024*1024){ uiAlert('檔案 '+Math.round(f.size/1024/1024)+'MB 超過 20MB'); e.target.value=''; return; }
+                      setUploadingThankBottom(true);
+                      try {
+                        await savePhotoData('__thankBottom', f);
+                        setD('thankYouImgBottomDataUrl', '__USE_PHOTO__');
+                      } catch(err){ uiAlert('上傳失敗：'+err.message); }
+                      finally { setUploadingThankBottom(false); }
+                      e.target.value='';
+                    }} />
+                  {uploadingThankBottom && <span style={{fontSize:12,color:'#B5895F',display:'flex',alignItems:'center',gap:5}}><Spinner size={13}/> 上傳中，請稍候…</span>}
+                  {!uploadingThankBottom && <span style={{fontSize:11,color:'#9A8F82'}}>上限 20MB</span>}
+                </div>
+              </Field>
+            </div>
+            {previewing && (
+              <div style={{border:'1px solid #E5DDD0',borderRadius:3,padding:24,background:'#F9F5EF',textAlign:'center'}}>
+                {resolveDraftImg(draft.thankYouImgDataUrl,'__thankTop') && <img src={resolveDraftImg(draft.thankYouImgDataUrl,'__thankTop')} alt="" style={{width:'70%',height:'auto',objectFit:'contain',borderRadius:3,marginBottom:8}} />}
+              <div style={{fontSize:36,marginBottom:12}}>💐</div>
+                <div style={{fontFamily:FONT_STACK,fontSize:22,letterSpacing:2,marginBottom:8}}>{draft.thankYouTitle}</div>
+                {(draft.thankYouMsg||'').split('\n').map((l,i)=><div key={i} style={{color:'#6B6259',lineHeight:1.9,fontSize:14}}>{l||' '}</div>)}
+                {draft.thankYouExtra&&<div style={{marginTop:12,padding:'10px 14px',background:'#fff',borderRadius:2,fontSize:12,color:'#6B6259',textAlign:'center',lineHeight:1.8}}>{draft.thankYouExtra}</div>}
+                {draft.transportInfo&&<div style={{marginTop:8,fontSize:11,color:'#9A8F82'}}>{draft.transportInfo}</div>}
+                <div style={{marginTop:16,display:'flex',gap:8,justifyContent:'center'}}>
+                  <span style={{padding:'4px 12px',border:'1px solid #E5DDD0',borderRadius:2,fontSize:11,color:'#6B6259'}}>再填一筆</span>
+                  <span style={{padding:'4px 12px',border:'1px solid #06C755',color:'#06C755',background:'transparent',borderRadius:2,fontSize:11}}>分享至Line</span>
+                </div>
+                {resolveDraftImg(draft.thankYouImgBottomDataUrl,'__thankBottom') && <img src={resolveDraftImg(draft.thankYouImgBottomDataUrl,'__thankBottom')} alt="" style={{width:'70%',height:'auto',objectFit:'contain',borderRadius:3,marginTop:10}} />}
+              </div>
+            )}
+          </div>
+          {enlargedImg && <ImageLightbox src={enlargedImg} onClose={()=>setEnlargedImg(null)} />}
+        </div>
+      )}
+
+      {/* GROUPS MANAGEMENT */}
+      {tab==='groups' && <GroupsTab data={data} onUpdate={onUpdate} />}
+
+      {/* THEME */}
+      {tab==='theme' && (
+        <div style={{...S.card,padding:28}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+            <div>
+              <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:6}}>外觀主題</div>
+              <div style={{color:'#9A8F82',fontSize:12}}>選好主題與字體後，點右側「預覽外觀」查看效果再決定套用</div>
+            </div>
+            <Btn onClick={()=>onPreview&&onPreview(draft)}>👁 預覽外觀</Btn>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12,marginBottom:32,marginTop:18}}>
+            {Object.entries(THEMES).map(([key,th])=>{
+              const active = (draft.theme||'cream')===key;
+              return (
+                <button key={key} data-tp="1" type="button" onClick={()=>setD('theme',key)}
+                  style={{padding:'16px',borderRadius:4,border:`2px solid ${active?th.primary:th.border}`,
+                    background:th.pageBg,textAlign:'left',cursor:'pointer',transition:'all .15s',
+                    boxShadow:active?`0 0 0 2px ${th.primary}40`:'none'}}>
+                  <div data-tp="1" style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                    <div data-tp="1" style={{width:28,height:28,borderRadius:'50%',background:th.primary,border:`2px solid ${th.border}`}} />
+                    <div data-tp="1" style={{fontWeight:active?600:400,color:th.text,fontSize:14}}>{th.name}</div>
+                    {active && <span data-tp="1" style={{marginLeft:'auto',color:th.primary,fontSize:16}}>✓</span>}
+                  </div>
+                  <div data-tp="1" style={{display:'flex',gap:6}}>
+                    {[th.pageBg,th.cardBg,th.soft,th.primary].map((c,i)=>(
+                      <div data-tp="1" key={i} style={{flex:1,height:14,borderRadius:2,background:c,border:`1px solid ${th.border}`}} />
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* CJK font selector */}
+          <div style={{marginTop:32}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:6}}>中文字體</div>
+            <div style={{color:'#9A8F82',fontSize:12,marginBottom:16}}>影響所有中文、數字及標點的字形風格</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:4}}>
+              {Object.entries(FONTS_CJK).map(([key,f])=>{
+                const active=(draft.fontCJK||'noto-serif')===key;
+                return (
+                  <button key={key} data-tp="1" type="button"
+                    onClick={()=>{ setD('fontCJK',key); }}
+                    style={{padding:'14px',borderRadius:4,textAlign:'left',cursor:'pointer',transition:'all .15s',
+                      border:`2px solid ${active?'#B5895F':'#E5DDD0'}`,background:'#FFFEFA',
+                      boxShadow:active?'0 0 0 2px rgba(181,137,95,.25)':'none'}}>
+                    <div data-tp="1" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                      <div data-tp="1" style={{fontWeight:active?600:400,fontSize:13,color:'#3A332B'}}>{f.name}</div>
+                      {active&&<span data-tp="1" style={{marginLeft:'auto',color:'#B5895F',fontSize:14}}>✓</span>}
+                    </div>
+                    <div data-tp="1" style={{fontFamily:f.family,fontSize:18,color:'#6B6259',lineHeight:1.4}}>
+                      <span data-own-font="1" style={{fontFamily:f.family}}>馨諺 &amp; 珮語</span>
+                    </div>
+                    <div data-tp="1" style={{fontFamily:f.family,fontSize:12,color:'#9A8F82',marginTop:4,lineHeight:1.5}}>
+                      <span data-own-font="1" style={{fontFamily:f.family}}>民國 115 年 11 月 22 日</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Latin font selector */}
+          <div style={{marginTop:28}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:6}}>英文字體</div>
+            <div style={{color:'#9A8F82',fontSize:12,marginBottom:16}}>影響 ASCII 英文字母及符號的字形風格</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:4}}>
+              {Object.entries(FONTS_LATIN).map(([key,f])=>{
+                const active=(draft.fontLatin||'cormorant')===key;
+                return (
+                  <button key={key} data-tp="1" type="button"
+                    onClick={()=>{ setD('fontLatin',key); }}
+                    style={{padding:'14px',borderRadius:4,textAlign:'left',cursor:'pointer',transition:'all .15s',
+                      border:`2px solid ${active?'#B5895F':'#E5DDD0'}`,background:'#FFFEFA',
+                      boxShadow:active?'0 0 0 2px rgba(181,137,95,.25)':'none'}}>
+                    <div data-tp="1" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                      <div data-tp="1" style={{fontFamily:f.family,fontWeight:active?600:400,fontSize:13,color:'#3A332B'}}>{f.name}</div>
+                      {active&&<span data-tp="1" style={{marginLeft:'auto',color:'#B5895F',fontSize:14}}>✓</span>}
+                    </div>
+                    <div data-tp="1" style={{fontFamily:f.family,fontSize:18,color:'#6B6259',lineHeight:1.4}}>
+                      <span data-own-font="1" style={{fontFamily:f.family}}>Hsin-Yen &amp; Pei-Yu</span>
+                    </div>
+                    <div data-tp="1" style={{fontFamily:f.family,fontSize:12,color:'#9A8F82',marginTop:4,lineHeight:1.5}}>
+                      <span data-own-font="1" style={{fontFamily:f.family}}>November 22, 2026</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BACKUP */}
+      {tab==='backup' && <BackupTab data={data} onUpdate={onUpdate} />}
+
+      {/* PASSWORD */}
+      {tab==='password' && (
+        <div style={{...S.card,padding:28,maxWidth:380}}>
+          <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:20}}>修改後台密碼</div>
+          <Field label="目前密碼">
+            <div style={{padding:'9px 12px',border:'1px solid #E5DDD0',borderRadius:2,fontSize:13,color:'#9A8F82',background:'#F9F5EF',letterSpacing:3}}>{'•'.repeat((cfg.adminPw||'').length)}</div>
+          </Field>
+          <Field label="新密碼（至少 4 碼）">
+            <TInput type="password" value={pw1} onChange={setPw1} placeholder="輸入新密碼" />
+          </Field>
+          <Field label="確認新密碼">
+            <TInput type="password" value={pw2} onChange={setPw2} placeholder="再次輸入新密碼" />
+          </Field>
+          {pwMsg&&<div style={{fontSize:12,color:pwMsg.includes('✓')?'#7BA77B':'#C04040',marginBottom:10}}>{pwMsg}</div>}
+          <Btn onClick={changePw}>更新密碼</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// NAVBAR  — public shows only RSVP + admin login
+// ============================================================
+function NavBar({page,onNav,authed,onLogout,syncStatus,cfg}) {
+  const logoContent = cfg.logoType==='image'&&cfg.logoDataUrl
+    ? <img src={cfg.logoDataUrl} alt="logo" style={{maxHeight:28,maxWidth:120,objectFit:'contain'}} />
+    : <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,letterSpacing:4,color:'#B5895F',fontWeight:500}}>
+        {cfg.logoText||'馨&語'}
+      </span>;
+
+  return (
+    <nav className="no-print wed-nav" style={{position:'sticky',top:0,zIndex:50,background:'rgba(249,245,239,.94)',
+      backdropFilter:'blur(12px)',borderBottom:'1px solid #E5DDD0',
+      padding:'11px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',minHeight:58,gap:8}}>
+      <div className="wed-nav-logo" style={{flexShrink:0}}>{logoContent}</div>
+
+      {/* Public: RSVP + Blessing wall */}
+      {!authed && (
+        <div className="wed-nav-menu" style={{display:'flex',gap:4,alignItems:'center',overflowX:'auto'}}>
+          <button onClick={()=>onNav('rsvp')} style={{padding:'7px 14px',fontSize:12,letterSpacing:.8,whiteSpace:'nowrap',
+            color:page==='rsvp'?'#3A332B':'#9A8F82',
+            borderBottom:page==='rsvp'?'2px solid #B5895F':'2px solid transparent'}}>
+            💌 邀請函
+          </button>
+          <button onClick={()=>onNav('blessings')} style={{padding:'7px 14px',fontSize:12,letterSpacing:.8,whiteSpace:'nowrap',
+            color:page==='blessings'?'#3A332B':'#9A8F82',
+            borderBottom:page==='blessings'?'2px solid #B5895F':'2px solid transparent'}}>
+            💝 祝福牆
+          </button>
+          <button onClick={()=>onNav('login')} style={{padding:'6px 12px',fontSize:11,letterSpacing:.5,whiteSpace:'nowrap',
+            color:'#9A8F82',border:'1px solid #E5DDD0',borderRadius:2,marginLeft:8}}>
+            後台 🔒
+          </button>
+        </div>
+      )}
+
+      {/* Admin: full menu */}
+      {authed && (
+        <div className="wed-nav-menu" style={{display:'flex',gap:2,overflowX:'auto'}}>
+          {[{id:'rsvp',l:'邀請函',icon:'💌'},{id:'blessings',l:'祝福牆',icon:'💝'},{id:'admin',l:'名單',icon:'📋'},{id:'seating',l:'排位',icon:'🪑'},{id:'info',l:'資訊管理',icon:'⚙️'}].map(t=>(
+            <button key={t.id} onClick={()=>onNav(t.id)} style={{padding:'7px 13px',fontSize:12,letterSpacing:.5,whiteSpace:'nowrap',
+              color:page===t.id?'#3A332B':'#9A8F82',fontWeight:page===t.id?600:400,
+              borderBottom:page===t.id?'2px solid #B5895F':'2px solid transparent',transition:'all .15s'}}>
+              {t.icon} {t.l}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="wed-nav-status" style={{display:'flex',alignItems:'center',gap:10,fontSize:11,color:'#9A8F82',flexShrink:0,whiteSpace:'nowrap'}}>
+        {syncStatus==='connecting'&&<><Spinner size={11}/> <span className="wed-nav-status-txt">連線中</span></>}
+        {syncStatus==='connected'&&<><span style={{width:5,height:5,borderRadius:'50%',background:'#7BA77B',display:'inline-block'}}/> <span className="wed-nav-status-txt">已同步</span></>}
+        {syncStatus==='error'&&<><span style={{width:5,height:5,borderRadius:'50%',background:'#C04040',display:'inline-block'}}/> <span className="wed-nav-status-txt">離線</span></>}
+        {authed&&<button onClick={onLogout} style={{color:'#9A8F82',fontSize:11,textDecoration:'underline'}}>登出</button>}
+      </div>
+    </nav>
+  );
+}
+
+// ============================================================
+// PASSWORD GATE
+// ============================================================
+function PwGate({onAuth,expectedPw}) {
+  const [pw,setPw] = useState('');
+  const [err,setErr] = useState(false);
+  const check=()=>{if(pw===expectedPw){onAuth(true);}else{setErr(true);setPw('');}};
+  return (
+    <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{...S.card,padding:'40px 32px',maxWidth:380,width:'100%',textAlign:'center'}}>
+        <div style={{fontSize:28,marginBottom:10}}>🔒</div>
+        <div style={{fontFamily:FONT_STACK,fontSize:19,letterSpacing:2,marginBottom:6}}>後台密碼</div>
+        <div style={{fontSize:12,color:'#9A8F82',marginBottom:20}}>請輸入管理員密碼</div>
+        <TInput type="password" value={pw} onChange={v=>{setPw(v);setErr(false);}}
+          onKeyDown={e=>e.key==='Enter'&&check()} placeholder="••••"
+          style={{textAlign:'center',letterSpacing:4,fontSize:16}} />
+        {err&&<div style={{color:'#BF7090',fontSize:12,marginTop:6}}>密碼不正確</div>}
+        <Btn onClick={check} style={{width:'100%',marginTop:14,justifyContent:'center'}}>進入後台</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+
+// ============================================================
+// HASH-BASED ROUTER
+// 支援 URL：#/login · #/setup · #/dashboard · #/w/{weddingId}
+//           #/w/{weddingId}/admin · /seating · /info · /blessings
+// ============================================================
+function useHashRoute() {
+  const [route, setRoute] = useState(() => window.location.hash || '#/login');
+  useEffect(() => {
+    const onHash = () => setRoute(window.location.hash || '#/login');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return route;
+}
+function navigate(path) {
+  window.location.hash = path;
+}
+function parseRoute(hash) {
+  // #/w/{weddingId}/admin → { section: 'w', weddingId, page: 'admin' }
+  const path = hash.replace(/^#\/?/, '');
+  const parts = path.split('/');
+  if (parts[0] === 'w' && parts[1]) {
+    return { section: 'w', weddingId: parts[1], page: parts[2] || 'rsvp' };
+  }
+  return { section: parts[0] || 'login', weddingId: null, page: null };
+}
+
+
+// ============================================================
+// LOGIN PAGE — Email/Password + Google OAuth
+// ============================================================
+function LoginPage({ onAuthSuccess }) {
+  const [mode, setMode]     = useState('login'); // 'login' | 'register' | 'reset'
+  const [email, setEmail]   = useState('');
+  const [pw, setPw]         = useState('');
+  const [pw2, setPw2]       = useState('');
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg]       = useState({ type: '', text: '' });
+  const th = THEMES.cream;
+
+  const err = (text) => setMsg({ type: 'err', text });
+  const ok  = (text) => setMsg({ type: 'ok',  text });
+
+  const doEmailAuth = async () => {
+    if (!email.trim()) { err('請輸入 Email'); return; }
+    if (!pw)           { err('請輸入密碼'); return; }
+    if (mode === 'register' && pw !== pw2) { err('兩次密碼不一致'); return; }
+    if (mode === 'register' && pw.length < 6) { err('密碼至少 6 碼'); return; }
+    setLoading(true); setMsg({ type: '', text: '' });
+    try {
+      const fb = await initFirebase();
+      if (mode === 'login') {
+        await fb.auth.signInWithEmailAndPassword(email.trim(), pw);
+      } else {
+        await fb.auth.createUserWithEmailAndPassword(email.trim(), pw);
+      }
+      // onAuthStateChanged 會觸發，WeddingApp 統一處理後續
+    } catch(e) {
+      const map = {
+        'auth/user-not-found':   '找不到此帳號，請先註冊',
+        'auth/wrong-password':   '密碼錯誤',
+        'auth/email-already-in-use': '此 Email 已被使用',
+        'auth/invalid-email':    'Email 格式不正確',
+        'auth/weak-password':    '密碼強度不足（至少 6 碼）',
+        'auth/too-many-requests':'嘗試次數過多，請稍後再試',
+      };
+      err(map[e.code] || e.message);
+    } finally { setLoading(false); }
+  };
+
+  const doGoogleLogin = async () => {
+    setLoading(true); setMsg({ type: '', text: '' });
+    try {
+      const fb = await initFirebase();
+      await fb.auth.signInWithPopup(fb.googleProvider);
+    } catch(e) {
+      if (e.code !== 'auth/popup-closed-by-user') err(e.message);
+    } finally { setLoading(false); }
+  };
+
+  const doReset = async () => {
+    if (!email.trim()) { err('請輸入 Email'); return; }
+    setLoading(true);
+    try {
+      const fb = await initFirebase();
+      await fb.auth.sendPasswordResetEmail(email.trim());
+      ok('重設連結已寄出，請查收 Email');
+    } catch(e) { err(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const titles = { login: '登入', register: '建立帳號', reset: '重設密碼' };
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',
+      background:'#F9F5EF',padding:20}}>
+      <div className="wfadein" style={{...S.card,padding:'36px 32px',maxWidth:400,width:'100%'}}>
+        {/* Logo */}
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,letterSpacing:6,color:'#B5895F',marginBottom:4}}>
+            Wedding
+          </div>
+          <div style={{fontSize:11,letterSpacing:4,color:'#9A8F82',textTransform:'uppercase'}}>
+            Management System
+          </div>
+        </div>
+
+        <div style={{fontFamily:FONT_STACK,fontSize:18,letterSpacing:1,marginBottom:20,textAlign:'center'}}>
+          {titles[mode]}
+        </div>
+
+        {/* Google Button */}
+        {mode !== 'reset' && (
+          <button onClick={doGoogleLogin} disabled={loading}
+            style={{width:'100%',padding:'11px 0',borderRadius:2,border:'1px solid #E5DDD0',
+              background:'#FFFEFA',cursor:'pointer',display:'flex',alignItems:'center',
+              justifyContent:'center',gap:10,fontSize:13,color:'#3A332B',marginBottom:14,
+              fontFamily:FONT_STACK,opacity:loading?0.6:1}}>
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+              <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+            以 Google 帳號{mode === 'login' ? '登入' : '註冊'}
+          </button>
+        )}
+
+        {mode !== 'reset' && (
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+            <div style={{flex:1,height:1,background:'#E5DDD0'}} />
+            <span style={{fontSize:11,color:'#9A8F82'}}>或使用 Email</span>
+            <div style={{flex:1,height:1,background:'#E5DDD0'}} />
+          </div>
+        )}
+
+        {/* Email */}
+        <Field label="Email">
+          <TInput type="email" value={email} onChange={setEmail} placeholder="your@email.com"
+            onKeyDown={e => { if(e.key==='Enter' && mode!=='reset') doEmailAuth(); }} />
+        </Field>
+
+        {mode !== 'reset' && (
+          <Field label="密碼">
+            <TInput type="password" value={pw} onChange={setPw} placeholder="至少 6 碼"
+              onKeyDown={e => { if(e.key==='Enter') doEmailAuth(); }} />
+          </Field>
+        )}
+
+        {mode === 'register' && (
+          <Field label="確認密碼">
+            <TInput type="password" value={pw2} onChange={setPw2} placeholder="再輸入一次密碼"
+              onKeyDown={e => { if(e.key==='Enter') doEmailAuth(); }} />
+          </Field>
+        )}
+
+        {msg.text && (
+          <div style={{padding:'8px 12px',borderRadius:2,fontSize:12,marginBottom:12,
+            background: msg.type==='ok'?'#E8F5E8':'#F5DCE2',
+            border: `1px solid ${msg.type==='ok'?'#B5D5B5':'#EECDD6'}`,
+            color: msg.type==='ok'?'#2A6B2A':'#BF7090'}}>
+            {msg.text}
+          </div>
+        )}
+
+        {mode === 'reset'
+          ? <Btn onClick={doReset} disabled={loading} style={{width:'100%',justifyContent:'center'}}>
+              {loading ? <><Spinner size={14} color="#FFFEFA"/> 寄送中</> : '寄出重設連結'}
+            </Btn>
+          : <Btn onClick={doEmailAuth} disabled={loading} style={{width:'100%',justifyContent:'center',marginTop:4}}>
+              {loading ? <><Spinner size={14} color="#FFFEFA"/> 處理中</> : titles[mode]}
+            </Btn>
+        }
+
+        <div style={{marginTop:18,display:'flex',justifyContent:'center',gap:16,fontSize:12,color:'#9A8F82'}}>
+          {mode === 'login' && <>
+            <button onClick={()=>{setMode('register');setMsg({type:'',text:''});}} style={{color:'#B5895F',background:'none',border:'none',cursor:'pointer',fontSize:12}}>建立新帳號</button>
+            <button onClick={()=>{setMode('reset');setMsg({type:'',text:''});}} style={{color:'#9A8F82',background:'none',border:'none',cursor:'pointer',fontSize:12}}>忘記密碼</button>
+          </>}
+          {mode !== 'login' && (
+            <button onClick={()=>{setMode('login');setMsg({type:'',text:''});}} style={{color:'#B5895F',background:'none',border:'none',cursor:'pointer',fontSize:12}}>← 返回登入</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// WEDDING SETUP WIZARD — 新用戶建立婚禮（3 步驟）
+// ============================================================
+function WeddingSetupWizard({ user, fbRef, onComplete }) {
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    groomName: '', brideName: '',
+    weddingDate: '', weddingTime: '入席 18:00　·　開席 18:30',
+    venue: '', address: '', phone: '',
+    theme: 'cream', fontCJK: 'noto-serif', fontLatin: 'cormorant',
+    logoType: 'text', logoText: '',
+  });
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // 預覽主題效果
+  useEffect(() => {
+    applyTheme(THEMES[form.theme] || THEMES.cream);
+    applyFont(form.fontCJK, form.fontLatin);
+  }, [form.theme, form.fontCJK, form.fontLatin]);
+
+  const createWedding = async () => {
+    if (!form.groomName.trim() || !form.brideName.trim()) {
+      uiAlert('請填寫新郎與新娘姓名'); return;
+    }
+    setSaving(true);
+    try {
+      const fb = fbRef.current || await initFirebase();
+      fbRef.current = fb;
+      const weddingId = uid() + uid(); // 產生唯一 ID
+      const now = Date.now();
+
+      const config = {
+        ...DEFAULT_CONFIG,
+        ...form,
+        logoText: form.logoText || (form.groomName.slice(-1) + '&' + form.brideName.slice(-1)),
+      };
+
+      // 寫入婚禮主文件
+      await weddingDoc(fb.db, weddingId).set({
+        ownerId: user.uid,
+        ownerEmail: user.email || '',
+        createdAt: now,
+        plan: 'free',
+        weddingId,
+      });
+
+      // 初始化 main data
+      const initData = {
+        ...emptyData(),
+        config,
+        lastUpdate: now,
+      };
+      const cleanInit = {
+        ...initData,
+        photos: [{ id: 'default', enabled: true, order: 0, focalY: 50 }],
+        avoidPairs: [],
+        samePairs: [],
+      };
+      await mainDocRef(fb.db, weddingId).set(cleanInit);
+
+      // 初始化預設照片
+      await photosColRef(fb.db, weddingId).doc('default').set({
+        dataUrl: DEFAULT_PHOTO_B64
+      }).catch(() => {});
+
+      // 寫入 user 記錄
+      const userRef = fb.db.collection('users').doc(user.uid);
+      const userSnap = await userRef.get();
+      const existingWeddings = userSnap.exists ? (userSnap.data().weddingIds || []) : [];
+      await userRef.set({
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || '',
+        weddingIds: [...existingWeddings, weddingId],
+        updatedAt: now,
+      }, { merge: true });
+
+      onComplete(weddingId);
+    } catch (e) {
+      uiAlert('建立失敗：' + e.message);
+    } finally { setSaving(false); }
+  };
+
+  const stepTitles = ['基本資訊', '外觀風格', '完成'];
+
+  return (
+    <div style={{minHeight:'100vh',background:'#F9F5EF',padding:20,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div className="wfadein" style={{...S.card,padding:'36px 32px',maxWidth:560,width:'100%'}}>
+        {/* 步驟指示器 */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:0,marginBottom:28}}>
+          {stepTitles.map((t, i) => (
+            <React.Fragment key={i}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                <div style={{width:28,height:28,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:12,fontWeight:600,
+                  background: i+1 <= step ? '#B5895F' : '#F1EAE0',
+                  color: i+1 <= step ? '#FFFEFA' : '#9A8F82'}}>
+                  {i+1 < step ? '✓' : i+1}
+                </div>
+                <div style={{fontSize:10,color: i+1 === step ? '#B5895F' : '#9A8F82',whiteSpace:'nowrap'}}>{t}</div>
+              </div>
+              {i < 2 && <div style={{width:40,height:1,background:'#E5DDD0',margin:'0 4px',marginBottom:20}} />}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Step 1: 基本資訊 */}
+        {step === 1 && (
+          <div className="wfadein">
+            <div style={{fontFamily:FONT_STACK,fontSize:17,letterSpacing:1,marginBottom:20}}>新人資訊</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+              <Field label="新郎姓名" required>
+                <TInput value={form.groomName} onChange={v=>set('groomName',v)} placeholder="例：志明" />
+              </Field>
+              <Field label="新娘姓名" required>
+                <TInput value={form.brideName} onChange={v=>set('brideName',v)} placeholder="例：春嬌" />
+              </Field>
+            </div>
+            <Field label="婚禮日期">
+              <TInput value={form.weddingDate} onChange={v=>set('weddingDate',v)} placeholder="例：民國 115 年 11 月 22 日（日）" />
+            </Field>
+            <Field label="婚宴時間">
+              <TInput value={form.weddingTime} onChange={v=>set('weddingTime',v)} placeholder="例：入席 18:00 · 開席 18:30" />
+            </Field>
+            <Field label="婚宴地點名稱">
+              <TInput value={form.venue} onChange={v=>set('venue',v)} placeholder="例：台北晶華酒店 4F 寰宇廳" />
+            </Field>
+            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:14}}>
+              <Field label="完整地址">
+                <TInput value={form.address} onChange={v=>set('address',v)} placeholder="含郵遞區號" />
+              </Field>
+              <Field label="電話">
+                <TInput value={form.phone} onChange={v=>set('phone',v)} placeholder="02-XXXX-XXXX" />
+              </Field>
+            </div>
+            <Btn onClick={() => {
+              if(!form.groomName.trim()||!form.brideName.trim()) { uiAlert('請填寫新郎與新娘姓名'); return; }
+              setStep(2);
+            }} style={{width:'100%',justifyContent:'center',marginTop:8}}>
+              下一步：選擇外觀 →
+            </Btn>
+          </div>
+        )}
+
+        {/* Step 2: 外觀風格 */}
+        {step === 2 && (
+          <div className="wfadein">
+            <div style={{fontFamily:FONT_STACK,fontSize:17,letterSpacing:1,marginBottom:20}}>外觀風格</div>
+
+            {/* 主題選擇 */}
+            <Field label="主題配色">
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                {Object.entries(THEMES).map(([k, t]) => (
+                  <button key={k} onClick={() => set('theme', k)}
+                    style={{padding:'10px 6px',borderRadius:3,fontSize:11,cursor:'pointer',
+                      background: form.theme===k ? t.primary : t.cardBg,
+                      color: form.theme===k ? '#FFFEFA' : t.text,
+                      border: `2px solid ${form.theme===k ? t.primary : t.border}`,
+                      transition:'all .15s'}}>
+                    <div style={{width:20,height:20,borderRadius:'50%',background:t.primary,margin:'0 auto 4px'}} />
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {/* 中文字體 */}
+            <Field label="中文字體">
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {Object.entries(FONTS_CJK).map(([k, f]) => (
+                  <button key={k} onClick={() => set('fontCJK', k)}
+                    style={{padding:'6px 12px',borderRadius:2,fontSize:12,cursor:'pointer',
+                      background: form.fontCJK===k ? '#B5895F' : '#F1EAE0',
+                      color: form.fontCJK===k ? '#FFFEFA' : '#6B6259',
+                      border: `1px solid ${form.fontCJK===k ? '#B5895F' : '#E5DDD0'}`}}>
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {/* 英文字體 */}
+            <Field label="英文字體">
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {Object.entries(FONTS_LATIN).map(([k, f]) => (
+                  <button key={k} onClick={() => set('fontLatin', k)}
+                    style={{padding:'6px 12px',borderRadius:2,fontSize:12,cursor:'pointer',
+                      background: form.fontLatin===k ? '#B5895F' : '#F1EAE0',
+                      color: form.fontLatin===k ? '#FFFEFA' : '#6B6259',
+                      border: `1px solid ${form.fontLatin===k ? '#B5895F' : '#E5DDD0'}`,
+                      fontFamily: f.family}}>
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <div style={{display:'flex',gap:8,marginTop:8}}>
+              <Btn v="ghost" onClick={() => setStep(1)} style={{flex:1,justifyContent:'center'}}>← 上一步</Btn>
+              <Btn onClick={() => setStep(3)} style={{flex:2,justifyContent:'center'}}>下一步：完成 →</Btn>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: 完成 */}
+        {step === 3 && (
+          <div className="wfadein" style={{textAlign:'center'}}>
+            <div style={{fontSize:40,marginBottom:16}}>💍</div>
+            <div style={{fontFamily:FONT_STACK,fontSize:20,letterSpacing:2,marginBottom:8}}>
+              準備就緒！
+            </div>
+            <div style={{color:'#6B6259',fontSize:13,lineHeight:1.8,marginBottom:24}}>
+              {form.groomName} & {form.brideName} 的婚禮管理系統即將建立。<br/>
+              建立後可隨時在「資訊管理」修改所有設定。
+            </div>
+
+            {/* 摘要 */}
+            <div style={{...S.card,padding:'14px 18px',textAlign:'left',marginBottom:20,fontSize:12,lineHeight:2}}>
+              <div>👫 <strong>{form.groomName} & {form.brideName}</strong></div>
+              {form.weddingDate && <div>📅 {form.weddingDate}</div>}
+              {form.venue && <div>📍 {form.venue}</div>}
+              <div>🎨 {THEMES[form.theme]?.name || '典雅奶油'}</div>
+            </div>
+
+            <div style={{display:'flex',gap:8}}>
+              <Btn v="ghost" onClick={() => setStep(2)} style={{flex:1,justifyContent:'center'}}>← 修改</Btn>
+              <Btn onClick={createWedding} disabled={saving} style={{flex:2,justifyContent:'center'}}>
+                {saving ? <><Spinner size={14} color="#FFFEFA"/> 建立中...</> : '✓ 建立我的婚禮'}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// DASHBOARD PAGE — 我的婚禮列表
+// ============================================================
+function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onLogout }) {
+  return (
+    <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
+      <nav style={{background:'#FFFEFA',borderBottom:'1px solid #E5DDD0',padding:'14px 24px',
+        display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,letterSpacing:4,color:'#B5895F'}}>
+          Wedding
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <span style={{fontSize:12,color:'#9A8F82'}}>{user.email}</span>
+          <Btn v="ghost" size="sm" onClick={onLogout}>登出</Btn>
+        </div>
+      </nav>
+
+      <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:24}}>
+          <div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>
+              MY WEDDINGS
+            </div>
+            <div style={{fontFamily:FONT_STACK,fontSize:24,letterSpacing:1,marginTop:2}}>我的婚禮</div>
+          </div>
+          <Btn onClick={onCreateNew}>＋ 新增婚禮</Btn>
+        </div>
+
+        {weddings.length === 0 ? (
+          <div style={{...S.card,padding:'48px 24px',textAlign:'center'}}>
+            <div style={{fontSize:36,marginBottom:12}}>💍</div>
+            <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:8}}>還沒有婚禮</div>
+            <div style={{color:'#9A8F82',fontSize:13,marginBottom:20}}>點擊下方按鈕開始建立您的婚禮</div>
+            <Btn onClick={onCreateNew} size="lg">開始建立婚禮</Btn>
+          </div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            {weddings.map(w => (
+              <div key={w.weddingId} style={{...S.card,padding:'18px 20px',display:'flex',
+                alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
+                onClick={() => onSelectWedding(w.weddingId)}>
+                <div>
+                  <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:.5}}>
+                    {w.config?.groomName && w.config?.brideName
+                      ? `${w.config.groomName} & ${w.config.brideName}`
+                      : '婚禮'}
+                  </div>
+                  {w.config?.weddingDate && (
+                    <div style={{fontSize:12,color:'#9A8F82',marginTop:2}}>{w.config.weddingDate}</div>
+                  )}
+                  {w.config?.venue && (
+                    <div style={{fontSize:12,color:'#9A8F82'}}>{w.config.venue}</div>
+                  )}
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <Tag small color="#B5895F" soft="#EFE3D0">
+                    {w.plan === 'pro' ? 'Pro' : '免費版'}
+                  </Tag>
+                  <span style={{color:'#B5895F',fontSize:18}}>›</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export default function WeddingApp() {
+  // ── SaaS：Auth & routing & 多租戶 state ──
+  const [user, setUser]           = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [weddingId, setWeddingId] = useState(null);
+  const [weddings, setWeddings]   = useState([]);
+  const [loadingWeddings, setLoadingWeddings] = useState(false);
+  const route = useHashRoute();
+  const parsed = parseRoute(route);
+
+  const [page,setPage] = useState('rsvp');
+  const [authed,setAuthed] = useState(false);
+  const [showLogin,setShowLogin] = useState(false);
+  const [data,setData] = useState(emptyData());
+  const [loaded,setLoaded] = useState(false);
+  const [syncStatus,setSyncStatus] = useState('connecting');
+  const [error,setError] = useState(null);
+  const [mainTableId,setMainTableId] = useState(null);
+  // v4.12：外觀預覽模式
+  const [previewMode,setPreviewMode] = useState(false);
+  const [previewDraft,setPreviewDraft] = useState(null);
+  const fbRef = useRef(null);
+
+  // 設定頁面標題
+  useEffect(()=>{ document.title = '婚禮管理系統 v6.0'; },[]);
+  const writeTimer = useRef(null);
+  // 資料保護：追蹤上次同步到的 Firestore lastUpdate
+  const lastSyncedRef = useRef(0);
+  // v4.9 保險：記錄本機已送出的最大 writeTime；自家 echo 不覆寫本地（避免拖曳期間 snap-back）
+  const lastWriteRef = useRef(0);
+  const lastBackupRef = useRef(0);  // 上次自動備份時間
+  const lastDailyBackupRef = useRef(''); // 上次每日備份的日期字串 YYYY-MM-DD
+  const forceWriteRef = useRef(false);  // A1: DATA_SHRINK 用戶確認後設定，允許繞過驟減檢查
+
+  // A2: localStorage 本地鏡像（最後防線）
+  const saveLocalMirror = useCallback((d) => {
+    try {
+      const isB64 = s => typeof s === 'string' && s.startsWith('data:');
+      const cfg = d.config || {};
+      const cleanData = {
+        ...d,
+        photos: (d.photos||[]).map(p=>({id:p.id,enabled:p.enabled!==false,order:p.order||0,focalY:p.focalY||50})),
+        config: {
+          ...cfg,
+          thankYouImgDataUrl:       isB64(cfg.thankYouImgDataUrl)       ? '__USE_PHOTO__' : (cfg.thankYouImgDataUrl ?? ''),
+          thankYouImgBottomDataUrl: isB64(cfg.thankYouImgBottomDataUrl) ? '__USE_PHOTO__' : (cfg.thankYouImgBottomDataUrl ?? ''),
+          logoDataUrl:              isB64(cfg.logoDataUrl)               ? '__USE_PHOTO__' : (cfg.logoDataUrl ?? ''),
+        }
+      };
+      const entry = { savedAt: Date.now(), data: cleanData };
+      // 保留最近 5 份歷史
+      const hist = JSON.parse(localStorage.getItem('wedding_mirror_hist') || '[]');
+      hist.unshift(entry);
+      if (hist.length > 5) hist.length = 5;
+      localStorage.setItem('wedding_mirror', JSON.stringify(entry));
+      localStorage.setItem('wedding_mirror_hist', JSON.stringify(hist));
+    } catch(e) { console.warn('saveLocalMirror failed:', e); }
+  }, []);
+
+  const [photoMap, setPhotoMap] = useState({});
+  const photoMapRef = useRef({});
+  useEffect(()=>{photoMapRef.current=photoMap;},[photoMap]);
+
+  // ── SaaS Step 1：初始化 Firebase + 監聽 Auth 狀態 ──
+  useEffect(()=>{
+    injectCSS();
+    let cancelled=false;
+    (async()=>{
+      try {
+        let fb=null, lastErr=null;
+        for(let attempt=0; attempt<3; attempt++){
+          try { fb=await initFirebase(); lastErr=null; break; }
+          catch(e){ lastErr=e; if(cancelled) return; await new Promise(r=>setTimeout(r, 500*(attempt+1))); }
+        }
+        if(cancelled) return;
+        if(!fb) throw lastErr || new Error('Firebase 初始化失敗');
+        fbRef.current=fb;
+
+        fb.auth.onAuthStateChanged(async u=>{
+          if(cancelled) return;
+          setUser(u);
+          setAuthReady(true);
+          if(u && !u.isAnonymous){
+            await loadUserWeddings(fb, u.uid);
+          } else if(!u){
+            setWeddings([]); setWeddingId(null);
+          }
+        });
+      } catch(e){
+        if(!cancelled){ setError(e.message); setAuthReady(true); }
+      }
+    })();
+    return()=>{cancelled=true;};
+  },[]);
+
+  // ── SaaS：載入用戶的婚禮列表 ──
+  const loadUserWeddings = async (fb, uid) => {
+    setLoadingWeddings(true);
+    try {
+      const userSnap = await fb.db.collection('users').doc(uid).get();
+      const ids = userSnap.exists ? (userSnap.data().weddingIds || []) : [];
+      if(ids.length===0){ setWeddings([]); return; }
+      const docs = await Promise.all(ids.map(wid =>
+        weddingDoc(fb.db, wid).get().then(s => s.exists ? {weddingId:wid, ...s.data()} : null).catch(()=>null)
+      ));
+      const withCfg = await Promise.all(docs.filter(Boolean).map(async w => {
+        try { const m = await mainDocRef(fb.db, w.weddingId).get();
+          return {...w, config: m.exists ? (m.data().config||{}) : {}}; }
+        catch { return {...w, config:{}}; }
+      }));
+      setWeddings(withCfg);
+    } catch(e){ console.error('loadUserWeddings:', e); }
+    finally { setLoadingWeddings(false); }
+  };
+
+  // ── SaaS：依路由決定要管理哪個婚禮 ──
+  useEffect(()=>{
+    if(parsed.section==='w' && parsed.weddingId && parsed.weddingId!==weddingId){
+      setWeddingId(parsed.weddingId);
+    }
+  },[route]);
+
+  // ── SaaS Step 2：weddingId 確定後訂閱該婚禮資料（保留 v5.6.1 完整邏輯）──
+  useEffect(()=>{
+    if(!weddingId || !fbRef.current) return;
+    let unsubMain=null, unsubPhotos=null, cancelled=false;
+    setLoaded(false); setError(null); setSyncStatus('connecting');
+    const fb = fbRef.current;
+    (async()=>{
+      try {
+        // RSVP 公開頁面：未登入者用匿名登入才能讀取
+        if(!fb.auth.currentUser){ await fb.auth.signInAnonymously().catch(()=>{}); }
+        if(cancelled) return;
+        const ref=mainDocRef(fb.db, weddingId);
+        const photosCol = photosColRef(fb.db, weddingId);
+
+        // Subscribe to photos subcollection
+        unsubPhotos = photosCol.onSnapshot(snap=>{
+          if(cancelled) return;
+          const m = {};
+          snap.forEach(d=>{m[d.id]=d.data();});
+          setPhotoMap(m);
+        });
+
+        // Subscribe to main doc
+        unsubMain=ref.onSnapshot(snap=>{
+          if(cancelled) return;
+          if(snap.exists){
+            const d=snap.data();
+            const remoteLast = d.lastUpdate || 0;
+            // v4.9 雙保險：
+            //   (1) lastSyncedRef 只能單調遞增 — 舊 echo 不能讓「最後同步點」倒退，否則
+            //       下一筆寫入會誤判 remote 比 local 新太多而丟 STALE_WRITE。
+            if (remoteLast > lastSyncedRef.current) lastSyncedRef.current = remoteLast;
+            //   (2) 自家 echo 不覆寫本地 — 若 echo 的 lastUpdate 等於我們最近送出的 writeTime，
+            //       本地一定比 echo 還新（或一樣新），跳過 setData 避免拖曳期間 snap-back。
+            const isOurEcho = remoteLast > 0 && remoteLast === lastWriteRef.current;
+            if (!isOurEcho) {
+              const merged = mergeData(d);
+              setData(merged);
+              saveLocalMirror(merged);  // A2: 同步到本地鏡像
+              if(d.mainTableId!==undefined) setMainTableId(d.mainTableId);
+            }
+
+            // Auto-migrate: if any photo still has inline dataUrl, move it to subcollection
+            const inlinePhotos = (d.photos||[]).filter(p=>p.dataUrl);
+            if (inlinePhotos.length > 0) {
+              console.log('Migrating', inlinePhotos.length, 'inline photos to subcollection...');
+              Promise.all(inlinePhotos.map(p=>
+                photosCol.doc(p.id).set({dataUrl:p.dataUrl})
+              )).then(()=>{
+                // Strip dataUrls from main doc
+                const cleanPhotos = (d.photos||[]).map(p=>({
+                  id:p.id, enabled:p.enabled!==false, order:p.order||0, focalY:p.focalY||50
+                }));
+                ref.update({photos: cleanPhotos}).catch(()=>{});
+                console.log('Migration done');
+              });
+            }
+          } else {
+            // First run: create main doc + default photo in subcollection
+            const init = emptyData();
+            const defaultPhotoUrl = init.photos[0].dataUrl;
+            const cleanInit = {...init, photos:[{id:'default',enabled:true,order:0,focalY:50}]};
+            ref.set(cleanInit).then(()=>{
+              photosCol.doc('default').set({dataUrl:defaultPhotoUrl}).catch(()=>{});
+            }).catch(()=>{});
+          }
+          setLoaded(true);
+          setSyncStatus('connected');
+        },err=>{
+          console.error(err);
+          setError(err.message);
+          setSyncStatus('error');
+          setLoaded(true);
+        });
+      } catch(e) {
+        console.error(e);
+        setError(e.message);
+        setSyncStatus('error');
+        setLoaded(true);
+      }
+    })();
+    return()=>{cancelled=true; if(unsubMain)unsubMain(); if(unsubPhotos)unsubPhotos();};
+  },[weddingId]);
+
+
+  const persist=useCallback((next,immediate)=>{
+    if(!fbRef.current) return;
+    if(writeTimer.current) clearTimeout(writeTimer.current);
+    const doWrite=async()=>{
+      try {
+        const db = fbRef.current.db;
+        const mainRef = mainDocRef(db, weddingId);
+        const backupsCol = backupsColRef(db, weddingId);
+
+        // Strip image dataUrls from main doc - photos use subcollection, config images use Cloud Storage
+        const cleanPhotos = (next.photos||[]).map(p=>({
+          id:p.id, enabled:p.enabled!==false, order:p.order||0, focalY:p.focalY||50
+        }));
+        const isB64 = s => typeof s === 'string' && s.startsWith('data:');
+        const writeTime = Date.now();
+        // v4.9：登記為「自家寫入」，onSnapshot 收到 echo 時不再覆寫本地
+        lastWriteRef.current = Math.max(lastWriteRef.current || 0, writeTime);
+        const cleanData = {
+          ...next,
+          photos: cleanPhotos,
+          mainTableId,
+          lastUpdate: writeTime,
+          avoidPairs: packAvoid(next.avoidPairs),   // v4.9：巢狀陣列→物件陣列（Firestore 合法）
+          samePairs:  packSame(next.samePairs),       // v4.12：同桌偏好，同上序列化
+          thankYouImgDataUrl:       isB64(next.thankYouImgDataUrl)       ? '__USE_PHOTO__' : (next.thankYouImgDataUrl       ?? ''),
+          thankYouImgBottomDataUrl: isB64(next.thankYouImgBottomDataUrl) ? '__USE_PHOTO__' : (next.thankYouImgBottomDataUrl ?? ''),
+          logoDataUrl:              isB64(next.logoDataUrl)               ? '__USE_PHOTO__' : (next.logoDataUrl               ?? ''),
+        };
+
+        // ===== 資料保護：用 Transaction 做版本檢查 + 寫入前驟減偵測 =====
+        const shrinkCheck = (remote, local) => remote >= 3 && local < remote && (remote - local) >= Math.max(3, remote * 0.5);
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(mainRef);
+          const remoteUpdate = snap.exists ? (snap.data().lastUpdate || 0) : 0;
+          const localKnown = lastSyncedRef.current || 0;
+          // 容差 2 秒（避免時鐘差異誤判）
+          if (remoteUpdate > localKnown + 2000) {
+            const e = new Error('STALE_WRITE');
+            e.remoteUpdate = remoteUpdate;
+            e.localKnown = localKnown;
+            throw e;
+          }
+          // A1: 寫入前驟減偵測（防止資料驟減覆蓋）
+          if (!forceWriteRef.current && snap.exists) {
+            const remote = snap.data();
+            const rGuests = (remote.guests||[]).length, nGuests = (next.guests||[]).length;
+            const rPhotos = (remote.photos||[]).length, nPhotos = (next.photos||[]).length;
+            const rTables = (remote.tables||[]).length, nTables = (next.tables||[]).length;
+            if (shrinkCheck(rGuests,nGuests) || shrinkCheck(rPhotos,nPhotos) || shrinkCheck(rTables,nTables)) {
+              const shrinkInfo = [
+                shrinkCheck(rGuests,nGuests)?`賓客 ${rGuests}→${nGuests}`:'',
+                shrinkCheck(rPhotos,nPhotos)?`照片 ${rPhotos}→${nPhotos}`:'',
+                shrinkCheck(rTables,nTables)?`桌位 ${rTables}→${nTables}`:'',
+              ].filter(Boolean).join('、');
+              const e = new Error('DATA_SHRINK');
+              e.shrinkInfo = shrinkInfo;
+              throw e;
+            }
+          }
+          forceWriteRef.current = false; // 用後重設
+          tx.set(mainRef, cleanData);
+        });
+        lastSyncedRef.current = writeTime;
+
+        // ===== 自動備份：每 30 分鐘存一個快照 =====
+        const now = Date.now();
+        if (now - lastBackupRef.current > 30*60*1000) {
+          lastBackupRef.current = now;
+          // 非阻塞執行，失敗不影響主流程
+          (async()=>{
+            try {
+              const backupId = String(now);
+              const todayStr = new Date(now).toISOString().slice(0,10); // YYYY-MM-DD
+              const isDaily = lastDailyBackupRef.current !== todayStr;
+              if (isDaily) lastDailyBackupRef.current = todayStr;
+              await backupsCol.doc(backupId).set({
+                data: cleanData,
+                createdAt: now,
+                daily: isDaily,
+                summary: {
+                  guestCount: (cleanData.guests||[]).length,
+                  tableCount: (cleanData.tables||[]).length,
+                  photoCount: cleanPhotos.length,
+                }
+              });
+              // A5: 清理規則：保留 90 天內 daily + 最近 30 份一般備份
+              const all = await backupsCol.orderBy('createdAt','desc').get();
+              const cutoff90 = now - 90*24*60*60*1000;
+              let nonDailyKept = 0;
+              const toDelete = [];
+              all.docs.forEach(d => {
+                const bd = d.data();
+                if (bd.daily || bd.manual) {
+                  // daily 或手動：保留 90 天內的
+                  if (bd.createdAt < cutoff90) toDelete.push(d.ref);
+                } else {
+                  nonDailyKept++;
+                  if (nonDailyKept > 30) toDelete.push(d.ref);
+                }
+              });
+              if (toDelete.length > 0) await Promise.all(toDelete.map(r=>r.delete()));
+            } catch(err) { console.warn('Backup failed:', err); }
+          })();
+        }
+      } catch(e) {
+        if (e.message === 'STALE_WRITE') {
+          console.error('Stale write blocked:', e);
+          if (await uiConfirm({title:'⚠️ 其他裝置已修改資料',message:'為避免覆蓋他人的修改，本次儲存已中止。\n\n點「重新整理」取得最新版本；點「忽略」可能會覆蓋他人的修改（不建議）。',confirmText:'重新整理',cancelText:'忽略',danger:true})) {
+            window.location.reload();
+          }
+          return;
+        }
+        if (e.message === 'DATA_SHRINK') {
+          console.error('Data shrink blocked:', e);
+          if (await uiConfirm({title:'⚠️ 資料驟減偵測',message:`即將寫入的資料明顯少於雲端：${e.shrinkInfo}\n\n這可能是誤操作或資料遺失。\n\n點「強制寫入」可能覆蓋資料；點「取消」將中止並重新整理。`,confirmText:'強制寫入',cancelText:'取消',danger:true})) {
+            forceWriteRef.current = true;
+            doWrite(); // 用 forceWrite 旗標重試
+          } else {
+            window.location.reload();
+          }
+          return;
+        }
+        console.error(e);
+        setSyncStatus('error');
+        if(String(e.message||'').includes('exceeds the maximum')){
+          uiAlert('資料過大無法存檔。請壓縮圖片或減少照片數量後重試。');
+        }
+      }
+    };
+    if(immediate) doWrite();
+    else writeTimer.current=setTimeout(doWrite,500);
+  },[mainTableId, weddingId]);
+
+  // Photo operations: Cloud Storage for files, Firestore for metadata
+  // Accepts File OR data URL string (backward compatible). New uploads use File → Cloud Storage.
+  const savePhotoData = useCallback(async (id, fileOrDataUrl) => {
+    if (!fbRef.current) return;
+    const photoDoc = photosColRef(fbRef.current.db, weddingId).doc(id);
+
+    // Branch: File object → upload to Cloud Storage
+    if (fileOrDataUrl instanceof Blob) {
+      const file = fileOrDataUrl;
+      const ext = (file.type.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi,'');
+      const storagePath = `weddings/${weddingId}/photos/${id}-${Date.now()}.${ext}`;
+      const storageRef = fbRef.current.storage.ref(storagePath);
+      // First delete the old Cloud Storage file if any (so we don't accumulate orphans)
+      try {
+        const oldSnap = await photoDoc.get();
+        const oldData = oldSnap.data();
+        if (oldData?.storagePath) {
+          await fbRef.current.storage.ref(oldData.storagePath).delete().catch(()=>{});
+        }
+      } catch {}
+      // Upload new file
+      const snap = await storageRef.put(file, {contentType:file.type});
+      const url = await snap.ref.getDownloadURL();
+      // Save metadata (url + path so we can delete later)
+      return photoDoc.set({url, storagePath, mimeType:file.type, size:file.size, uploadedAt:Date.now()});
+    }
+
+    // Legacy: data URL (still supported for migration, small files, or fallback)
+    return photoDoc.set({dataUrl: fileOrDataUrl});
+  },[weddingId]);
+
+  const deletePhotoData = useCallback(async (id) => {
+    if (!fbRef.current) return;
+    const photoDoc = photosColRef(fbRef.current.db, weddingId).doc(id);
+    // Try to delete from Cloud Storage first
+    try {
+      const snap = await photoDoc.get();
+      const d = snap.data();
+      if (d?.storagePath) {
+        await fbRef.current.storage.ref(d.storagePath).delete().catch(()=>{});
+      }
+    } catch {}
+    return photoDoc.delete();
+  },[weddingId]);
+
+  // v4.9：第三參數 localOnly=true → 只更新本地狀態（含 localStorage 鏡像），不寫 Firestore。
+  // 用於拖曳過程中的中間狀態，避免每個 mousemove 觸發 Firestore 寫入導致的 echo race / STALE_WRITE 誤報。
+  const updateData=useCallback((next,immediate,localOnly)=>{
+    setData(next);
+    saveLocalMirror(next);
+    if (!localOnly) persist(next,immediate);
+  },[persist,saveLocalMirror]);
+
+  useEffect(()=>{
+    if(!loaded||!fbRef.current||!weddingId) return;
+    mainDocRef(fbRef.current.db, weddingId).update({mainTableId}).catch(()=>{});
+  },[mainTableId,loaded,weddingId]);
+
+  const submitRSVP=useCallback(async guest=>{
+    const fb=fbRef.current||await initFirebase();
+    fbRef.current=fb;
+    await fb.auth.signInAnonymously().catch(()=>{});
+    const ref=mainDocRef(fb.db, weddingId);
+    return fb.db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const cur=snap.exists?mergeData(snap.data()):emptyData();
+      tx.set(ref,{...cur,guests:[...cur.guests,guest],avoidPairs:packAvoid(cur.avoidPairs),lastUpdate:Date.now()});
+    });
+  },[weddingId]);
+
+  const logout=()=>{setAuthed(false);setPage('rsvp');setShowLogin(false);if(weddingId)navigate(`#/w/${weddingId}`);};
+  const onNav=p=>{
+    setPage(p);setShowLogin(false);
+    if(weddingId) navigate(`#/w/${weddingId}/${p}`);
+  };
+  // SaaS：完全登出 Firebase Auth
+  const handleFirebaseLogout = async ()=>{
+    if(!fbRef.current) return;
+    await fbRef.current.auth.signOut();
+    setUser(null); setWeddingId(null); setWeddings([]); setData(emptyData()); setAuthed(false);
+    navigate('#/login');
+  };
+
+  // Merge photoMap dataUrls into data.photos AND config images for rendering (MUST be before early return — hook order)
+  const dataWithImages = useMemo(()=>{
+    const cfg = data.config || {};
+    return {
+      ...data,
+      photos: (data.photos||[]).map(p=>({
+        ...p,
+        dataUrl: photoMap[p.id]?.url || photoMap[p.id]?.dataUrl || p.dataUrl || ''
+      })),
+      config: {
+        ...cfg,
+        // Resolve image refs from photoMap, fallback to legacy inline values
+        thankYouImgDataUrl:       photoMap['__thankTop']?.url    || photoMap['__thankTop']?.dataUrl    || (cfg.thankYouImgDataUrl       === '__USE_PHOTO__' ? '' : cfg.thankYouImgDataUrl)       || '',
+        thankYouImgBottomDataUrl: photoMap['__thankBottom']?.url || photoMap['__thankBottom']?.dataUrl || (cfg.thankYouImgBottomDataUrl === '__USE_PHOTO__' ? '' : cfg.thankYouImgBottomDataUrl) || '',
+        logoDataUrl:              photoMap['__logo']?.url        || photoMap['__logo']?.dataUrl        || (cfg.logoDataUrl              === '__USE_PHOTO__' ? '' : cfg.logoDataUrl)              || ''
+      }
+    };
+  }, [data, photoMap]);
+
+  // 套用主題（Hook 必須在 early return 之前）
+  const currentTheme = getTheme(data.config);
+  // v5.4：預覽中以預覽主題為準，避免切換主題時殘留背景
+  const effTheme = (previewMode && previewDraft) ? (THEMES[previewDraft.theme||'cream']||THEMES.cream) : currentTheme;
+  React.useEffect(()=>{ applyTheme(currentTheme); },[data.config?.theme]);
+  React.useEffect(()=>{ applyFont(data.config?.fontCJK||'noto-serif', data.config?.fontLatin||'cormorant'); },[data.config?.fontCJK, data.config?.fontLatin]);
+
+  // v4.12：外觀預覽模式 handlers
+  const startPreview = (draft) => {
+    setPreviewDraft(draft);
+    setPreviewMode(true);
+    applyTheme(THEMES[draft.theme||'cream'] || THEMES.cream);
+    applyFont(draft.fontCJK||'noto-serif', draft.fontLatin||'cormorant');
+    preloadAllFonts();
+  };
+  const cancelPreview = () => {
+    setPreviewMode(false);
+    setPreviewDraft(null);
+    applyTheme(currentTheme);
+    applyFont(data.config?.fontCJK||'noto-serif', data.config?.fontLatin||'cormorant');
+  };
+  const applyPreviewConfirm = () => {
+    if (previewDraft) updateData({...data, config:{...data.config,...previewDraft}});
+    setPreviewMode(false);
+    setPreviewDraft(null);
+  };
+
+  // ── SaaS 路由判斷（所有 hooks 之後才能 early return）──
+
+  // Auth 初始化中
+  if(!authReady) return (
+    <div className="wed" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:14,background:'#F9F5EF'}}>
+      <Spinner size={30}/><div style={{color:'#9A8F82',fontSize:13}}>連線中...</div>
+    </div>
+  );
+
+  const isLoggedIn = user && !user.isAnonymous;
+  const isOwnerOfCurrent = weddings.some(w=>w.weddingId===weddingId);
+  const adminPages = ['admin','seating','info','blessings'];
+  const isAdminRoute = parsed.section==='w' && ['admin','seating','info'].includes(parsed.page);
+  const isPublicRSVP = parsed.section==='w' && (!parsed.page || parsed.page==='rsvp' || parsed.page==='blessings');
+
+  // 公開 RSVP 不需登入；其餘非 #/w 路由若未登入 → 登入頁
+  if(!isLoggedIn && !isPublicRSVP && parsed.section!=='w'){
+    return <LoginPage onAuthSuccess={()=>{}} />;
+  }
+
+  // 已登入、在 #/login → 依婚禮數量導向
+  if(isLoggedIn && (parsed.section==='login'||parsed.section==='')){
+    if(!loadingWeddings){
+      if(weddings.length===0) navigate('#/setup');
+      else if(weddings.length===1) navigate(`#/w/${weddings[0].weddingId}`);
+      else navigate('#/dashboard');
+    }
+    return (
+      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
+        <Spinner size={30}/>
+      </div>
+    );
+  }
+
+  // 婚禮創建向導
+  if(parsed.section==='setup' || (isLoggedIn && !loadingWeddings && weddings.length===0 && parsed.section!=='w')){
+    return (
+      <WeddingSetupWizard user={user} fbRef={fbRef}
+        onComplete={(newId)=>{ navigate(`#/w/${newId}`); if(fbRef.current) loadUserWeddings(fbRef.current, user.uid); }} />
+    );
+  }
+
+  // 我的婚禮列表
+  if(parsed.section==='dashboard'){
+    return (
+      <DashboardPage user={user} weddings={weddings}
+        onSelectWedding={wid=>navigate(`#/w/${wid}`)}
+        onCreateNew={()=>navigate('#/setup')}
+        onLogout={handleFirebaseLogout} />
+    );
+  }
+
+  // 後台頁面但未登入 → 要求登入
+  if(isAdminRoute && !isLoggedIn){
+    return <LoginPage onAuthSuccess={()=>{}} />;
+  }
+
+  // 後台頁面但非此婚禮 owner → 拒絕
+  if(isAdminRoute && isLoggedIn && !isOwnerOfCurrent && weddings.length>0){
+    return (
+      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
+        <div style={{...S.card,padding:32,textAlign:'center'}}>
+          <div style={{fontSize:28,marginBottom:8}}>🔒</div>
+          <div style={{fontSize:15,color:'#3A332B',marginBottom:16}}>無權限存取此婚禮後台</div>
+          <Btn onClick={handleFirebaseLogout}>登出</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  // 尚未指定婚禮
+  if(!weddingId){
+    if(isLoggedIn && !loadingWeddings){
+      navigate(weddings.length===0?'#/setup':(weddings.length===1?`#/w/${weddings[0].weddingId}`:'#/dashboard'));
+    }
+    return (
+      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
+        <Spinner size={30}/>
+      </div>
+    );
+  }
+
+  // 婚禮資料載入中
+  if(!loaded) return (
+    <div className="wed" style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:14,background:currentTheme.pageBg,color:currentTheme.text}}>
+      <Spinner size={30}/><div style={{color:currentTheme.subText,fontSize:13}}>連線至雲端...</div>
+    </div>
+  );
+
+  // 路由 page：URL 優先，否則用 state
+  const activePage = (parsed.section==='w' && parsed.page) ? parsed.page : page;
+  // SaaS：已登入且為 owner = 視為已認證（取代密碼制）
+  const isAuthedAdmin = isLoggedIn && isOwnerOfCurrent;
+
+  return (
+    <div className="wed" style={effTheme.dark ? {background:effTheme.pageBg,color:effTheme.text} : {background:effTheme.pageBg}}>
+      <ConfirmDialogHost />
+      {/* v5.3：外觀預覽模式橫幅 — 方案A 金色斜紋警告條，依預覽主題配色 */}
+      {previewMode && (()=>{
+        const pt = THEMES[(previewDraft&&previewDraft.theme)||'cream'] || THEMES.cream;
+        const stripeA = pt.primary, stripeB = pt.primaryHover||pt.primary;
+        return (
+        <div data-tp="1" style={{position:'fixed',top:0,left:0,right:0,zIndex:9999,
+          background:`repeating-linear-gradient(135deg, ${stripeA} 0 22px, ${stripeB} 22px 44px)`,
+          padding:4,boxShadow:'0 3px 16px rgba(0,0,0,.3)',fontFamily:'inherit'}}>
+          <div data-tp="1" style={{background:pt.cardBg,borderRadius:4,padding:'12px 22px',
+            border:`1px solid ${pt.border}`,
+            display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+            <div data-tp="1" style={{display:'flex',alignItems:'center',gap:12,minWidth:0}}>
+              <div data-tp="1" className="wed-preview-eye" style={{width:34,height:34,borderRadius:'50%',
+                background:pt.primary,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:17,flexShrink:0,boxShadow:`0 2px 8px ${pt.primary}66`}}>👁</div>
+              <div data-tp="1">
+                <div data-tp="1" style={{fontSize:14,fontWeight:600,color:pt.text,letterSpacing:.5}}>外觀預覽模式</div>
+                <div data-tp="1" style={{fontSize:11,color:pt.subText,marginTop:1}}>目前顯示的是預覽效果，尚未儲存套用</div>
+              </div>
+            </div>
+            <div data-tp="1" style={{display:'flex',gap:9,flexShrink:0}}>
+              <button data-tp="1" onClick={cancelPreview}
+                style={{padding:'8px 18px',fontSize:13,borderRadius:3,border:`1px solid ${pt.border}`,
+                  background:pt.pageBg,color:pt.subText,cursor:'pointer',fontFamily:'inherit',letterSpacing:.3}}>
+                ✕ 放棄套用
+              </button>
+              <button data-tp="1" onClick={applyPreviewConfirm}
+                style={{padding:'8px 18px',fontSize:13,borderRadius:3,border:'none',
+                  background:pt.primary,color:'#FFFEFA',cursor:'pointer',fontFamily:'inherit',
+                  letterSpacing:.3,fontWeight:600,boxShadow:`0 2px 8px ${pt.primary}59`}}>
+                ✓ 確定套用外觀
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+      <div style={previewMode ? {marginTop:70} : {}}>
+      <NavBar page={activePage} onNav={onNav} authed={isAuthedAdmin} onLogout={isLoggedIn?handleFirebaseLogout:logout} syncStatus={syncStatus} cfg={data.config} />
+      {error&&<div style={{background:'#FAEEEE',color:'#C04040',padding:'7px 20px',fontSize:11,textAlign:'center'}}>⚠️ 同步問題：{error}</div>}
+
+      {activePage==='rsvp'    && <RSVPPage data={dataWithImages} onSubmit={submitRSVP} />}
+      {activePage==='blessings' && <BlessingWallPage data={dataWithImages} />}
+      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={updateData} />}
+      {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={updateData} mainTableId={mainTableId} setMainTableId={setMainTableId} />}
+      {activePage==='info'    && isAuthedAdmin && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} />}
+      {['admin','seating','info'].includes(activePage) && !isAuthedAdmin && (
+        <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{...S.card,padding:32,maxWidth:360,width:'100%',textAlign:'center'}}>
+            <div style={{fontSize:28,marginBottom:10}}>🔒</div>
+            <div style={{fontSize:16,letterSpacing:1,marginBottom:16}}>請先登入</div>
+            <Btn onClick={()=>navigate('#/login')} style={{width:'100%',justifyContent:'center'}}>前往登入</Btn>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}
+
