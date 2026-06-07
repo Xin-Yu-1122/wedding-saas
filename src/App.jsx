@@ -2341,7 +2341,7 @@ function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDro
 // ============================================================
 // SEATING PAGE
 // ============================================================
-function SeatingPage({data,onUpdate,mainTableId,setMainTableId}) {
+function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
   const GI = getGroupInfo(data.config);
   // v5.3 畫布尺寸（場地規模）
   const canvasW = (data.config && data.config.canvasW) || DEFAULT_CANVAS_W;
@@ -2777,7 +2777,13 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId}) {
     window.addEventListener('pointercancel',up);
   };
 
+  const FREE_TABLE_LIMIT = 5;
   const addTable=()=>{
+    // 免費版桌數限制
+    if (!isPro && data.tables.length >= FREE_TABLE_LIMIT) {
+      uiAlert(`免費版最多新增 ${FREE_TABLE_LIMIT} 桌。\n\n升級 Pro 方案可建立無限桌數，功能即將開放，敬請期待！`);
+      return;
+    }
     const n=data.tables.length;
     const cols=Math.max(1,Math.floor((canvasW-60)/280));   // v5.3：欄數隨畫布寬度
     const t={id:uid(),name:`第 ${n+1} 桌`,capacity:10,x:60+(n%cols)*280,y:60+Math.floor(n/cols)*280,color:TABLE_COLORS[n%TABLE_COLORS.length],posLocked:false,seatLocked:false};
@@ -4902,7 +4908,14 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
         {/* Step 1: 基本資訊 */}
         {step === 1 && (
           <div className="wfadein">
-            <div style={{fontFamily:FONT_STACK,fontSize:17,letterSpacing:1,marginBottom:20}}>新人資訊</div>
+            <div style={{fontFamily:FONT_STACK,fontSize:17,letterSpacing:1,marginBottom:12}}>新人資訊</div>
+            {/* 免費版限制說明 */}
+            <div style={{padding:'10px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',
+              borderRadius:3,fontSize:12,color:'#7A5C00',marginBottom:16,lineHeight:1.8}}>
+              📋 <strong>免費版使用限制：</strong><br/>
+              • 最多建立 <strong>2 個</strong>婚禮專案<br/>
+              • 排位桌數上限 <strong>5 桌</strong>（升級 Pro 可無限新增）
+            </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
               <Field label="新郎姓名" required>
                 <TInput value={form.groomName} onChange={v=>set('groomName',v)} placeholder="例：志明" />
@@ -5034,7 +5047,26 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
 // ============================================================
 // DASHBOARD PAGE — 我的婚禮列表
 // ============================================================
-function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onLogout }) {
+function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteWedding, onLogout }) {
+  const FREE_LIMIT = 2;
+  const isPro = weddings.some(w => w.plan === 'pro');
+  const atLimit = !isPro && weddings.length >= FREE_LIMIT;
+
+  const handleDelete = async (e, w) => {
+    e.stopPropagation();
+    const name = w.config?.groomName && w.config?.brideName
+      ? `${w.config.groomName} & ${w.config.brideName}`
+      : '此婚禮';
+    const ok = await uiConfirm({
+      title: `刪除「${name}」？`,
+      message: '此操作將永久刪除所有賓客名單、排位規劃、婚紗照片及相關資料，無法復原。\n\n確定要繼續嗎？',
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      danger: true,
+    });
+    if (ok) onDeleteWedding(w.weddingId);
+  };
+
   return (
     <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
       <nav style={{background:'#FFFEFA',borderBottom:'1px solid #E5DDD0',padding:'14px 24px',
@@ -5049,15 +5081,40 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onLogout 
       </nav>
 
       <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:24}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:16}}>
           <div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>
               MY WEDDINGS
             </div>
             <div style={{fontFamily:FONT_STACK,fontSize:24,letterSpacing:1,marginTop:2}}>我的婚禮</div>
           </div>
-          <Btn onClick={onCreateNew}>＋ 新增婚禮</Btn>
+          {atLimit ? (
+            <div style={{textAlign:'right'}}>
+              <div style={{padding:'8px 14px',background:'#F5F0E8',border:'1px solid #E5DDD0',
+                borderRadius:3,fontSize:12,color:'#9A8F82',cursor:'default'}}>
+                🔒 免費版限 {FREE_LIMIT} 個專案
+              </div>
+              <div style={{fontSize:11,color:'#B5895F',marginTop:4,cursor:'pointer',textDecoration:'underline'}}
+                onClick={()=>uiAlert('升級 Pro 可建立無限婚禮專案，功能即將開放，敬請期待！')}>
+                升級解鎖 →
+              </div>
+            </div>
+          ) : (
+            <Btn onClick={onCreateNew}>＋ 新增婚禮</Btn>
+          )}
         </div>
+
+        {/* 免費版使用說明 */}
+        {!isPro && (
+          <div style={{padding:'10px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',
+            borderRadius:3,fontSize:12,color:'#7A5C00',marginBottom:20,lineHeight:1.7}}>
+            💡 <strong>免費版限制：</strong>最多 {FREE_LIMIT} 個婚禮專案・排位最多 5 桌
+            <span style={{color:'#B5895F',marginLeft:8,cursor:'pointer',textDecoration:'underline'}}
+              onClick={()=>uiAlert('升級 Pro 可建立無限婚禮專案與無限桌數，功能即將開放，敬請期待！')}>
+              了解 Pro 方案 →
+            </span>
+          </div>
+        )}
 
         {weddings.length === 0 ? (
           <div style={{...S.card,padding:'48px 24px',textAlign:'center'}}>
@@ -5070,9 +5127,10 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onLogout 
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {weddings.map(w => (
               <div key={w.weddingId} style={{...S.card,padding:'18px 20px',display:'flex',
-                alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
+                alignItems:'center',justifyContent:'space-between',cursor:'pointer',
+                transition:'box-shadow .15s'}}
                 onClick={() => onSelectWedding(w.weddingId)}>
-                <div>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:.5}}>
                     {w.config?.groomName && w.config?.brideName
                       ? `${w.config.groomName} & ${w.config.brideName}`
@@ -5085,10 +5143,17 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onLogout 
                     <div style={{fontSize:12,color:'#9A8F82'}}>{w.config.venue}</div>
                   )}
                 </div>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
                   <Tag small color="#B5895F" soft="#EFE3D0">
-                    {w.plan === 'pro' ? 'Pro' : '免費版'}
+                    {w.plan === 'pro' ? '✦ Pro' : '免費版'}
                   </Tag>
+                  <button onClick={e=>handleDelete(e,w)}
+                    style={{padding:'5px 10px',borderRadius:2,border:'1px solid #EECDD6',
+                      background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',
+                      fontFamily:FONT_STACK}}
+                    title="刪除此婚禮">
+                    刪除
+                  </button>
                   <span style={{color:'#B5895F',fontSize:18}}>›</span>
                 </div>
               </div>
@@ -5524,6 +5589,34 @@ export default function WeddingApp() {
     navigate('#/login');
   };
 
+  // SaaS：刪除婚禮（清除 Firestore + users 記錄）
+  const handleDeleteWedding = async (wid) => {
+    if (!fbRef.current) return;
+    const fb = fbRef.current;
+    try {
+      // 刪除婚禮主文件
+      await weddingDoc(fb.db, wid).delete();
+      // 更新 users 的 weddingIds
+      const userRef = fb.db.collection('users').doc(user.uid);
+      const userSnap = await userRef.get();
+      if (userSnap.exists) {
+        const ids = (userSnap.data().weddingIds || []).filter(id => id !== wid);
+        await userRef.update({ weddingIds: ids });
+      }
+      // 更新本地 state
+      const updated = weddings.filter(w => w.weddingId !== wid);
+      setWeddings(updated);
+      // 如果刪的是目前開啟的婚禮，跳回 dashboard
+      if (weddingId === wid) {
+        setWeddingId(null);
+        setData(emptyData());
+        navigate(updated.length > 0 ? '#/dashboard' : '#/setup');
+      }
+    } catch(e) {
+      uiAlert('刪除失敗：' + e.message);
+    }
+  };
+
   // Merge photoMap dataUrls into data.photos AND config images for rendering (MUST be before early return — hook order)
   const dataWithImages = useMemo(()=>{
     const cfg = data.config || {};
@@ -5605,10 +5698,26 @@ export default function WeddingApp() {
   }
 
   // 婚禮創建向導
+  const FREE_PROJECT_LIMIT = 2;
+  const currentPlan = weddings.find(w=>w.weddingId===weddingId)?.plan || 'free';
+  const isPro = weddings.some(w=>w.plan==='pro') || currentPlan==='pro';
+  const atProjectLimit = !isPro && weddings.length >= FREE_PROJECT_LIMIT;
+
   if(parsed.section==='setup' || (isLoggedIn && !loadingWeddings && weddings.length===0 && parsed.section!=='w')){
+    // 已達免費版上限且非 Pro → 擋住，不讓進向導
+    if(atProjectLimit){
+      navigate('#/dashboard');
+      return null;
+    }
     return (
       <WeddingSetupWizard user={user} fbRef={fbRef}
-        onComplete={(newId)=>{ navigate(`#/w/${newId}`); if(fbRef.current) loadUserWeddings(fbRef.current, user.uid); }} />
+        onComplete={(newId)=>{
+          // 立刻在本地加入這筆婚禮，避免 loadUserWeddings 期間 weddings.length===0 再次觸發向導
+          setWeddings(prev => prev.length===0 ? [{weddingId:newId, config:{}}] : prev);
+          setWeddingId(newId);
+          navigate(`#/w/${newId}`);
+          if(fbRef.current) loadUserWeddings(fbRef.current, user.uid);
+        }} />
     );
   }
 
@@ -5617,7 +5726,8 @@ export default function WeddingApp() {
     return (
       <DashboardPage user={user} weddings={weddings}
         onSelectWedding={wid=>navigate(`#/w/${wid}`)}
-        onCreateNew={()=>navigate('#/setup')}
+        onCreateNew={()=>{ if(atProjectLimit){ uiAlert(`免費版最多建立 ${FREE_PROJECT_LIMIT} 個婚禮專案。\n\n升級 Pro 方案即可無限新增，功能即將開放！`); return; } navigate('#/setup'); }}
+        onDeleteWedding={handleDeleteWedding}
         onLogout={handleFirebaseLogout} />
     );
   }
@@ -5711,7 +5821,7 @@ export default function WeddingApp() {
       {activePage==='rsvp'    && <RSVPPage data={dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={dataWithImages} />}
       {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={updateData} />}
-      {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={updateData} mainTableId={mainTableId} setMainTableId={setMainTableId} />}
+      {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={updateData} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} />}
       {activePage==='info'    && isAuthedAdmin && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} />}
       {['admin','seating','info'].includes(activePage) && !isAuthedAdmin && (
         <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
