@@ -1139,7 +1139,7 @@ function RSVPPage({data,onSubmit}) {
     
     // 載入 reCAPTCHA v3
     const script = document.createElement('script');
-    script.src = 'https://www.google.com/recaptcha/api.js?render=6LcxP_0sAAAAAHe4Fe37bhtMDpKAKIgAUM08Q0P9';
+    script.src = 'https://www.google.com/recaptcha/api.js?render=6LeB-BEtAAAAAMxw6iFMbh-WIf-SUyfvRh_KTPDb';
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
@@ -1205,7 +1205,7 @@ function RSVPPage({data,onSubmit}) {
       return '';
     }
     try {
-      const token = await window.grecaptcha.execute('6LcxP_0sAAAAAHe4Fe37bhtMDpKAKIgAUM08Q0P9', {action:'rsvp'});
+      const token = await window.grecaptcha.execute('6LeB-BEtAAAAAMxw6iFMbh-WIf-SUyfvRh_KTPDb', {action:'rsvp'});
       return token;
     } catch (e) {
       console.error('reCAPTCHA error:', e);
