@@ -119,6 +119,31 @@ const weddingDoc    = (db, wid) => db.collection('weddings').doc(wid);
 const mainDocRef    = (db, wid) => weddingDoc(db, wid).collection('data').doc('main');
 const photosColRef  = (db, wid) => weddingDoc(db, wid).collection('photos');
 const backupsColRef = (db, wid) => weddingDoc(db, wid).collection('backups');
+const activityColRef = (db, wid) => weddingDoc(db, wid).collection('activityLog');
+const presenceColRef = (db, wid) => weddingDoc(db, wid).collection('presence');
+const inviteDocRef   = (db, token) => db.collection('invites').doc(token);
+
+// ============================================================
+// 協作角色權限（admin / editor / viewer）
+// ============================================================
+const ROLE_PERMS = {
+  admin:  { info:true,  editGuests:true,  editSeating:true,  invite:true,  deleteWedding:true,  viewLog:true,  manageCollab:true },
+  editor: { info:false, editGuests:true,  editSeating:true,  invite:false, deleteWedding:false, viewLog:true,  manageCollab:false },
+  viewer: { info:false, editGuests:false, editSeating:false, invite:false, deleteWedding:false, viewLog:false, manageCollab:false },
+};
+const ROLE_LABEL = { admin:'管理員', editor:'編輯者', viewer:'檢視者' };
+const ROLE_DESC  = { admin:'全部權限：資訊管理、名單、排位、邀請協作', editor:'可編輯名單與排位', viewer:'唯讀，不可編輯' };
+
+// 取得某 uid 在某婚禮的角色（owner 視為 admin）
+function getRole(wedding, uid) {
+  if (!wedding || !uid) return null;
+  if (wedding.ownerId === uid) return 'admin';
+  const c = wedding.collaborators && wedding.collaborators[uid];
+  return c ? c.role : null;
+}
+function hasPerm(role, perm) {
+  return !!(role && ROLE_PERMS[role] && ROLE_PERMS[role][perm]);
+}
 
 const FONT_STACK = "'Noto Sans TC','LiHei Pro','黑體-繁',sans-serif";
 const SANS_STACK = "'Noto Sans TC','LiHei Pro','黑體-繁',sans-serif";
@@ -600,7 +625,7 @@ function initFirebase() {
   return window.__wedFB;
 }
 
-const DEFAULT_PHOTO_B64 = "data:image/jpeg;base64,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";
+const DEFAULT_PHOTO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9Ijc1MCIgdmlld0JveD0iMCAwIDEyMDAgNzUwIj4KICA8cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI3NTAiIGZpbGw9IiNGOUY1RUYiLz4KICA8cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMTE5OCIgaGVpZ2h0PSI3NDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0U1REREMCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtZGFzaGFycmF5PSIxMiw4Ii8+CiAgPHRleHQgeD0iNjAwIiB5PSIzMDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjcyIiBmaWxsPSIjRDRDNEE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7wn5KNPC90ZXh0PgogIDx0ZXh0IHg9IjYwMCIgeT0iMzkwIiBmb250LWZhbWlseT0iJ05vdG8gU2FucyBUQycsc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMiIgZmlsbD0iI0I1ODk1RiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgbGV0dGVyLXNwYWNpbmc9IjMiPuS4iuWCs+aCqOeahOWpmue0l+eFp+eJhzwvdGV4dD4KICA8dGV4dCB4PSI2MDAiIHk9IjQzMCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5QThGODIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPuWJjeW+gCAg6LOH6KiK566h55CGIOKGkiDnhafniYfovKrmkq0gIOWNs+WPr+aWsOWinjwvdGV4dD4KICA8bGluZSB4MT0iNDgwIiB5MT0iMzU1IiB4Mj0iNzIwIiB5Mj0iMzU1IiBzdHJva2U9IiNFNURERDAiIHN0cm9rZS13aWR0aD0iMSIvPgo8L3N2Zz4=";
 
 // ============================================================
 // DATA HELPERS
@@ -4013,13 +4038,205 @@ function BackupTab({data, onUpdate, fbRef, deletePhotoData, weddingId}) {
 }
 
 
-function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPreview,weddingId,fbRef}) {
+// ============================================================
+// COLLAB TAB — 協作管理（邀請 / 協作者列表 / 操作日誌）
+// ============================================================
+function CollabTab({ weddingId, fbRef, currentRole, currentWedding, user, onReloadWeddings }) {
+  const [sub, setSub] = useState('members'); // members | log
+  const [inviteRole, setInviteRole] = useState('editor');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteLink, setInviteLink] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [loadingLog, setLoadingLog] = useState(false);
+
+  const canManage = hasPerm(currentRole, 'manageCollab');
+  const collaborators = currentWedding?.collaborators || {};
+  const collabList = Object.entries(collaborators).map(([uid,c])=>({uid, ...c}));
+
+  // 產生邀請連結
+  const createInvite = async () => {
+    if (!fbRef.current) return;
+    setCreating(true); setInviteLink('');
+    try {
+      const token = uid() + uid();
+      await inviteDocRef(fbRef.current.db, token).set({
+        weddingId, inviterUid: user.uid, inviterEmail: user.email||'',
+        role: inviteRole, email: inviteEmail.trim()||'',
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 7*24*60*60*1000, // 7 天有效
+        used: false,
+      });
+      const link = `${window.location.origin}${window.location.pathname}#/join/${token}`;
+      setInviteLink(link);
+    } catch(e) { uiAlert('產生邀請失敗：'+e.message); }
+    finally { setCreating(false); }
+  };
+
+  const copyLink = () => {
+    try { navigator.clipboard.writeText(inviteLink); uiAlert('已複製邀請連結'); }
+    catch { uiAlert('請手動複製連結'); }
+  };
+
+  // 移除協作者
+  const removeCollab = async (cuid) => {
+    const ok = await uiConfirm({ title:'移除協作者？', message:'此協作者將失去存取權限。', confirmText:'移除', cancelText:'取消', danger:true });
+    if (!ok || !fbRef.current) return;
+    try {
+      const FieldValue = window.firebase.firestore.FieldValue;
+      await weddingDoc(fbRef.current.db, weddingId).update({
+        [`collaborators.${cuid}`]: FieldValue.delete()
+      });
+      // 從該用戶的 weddingIds 移除
+      const uRef = fbRef.current.db.collection('users').doc(cuid);
+      const uSnap = await uRef.get();
+      if (uSnap.exists) {
+        const ids = (uSnap.data().weddingIds||[]).filter(id=>id!==weddingId);
+        await uRef.update({ weddingIds: ids });
+      }
+      if (onReloadWeddings) onReloadWeddings();
+      uiAlert('已移除協作者');
+    } catch(e) { uiAlert('移除失敗：'+e.message); }
+  };
+
+  // 載入操作日誌
+  const loadLogs = async () => {
+    if (!fbRef.current) return;
+    setLoadingLog(true);
+    try {
+      const snap = await activityColRef(fbRef.current.db, weddingId)
+        .orderBy('timestamp','desc').limit(50).get();
+      const list = []; snap.forEach(d=>list.push(d.data()));
+      setLogs(list);
+    } catch(e) { console.error(e); }
+    finally { setLoadingLog(false); }
+  };
+  useEffect(()=>{ if(sub==='log') loadLogs(); },[sub]);
+
+  if (!canManage) {
+    return (
+      <div style={{...S.card,padding:32,textAlign:'center',maxWidth:420}}>
+        <div style={{fontSize:28,marginBottom:10}}>🔒</div>
+        <div style={{fontSize:15,marginBottom:6}}>協作管理僅限管理員</div>
+        <div style={{fontSize:12,color:'#9A8F82'}}>您的角色為「{ROLE_LABEL[currentRole]||'—'}」</div>
+      </div>
+    );
+  }
+
+  const fmtTime = (ts)=>{ const d=new Date(ts); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+
+  return (
+    <div style={{maxWidth:560}}>
+      {/* 子 Tab */}
+      <div style={{display:'flex',gap:4,marginBottom:20}}>
+        <button onClick={()=>setSub('members')} style={{padding:'6px 14px',fontSize:13,cursor:'pointer',borderRadius:3,
+          background:sub==='members'?'#B5895F':'#F1EAE0',color:sub==='members'?'#FFFEFA':'#6B6259'}}>協作成員</button>
+        <button onClick={()=>setSub('log')} style={{padding:'6px 14px',fontSize:13,cursor:'pointer',borderRadius:3,
+          background:sub==='log'?'#B5895F':'#F1EAE0',color:sub==='log'?'#FFFEFA':'#6B6259'}}>操作日誌</button>
+      </div>
+
+      {sub==='members' && (
+        <div>
+          {/* 邀請區 */}
+          <div style={{...S.card,padding:'20px 22px',marginBottom:16}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,marginBottom:14}}>邀請協作者</div>
+            <Field label="權限角色">
+              <div style={{display:'flex',gap:8}}>
+                {['editor','viewer'].map(r=>(
+                  <button key={r} onClick={()=>setInviteRole(r)}
+                    style={{flex:1,padding:'10px',borderRadius:3,fontSize:13,cursor:'pointer',
+                      background:inviteRole===r?'#B5895F':'#F1EAE0',color:inviteRole===r?'#FFFEFA':'#6B6259',
+                      border:`1px solid ${inviteRole===r?'#B5895F':'#E5DDD0'}`}}>
+                    <div style={{fontWeight:600}}>{ROLE_LABEL[r]}</div>
+                    <div style={{fontSize:10,marginTop:2,opacity:.85}}>{ROLE_DESC[r]}</div>
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="受邀者 Email（選填，僅作備註）">
+              <TInput value={inviteEmail} onChange={setInviteEmail} placeholder="mother@email.com" />
+            </Field>
+            <Btn onClick={createInvite} disabled={creating}>
+              {creating ? '產生中...' : '產生邀請連結'}
+            </Btn>
+
+            {inviteLink && (
+              <div style={{marginTop:14,padding:'12px 14px',background:'#F9F5EF',borderRadius:3,border:'1px solid #E5DDD0'}}>
+                <div style={{fontSize:11,color:'#9A8F82',marginBottom:6}}>複製以下連結傳給受邀者（7 天內有效）：</div>
+                <div style={{fontSize:11,wordBreak:'break-all',color:'#6B6259',marginBottom:8,fontFamily:'monospace'}}>{inviteLink}</div>
+                <Btn size="sm" onClick={copyLink}>📋 複製連結</Btn>
+              </div>
+            )}
+          </div>
+
+          {/* 協作者列表 */}
+          <div style={{...S.card,padding:'20px 22px'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,marginBottom:14}}>目前成員</div>
+            {/* Owner */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #F0EBE3'}}>
+              <div>
+                <div style={{fontSize:13}}>{user.email}（您）</div>
+                <div style={{fontSize:11,color:'#9A8F82'}}>擁有者</div>
+              </div>
+              <Tag small color="#B5895F" soft="#EFE3D0">管理員</Tag>
+            </div>
+            {collabList.length===0 ? (
+              <div style={{padding:'16px 0',textAlign:'center',color:'#9A8F82',fontSize:12}}>尚無其他協作者</div>
+            ) : collabList.map(c=>(
+              <div key={c.uid} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #F0EBE3'}}>
+                <div>
+                  <div style={{fontSize:13}}>{c.name||c.email||'協作者'}</div>
+                  <div style={{fontSize:11,color:'#9A8F82'}}>{c.email}</div>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <Tag small color="#7A8FB5" soft="#E3E8EF">{ROLE_LABEL[c.role]}</Tag>
+                  <button onClick={()=>removeCollab(c.uid)}
+                    style={{padding:'3px 8px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer'}}>移除</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sub==='log' && (
+        <div style={{...S.card,padding:'20px 22px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15}}>操作日誌</div>
+            <Btn size="sm" v="ghost" onClick={loadLogs}>重新整理</Btn>
+          </div>
+          {loadingLog ? (
+            <div style={{textAlign:'center',padding:'20px 0'}}><Spinner size={20}/></div>
+          ) : logs.length===0 ? (
+            <div style={{padding:'20px 0',textAlign:'center',color:'#9A8F82',fontSize:12}}>尚無操作記錄</div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column'}}>
+              {logs.map((l,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid #F5F0E8',fontSize:12}}>
+                  <span style={{color:'#9A8F82',minWidth:72}}>{fmtTime(l.timestamp)}</span>
+                  <span style={{flex:1,color:'#6B6259'}}>
+                    <strong>{l.name||l.email}</strong> {l.action} {l.detail && <span style={{color:'#9A8F82'}}>（{l.detail}）</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPreview,weddingId,fbRef,currentRole,currentWedding,user,onReloadWeddings}) {
   const [tab,setTab] = useState('basic');
   // 外觀頁籤開啟時預載所有字體，讓字體預覽卡片能即時顯示
   useEffect(()=>{ if(tab==='theme') preloadAllFonts(); },[tab]);
   const cfg = data.config;
   const update = (k,v) => onUpdate({...data,config:{...cfg,[k]:v}});
   const [draft,setDraft] = useState({...cfg});
+  // 每次切換到 theme tab 時重新從最新 cfg 同步（確保顯示用戶填入的名字）
+  useEffect(()=>{ if(tab==='theme'||tab==='basic') setDraft({...cfg}); },[tab]);
   const [previewing,setPreviewing] = useState(false);
   const [pw1,setPw1] = useState('');
   const [pw2,setPw2] = useState('');
@@ -4134,8 +4351,9 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
     {id:'thanks',l:'💌 謝謝頁面'},
     {id:'groups',l:'👥 關係分類'},
     {id:'theme',l:'🎨 外觀'},
+    {id:'collab',l:'🤝 協作管理'},
     {id:'backup',l:'📦 備份'},
-    {id:'password',l:'🔒 密碼管理'},
+    {id:'password',l:'🔒 帳號安全'},
   ];
 
   return (
@@ -4499,7 +4717,9 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
       )}
 
       {/* BACKUP */}
-      {tab==='backup' && <BackupTab data={data} onUpdate={onUpdate} />}
+      {tab==='backup' && <BackupTab data={data} onUpdate={onUpdate} fbRef={fbRef} deletePhotoData={deletePhotoData} weddingId={weddingId} />}
+
+      {tab==='collab' && <CollabTab weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={onReloadWeddings} />}
 
       {/* PASSWORD */}
       {tab==='password' && (
@@ -4526,7 +4746,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 // ============================================================
 // NAVBAR  — public shows only RSVP + admin login
 // ============================================================
-function NavBar({page,onNav,authed,onLogout,syncStatus,cfg}) {
+function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,presence}) {
   const logoContent = cfg.logoType==='image'&&cfg.logoDataUrl
     ? <img src={cfg.logoDataUrl} alt="logo" style={{maxHeight:28,maxWidth:120,objectFit:'contain'}} />
     : <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,letterSpacing:4,color:'#B5895F',fontWeight:500}}>
@@ -4573,9 +4793,23 @@ function NavBar({page,onNav,authed,onLogout,syncStatus,cfg}) {
       )}
 
       <div className="wed-nav-status" style={{display:'flex',alignItems:'center',gap:10,fontSize:11,color:'#9A8F82',flexShrink:0,whiteSpace:'nowrap'}}>
+        {/* 實時協作：在線者 */}
+        {authed && presence && presence.length>0 && (
+          <span title={presence.map(p=>`${p.name} 正在看${p.page}`).join('\n')}
+            style={{display:'inline-flex',alignItems:'center',gap:4,background:'#EAF3DE',color:'#3B6D11',padding:'2px 8px',borderRadius:10,fontSize:10}}>
+            🟢 {presence.length===1 ? `${presence[0].name} 正在編輯${presence[0].page}` : `${presence.length} 人在線`}
+          </span>
+        )}
+        {/* 角色徽章 */}
+        {authed && role && role!=='admin' && (
+          <span style={{background:'#E3E8EF',color:'#5A6B85',padding:'2px 8px',borderRadius:10,fontSize:10}}>
+            {ROLE_LABEL[role]}
+          </span>
+        )}
         {syncStatus==='connecting'&&<><Spinner size={11}/> <span className="wed-nav-status-txt">連線中</span></>}
         {syncStatus==='connected'&&<><span style={{width:5,height:5,borderRadius:'50%',background:'#7BA77B',display:'inline-block'}}/> <span className="wed-nav-status-txt">已同步</span></>}
         {syncStatus==='error'&&<><span style={{width:5,height:5,borderRadius:'50%',background:'#C04040',display:'inline-block'}}/> <span className="wed-nav-status-txt">離線</span></>}
+        {authed && onDashboard && <button onClick={onDashboard} style={{color:'#B5895F',fontSize:11,textDecoration:'underline',marginRight:4}}>← 專案頁</button>}
         {authed&&<button onClick={onLogout} style={{color:'#9A8F82',fontSize:11,textDecoration:'underline'}}>登出</button>}
       </div>
     </nav>
@@ -4628,19 +4862,20 @@ function navigate(path) {
 }
 function parseRoute(hash) {
   // #/w/{weddingId}/admin → { section: 'w', weddingId, page: 'admin' }
+  // #/dashboard/account   → { section: 'dashboard', weddingId: 'account' }
   const path = hash.replace(/^#\/?/, '');
   const parts = path.split('/');
   if (parts[0] === 'w' && parts[1]) {
     return { section: 'w', weddingId: parts[1], page: parts[2] || 'rsvp' };
   }
-  return { section: parts[0] || 'login', weddingId: null, page: null };
+  return { section: parts[0] || 'login', weddingId: parts[1] || null, page: parts[2] || null };
 }
 
 
 // ============================================================
 // LOGIN PAGE — Email/Password + Google OAuth
 // ============================================================
-function LoginPage({ onAuthSuccess }) {
+function LoginPage({ onAuthSuccess, inviteMode }) {
   const [mode, setMode]     = useState('login'); // 'login' | 'register' | 'reset'
   const [email, setEmail]   = useState('');
   const [pw, setPw]         = useState('');
@@ -4683,10 +4918,13 @@ function LoginPage({ onAuthSuccess }) {
     setLoading(true); setMsg({ type: '', text: '' });
     try {
       const fb = await initFirebase();
-      await fb.auth.signInWithPopup(fb.googleProvider);
+      // 用 redirect 取代 popup，避免被瀏覽器封鎖
+      await fb.auth.signInWithRedirect(fb.googleProvider);
+      // 頁面會被重導向，以下不會執行
     } catch(e) {
-      if (e.code !== 'auth/popup-closed-by-user') err(e.message);
-    } finally { setLoading(false); }
+      err(e.message);
+      setLoading(false);
+    }
   };
 
   const doReset = async () => {
@@ -4719,6 +4957,12 @@ function LoginPage({ onAuthSuccess }) {
         <div style={{fontFamily:FONT_STACK,fontSize:18,letterSpacing:1,marginBottom:20,textAlign:'center'}}>
           {titles[mode]}
         </div>
+
+        {inviteMode && (
+          <div style={{padding:'10px 14px',background:'#EAF3DE',border:'1px solid #C5DDA0',borderRadius:3,fontSize:12,color:'#3B6D11',marginBottom:16,textAlign:'center',lineHeight:1.6}}>
+            🤝 您收到一份協作邀請<br/>請先登入或註冊以接受邀請
+          </div>
+        )}
 
         {/* Google Button */}
         {mode !== 'reset' && (
@@ -5047,7 +5291,219 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
 // ============================================================
 // DASHBOARD PAGE — 我的婚禮列表
 // ============================================================
-function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteWedding, onLogout }) {
+// ============================================================
+// JOIN INVITE — 受邀者接受協作邀請
+// ============================================================
+function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
+  const [status, setStatus] = useState('processing'); // processing | error | success
+  const [msg, setMsg] = useState('');
+  const [result, setResult] = useState(null);
+
+  useEffect(()=>{
+    (async()=>{
+      const r = await onAccept(token);
+      if(r.needLogin){ setStatus('error'); setMsg('請先登入後再接受邀請'); return; }
+      if(r.error){ setStatus('error'); setMsg(r.error); return; }
+      setResult(r); setStatus('success');
+    })();
+  },[]);
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF',padding:20}}>
+      <div style={{...S.card,padding:'36px 32px',maxWidth:400,width:'100%',textAlign:'center'}}>
+        {status==='processing' && <>
+          <Spinner size={30}/>
+          <div style={{marginTop:14,color:'#9A8F82',fontSize:13}}>正在處理邀請...</div>
+        </>}
+        {status==='error' && <>
+          <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
+          <div style={{fontSize:15,marginBottom:18,color:'#3A332B'}}>{msg}</div>
+          <Btn onClick={onCancel}>返回</Btn>
+        </>}
+        {status==='success' && <>
+          <div style={{fontSize:32,marginBottom:12}}>🎉</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:18,letterSpacing:1,marginBottom:8}}>成功加入協作！</div>
+          <div style={{fontSize:13,color:'#6B6259',marginBottom:20}}>
+            您的角色為「{ROLE_LABEL[result?.role]||'協作者'}」
+          </div>
+          <Btn onClick={()=>onDone(result.weddingId)} style={{width:'100%',justifyContent:'center'}}>進入婚禮後台</Btn>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// ACCOUNT CENTER — 帳戶中心（方案訂閱 / 安全設定 / 帳戶管理）
+// ============================================================
+function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount, onUpdateDisplayName }) {
+  const [tab, setTab] = useState('plan');
+  const [displayName, setDisplayName] = useState(user.displayName || '');
+  const [savingName, setSavingName] = useState(false);
+  const isPro = weddings.some(w => w.plan === 'pro');
+  const providers = user.providerData ? user.providerData.map(p => p.providerId) : [];
+  const hasGoogle = providers.includes('google.com');
+  const hasPassword = providers.includes('password');
+
+  const tabs = [
+    { id: 'plan',     label: '方案與訂閱' },
+    { id: 'security', label: '安全設定' },
+    { id: 'account',  label: '帳戶管理' },
+  ];
+
+  const saveName = async () => {
+    setSavingName(true);
+    try { await onUpdateDisplayName(displayName.trim()); uiAlert('顯示名稱已更新'); }
+    catch(e) { uiAlert('更新失敗：' + e.message); }
+    finally { setSavingName(false); }
+  };
+
+  return (
+    <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>
+        ACCOUNT
+      </div>
+      <div style={{fontFamily:FONT_STACK,fontSize:24,letterSpacing:1,marginTop:2,marginBottom:24}}>帳戶中心</div>
+
+      <div style={{display:'flex',gap:4,borderBottom:'1px solid #E5DDD0',marginBottom:24}}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{padding:'8px 16px',fontSize:13,cursor:'pointer',
+              color: tab===t.id?'#3A332B':'#9A8F82',
+              fontWeight: tab===t.id?600:400,
+              borderBottom: tab===t.id?'2px solid #B5895F':'2px solid transparent',
+              marginBottom:-1}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'plan' && (
+        <div>
+          <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <div style={{fontSize:12,color:'#9A8F82',letterSpacing:1,marginBottom:4}}>目前方案</div>
+                <div style={{fontFamily:FONT_STACK,fontSize:22,letterSpacing:1}}>
+                  {isPro ? '✦ Pro 方案' : '免費版'}
+                </div>
+              </div>
+              <Tag small color={isPro?'#B5895F':'#9A8F82'} soft={isPro?'#EFE3D0':'#F0EBE3'}>
+                {isPro ? '已訂閱' : 'Free'}
+              </Tag>
+            </div>
+            <div style={{height:1,background:'#F0EBE3',margin:'18px 0'}} />
+            <div style={{fontSize:13,color:'#6B6259',lineHeight:2}}>
+              {isPro ? (
+                <>
+                  <div>續期日期：—（Stripe 整合後顯示）</div>
+                  <div>方案內容：無限婚禮專案・無限桌數</div>
+                </>
+              ) : (
+                <>
+                  <div>• 最多 2 個婚禮專案</div>
+                  <div>• 排位最多 5 桌</div>
+                </>
+              )}
+            </div>
+            {!isPro && (
+              <Btn onClick={()=>uiAlert('Pro 方案付費功能即將開放，敬請期待！')} style={{marginTop:16}}>
+                升級 Pro 方案
+              </Btn>
+            )}
+            {isPro && (
+              <Btn v="ghost" onClick={()=>uiAlert('取消訂閱功能將在 Stripe 整合後開放。')} style={{marginTop:16}}>
+                取消訂閱
+              </Btn>
+            )}
+          </div>
+
+          <div style={{...S.card,padding:'24px 26px'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:14}}>帳單歷史</div>
+            <div style={{textAlign:'center',padding:'28px 0',color:'#9A8F82',fontSize:13}}>
+              <div style={{fontSize:28,marginBottom:8}}>🧾</div>
+              尚無付費記錄
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'security' && (
+        <div>
+          <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:6}}>修改密碼</div>
+            <div style={{fontSize:12,color:'#9A8F82',marginBottom:14,lineHeight:1.7}}>
+              系統會寄出密碼重設連結至您的 Email：{user.email}
+            </div>
+            {hasPassword ? (
+              <Btn v="ghost" onClick={onChangePassword}>寄出密碼重設信件</Btn>
+            ) : (
+              <div style={{fontSize:12,color:'#9A8F82',padding:'8px 12px',background:'#F9F5EF',borderRadius:3}}>
+                您使用 Google 登入，密碼由 Google 管理
+              </div>
+            )}
+          </div>
+
+          <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:6}}>登入方式</div>
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginTop:12}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:13}}>
+                <span>📧 Email / 密碼</span>
+                <span style={{color:hasPassword?'#7BA77B':'#C9C0B4'}}>{hasPassword?'已啟用':'未使用'}</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:13}}>
+                <span>🔵 Google 帳號</span>
+                {hasGoogle
+                  ? <span style={{color:'#7BA77B'}}>已連結</span>
+                  : <button onClick={onLinkGoogle} style={{color:'#B5895F',fontSize:12,textDecoration:'underline',cursor:'pointer'}}>連結</button>}
+              </div>
+            </div>
+          </div>
+
+          <div style={{...S.card,padding:'24px 26px'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:6}}>裝置與工作階段</div>
+            <div style={{fontSize:12,color:'#9A8F82',marginBottom:14,lineHeight:1.7}}>
+              登出目前裝置。如需登出其他所有裝置，請修改密碼，所有 session 將自動失效。
+            </div>
+            <Btn v="ghost" onClick={onLogoutThisDevice}>登出目前裝置</Btn>
+          </div>
+        </div>
+      )}
+
+      {tab === 'account' && (
+        <div>
+          <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:12}}>顯示名稱</div>
+            <Field label="名稱">
+              <TInput value={displayName} onChange={setDisplayName} placeholder="您的名稱" />
+            </Field>
+            <Btn onClick={saveName} disabled={savingName}>
+              {savingName ? '儲存中...' : '儲存'}
+            </Btn>
+          </div>
+
+          <div style={{...S.card,padding:'24px 26px',border:'1px solid #EECDD6'}}>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:6,color:'#C04060'}}>
+              刪除帳戶
+            </div>
+            <div style={{fontSize:12,color:'#9A8F82',marginBottom:14,lineHeight:1.7}}>
+              永久刪除您的帳戶及所有婚禮資料，此操作無法復原。
+            </div>
+            <button onClick={onDeleteAccount}
+              style={{padding:'9px 18px',borderRadius:3,border:'1px solid #C04060',
+                background:'#FDF5F7',color:'#C04060',fontSize:13,cursor:'pointer',fontFamily:FONT_STACK}}>
+              永久刪除帳戶
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteWedding, onLogout, activeTab, onTabChange, accountProps }) {
   const FREE_LIMIT = 2;
   const isPro = weddings.some(w => w.plan === 'pro');
   const atLimit = !isPro && weddings.length >= FREE_LIMIT;
@@ -5067,19 +5523,52 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
     if (ok) onDeleteWedding(w.weddingId);
   };
 
-  return (
-    <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
-      <nav style={{background:'#FFFEFA',borderBottom:'1px solid #E5DDD0',padding:'14px 24px',
-        display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+  const TopNav = () => (
+    <nav style={{background:'#FFFEFA',borderBottom:'1px solid #E5DDD0',padding:'14px 24px',
+      display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{display:'flex',alignItems:'center',gap:28}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,letterSpacing:4,color:'#B5895F'}}>
           Wedding
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:14}}>
-          <span style={{fontSize:12,color:'#9A8F82'}}>{user.email}</span>
-          <Btn v="ghost" size="sm" onClick={onLogout}>登出</Btn>
+        {/* Tab 切換 */}
+        <div style={{display:'flex',gap:4}}>
+          <button onClick={()=>onTabChange('weddings')}
+            style={{padding:'6px 14px',fontSize:13,letterSpacing:.5,cursor:'pointer',
+              color: activeTab==='weddings'?'#3A332B':'#9A8F82',
+              fontWeight: activeTab==='weddings'?600:400,
+              borderBottom: activeTab==='weddings'?'2px solid #B5895F':'2px solid transparent'}}>
+            我的婚禮
+          </button>
+          <button onClick={()=>onTabChange('account')}
+            style={{padding:'6px 14px',fontSize:13,letterSpacing:.5,cursor:'pointer',
+              color: activeTab==='account'?'#3A332B':'#9A8F82',
+              fontWeight: activeTab==='account'?600:400,
+              borderBottom: activeTab==='account'?'2px solid #B5895F':'2px solid transparent'}}>
+            帳戶中心
+          </button>
         </div>
-      </nav>
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:14}}>
+        <span style={{fontSize:12,color:'#9A8F82'}}>{user.email}</span>
+        <Btn v="ghost" size="sm" onClick={onLogout}>登出</Btn>
+      </div>
+    </nav>
+  );
 
+  // 帳戶中心 Tab
+  if (activeTab === 'account') {
+    return (
+      <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
+        <TopNav />
+        <AccountCenterPage user={user} weddings={weddings} {...accountProps} />
+      </div>
+    );
+  }
+
+  // 我的婚禮 Tab（預設）
+  return (
+    <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
+      <TopNav />
       <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:16}}>
           <div>
@@ -5173,6 +5662,7 @@ export default function WeddingApp() {
   const [weddingId, setWeddingId] = useState(null);
   const [weddings, setWeddings]   = useState([]);
   const [loadingWeddings, setLoadingWeddings] = useState(false);
+  const [presenceList, setPresenceList] = useState([]); // 實時協作：在線使用者
   const route = useHashRoute();
   const parsed = parseRoute(route);
 
@@ -5244,12 +5734,29 @@ export default function WeddingApp() {
         if(!fb) throw lastErr || new Error('Firebase 初始化失敗');
         fbRef.current=fb;
 
+        // 處理 Google signInWithRedirect 返回的結果
+        try {
+          await fb.auth.getRedirectResult();
+          // 成功的話 onAuthStateChanged 會自動觸發，不需額外處理
+        } catch(e) {
+          if (e.code !== 'auth/no-auth-event') {
+            console.warn('getRedirectResult:', e.message);
+          }
+        }
+
         fb.auth.onAuthStateChanged(async u=>{
           if(cancelled) return;
           setUser(u);
           setAuthReady(true);
           if(u && !u.isAnonymous){
             await loadUserWeddings(fb, u.uid);
+            // 檢查是否有待處理的協作邀請（從 join 連結登入回來）
+            let pending=null;
+            try { pending = sessionStorage.getItem('pendingInvite'); } catch {}
+            if(pending){
+              try { sessionStorage.removeItem('pendingInvite'); } catch {}
+              navigate(`#/join/${pending}`);
+            }
           } else if(!u){
             setWeddings([]); setWeddingId(null);
           }
@@ -5279,6 +5786,44 @@ export default function WeddingApp() {
       setWeddings(withCfg);
     } catch(e){ console.error('loadUserWeddings:', e); }
     finally { setLoadingWeddings(false); }
+  };
+
+  // ── 協作：接受邀請（受邀者點 #/join/{token} 後執行）──
+  const acceptInvite = async (token) => {
+    const fb = fbRef.current || await initFirebase();
+    fbRef.current = fb;
+    if (!fb.auth.currentUser || fb.auth.currentUser.isAnonymous) {
+      return { needLogin: true };
+    }
+    const u = fb.auth.currentUser;
+    try {
+      const inviteSnap = await inviteDocRef(fb.db, token).get();
+      if (!inviteSnap.exists) return { error: '邀請連結無效或已過期' };
+      const inv = inviteSnap.data();
+      if (inv.used) return { error: '此邀請已被使用' };
+      if (inv.expiresAt && Date.now() > inv.expiresAt) return { error: '邀請連結已過期' };
+
+      // 寫入 collaborators
+      await weddingDoc(fb.db, inv.weddingId).update({
+        [`collaborators.${u.uid}`]: {
+          role: inv.role, email: u.email||'', name: u.displayName||'',
+          addedAt: Date.now(), addedBy: inv.inviterUid,
+        }
+      });
+      // 把婚禮加到受邀者的 weddingIds
+      const userRef = fb.db.collection('users').doc(u.uid);
+      const userSnap = await userRef.get();
+      const ids = userSnap.exists ? (userSnap.data().weddingIds||[]) : [];
+      if (!ids.includes(inv.weddingId)) {
+        await userRef.set({ uid:u.uid, email:u.email||'', weddingIds:[...ids, inv.weddingId] }, {merge:true});
+      }
+      // 標記邀請已使用
+      await inviteDocRef(fb.db, token).update({ used:true, usedBy:u.uid, usedAt:Date.now() });
+      await loadUserWeddings(fb, u.uid);
+      return { weddingId: inv.weddingId, role: inv.role };
+    } catch(e) {
+      return { error: e.message };
+    }
   };
 
   // ── SaaS：依路由決定要管理哪個婚禮 ──
@@ -5559,6 +6104,54 @@ export default function WeddingApp() {
     if (!localOnly) persist(next,immediate);
   },[persist,saveLocalMirror]);
 
+  // 操作日誌：記錄誰、何時、做了什麼
+  const logActivity = useCallback((action, detail)=>{
+    if(!fbRef.current||!weddingId||!user) return;
+    activityColRef(fbRef.current.db, weddingId).add({
+      uid: user.uid,
+      email: user.email || '',
+      name: user.displayName || user.email || '',
+      action, detail: detail||'',
+      timestamp: Date.now(),
+    }).catch(()=>{});
+  },[weddingId, user]);
+
+  // 帶日誌的 updateData（用於名單/排位編輯）
+  const updateDataLogged=useCallback((next,immediate,localOnly)=>{
+    updateData(next,immediate,localOnly);
+    // 簡易 diff 判斷動作類型
+    const prevG=(data.guests||[]).length, nextG=(next.guests||[]).length;
+    const prevT=(data.tables||[]).length, nextT=(next.tables||[]).length;
+    if(nextG>prevG) logActivity('新增賓客', `名單 ${prevG} → ${nextG}`);
+    else if(nextG<prevG) logActivity('刪除賓客', `名單 ${prevG} → ${nextG}`);
+    else if(nextT>prevT) logActivity('新增桌次', `桌數 ${prevT} → ${nextT}`);
+    else if(nextT<prevT) logActivity('刪除桌次', `桌數 ${prevT} → ${nextT}`);
+    else logActivity('更新資料', '');
+  },[updateData, data, logActivity]);
+
+  // ── 實時協作 presence：每 25 秒回報，讀取在線者 ──
+  useEffect(()=>{
+    if(!weddingId || !fbRef.current || !user || user.isAnonymous) return;
+    const db = fbRef.current.db;
+    const myRef = presenceColRef(db, weddingId).doc(user.uid);
+    const pageLabel = { admin:'名單', seating:'排位', info:'資訊管理', rsvp:'邀請函', blessings:'祝福牆' };
+    const report = ()=>{
+      myRef.set({
+        uid:user.uid, name:user.displayName||user.email||'訪客',
+        page: pageLabel[parsed.page] || '瀏覽中', at: Date.now(),
+      }).catch(()=>{});
+    };
+    report();
+    const timer = setInterval(report, 25000);
+    // 訂閱在線者（過濾 90 秒內活躍）
+    const unsub = presenceColRef(db, weddingId).onSnapshot(snap=>{
+      const now=Date.now(), list=[];
+      snap.forEach(d=>{ const p=d.data(); if(now-(p.at||0)<90000 && p.uid!==user.uid) list.push(p); });
+      setPresenceList(list);
+    });
+    return ()=>{ clearInterval(timer); unsub(); myRef.delete().catch(()=>{}); };
+  },[weddingId, user, parsed.page]);
+
   useEffect(()=>{
     if(!loaded||!fbRef.current||!weddingId) return;
     mainDocRef(fbRef.current.db, weddingId).update({mainTableId}).catch(()=>{});
@@ -5594,19 +6187,15 @@ export default function WeddingApp() {
     if (!fbRef.current) return;
     const fb = fbRef.current;
     try {
-      // 刪除婚禮主文件
       await weddingDoc(fb.db, wid).delete();
-      // 更新 users 的 weddingIds
       const userRef = fb.db.collection('users').doc(user.uid);
       const userSnap = await userRef.get();
       if (userSnap.exists) {
         const ids = (userSnap.data().weddingIds || []).filter(id => id !== wid);
         await userRef.update({ weddingIds: ids });
       }
-      // 更新本地 state
       const updated = weddings.filter(w => w.weddingId !== wid);
       setWeddings(updated);
-      // 如果刪的是目前開啟的婚禮，跳回 dashboard
       if (weddingId === wid) {
         setWeddingId(null);
         setData(emptyData());
@@ -5614,6 +6203,54 @@ export default function WeddingApp() {
       }
     } catch(e) {
       uiAlert('刪除失敗：' + e.message);
+    }
+  };
+
+  // ── 帳戶中心 handlers ──
+  const acctChangePassword = async () => {
+    if (!fbRef.current || !user?.email) return;
+    try {
+      await fbRef.current.auth.sendPasswordResetEmail(user.email);
+      uiAlert('密碼重設信件已寄出，請查收 ' + user.email);
+    } catch(e) { uiAlert('寄送失敗：' + e.message); }
+  };
+  const acctLinkGoogle = async () => {
+    if (!fbRef.current) return;
+    try { await fbRef.current.auth.currentUser.linkWithRedirect(fbRef.current.googleProvider); }
+    catch(e) { uiAlert('連結失敗：' + e.message); }
+  };
+  const acctLogoutThisDevice = async () => { await handleFirebaseLogout(); };
+  const acctUpdateDisplayName = async (name) => {
+    if (!fbRef.current) return;
+    const u = fbRef.current.auth.currentUser;
+    await u.updateProfile({ displayName: name });
+    await fbRef.current.db.collection('users').doc(user.uid).set({ displayName: name }, { merge: true });
+    setUser({ ...u });
+  };
+  const acctDeleteAccount = async () => {
+    const ok = await uiConfirm({
+      title: '永久刪除帳戶？',
+      message: '此操作將刪除您的帳戶及所有婚禮專案資料（賓客、排位、照片），無法復原。\n\n確定要繼續嗎？',
+      confirmText: '確定刪除帳戶', cancelText: '取消', danger: true,
+    });
+    if (!ok) return;
+    const fb = fbRef.current;
+    if (!fb) return;
+    try {
+      for (const w of weddings) {
+        await weddingDoc(fb.db, w.weddingId).delete().catch(()=>{});
+      }
+      await fb.db.collection('users').doc(user.uid).delete().catch(()=>{});
+      await fb.auth.currentUser.delete();
+      setUser(null); setWeddingId(null); setWeddings([]);
+      navigate('#/login');
+      uiAlert('帳戶已刪除');
+    } catch(e) {
+      if (e.code === 'auth/requires-recent-login') {
+        uiAlert('基於安全考量，刪除帳戶需要重新登入。請先登出後重新登入，再進行刪除。');
+      } else {
+        uiAlert('刪除失敗：' + e.message);
+      }
     }
   };
 
@@ -5673,7 +6310,9 @@ export default function WeddingApp() {
   );
 
   const isLoggedIn = user && !user.isAnonymous;
-  const isOwnerOfCurrent = weddings.some(w=>w.weddingId===weddingId);
+  const currentWedding = weddings.find(w=>w.weddingId===weddingId);
+  const currentRole = isLoggedIn ? getRole(currentWedding, user.uid) : null;
+  const isOwnerOfCurrent = !!currentRole; // 有任何角色即可存取（admin/editor/viewer）
   const adminPages = ['admin','seating','info','blessings'];
   const isAdminRoute = parsed.section==='w' && ['admin','seating','info'].includes(parsed.page);
   const isPublicRSVP = parsed.section==='w' && (!parsed.page || parsed.page==='rsvp' || parsed.page==='blessings');
@@ -5722,9 +6361,32 @@ export default function WeddingApp() {
   }
 
   // 我的婚禮列表
+  // 協作邀請：#/join/{token}
+  if(parsed.section==='join' && parsed.weddingId){
+    const token = parsed.weddingId;
+    if(!isLoggedIn){
+      // 未登入 → 記住 token，導去登入
+      try { sessionStorage.setItem('pendingInvite', token); } catch {}
+      return <LoginPage onAuthSuccess={()=>{}} inviteMode />;
+    }
+    return <JoinInvitePage token={token} onAccept={acceptInvite}
+      onDone={(wid)=>{ navigate(`#/w/${wid}`); }}
+      onCancel={()=>navigate('#/dashboard')} />;
+  }
+
   if(parsed.section==='dashboard'){
+    const dashTab = parsed.weddingId === 'account' ? 'account' : 'weddings';
     return (
       <DashboardPage user={user} weddings={weddings}
+        activeTab={dashTab}
+        onTabChange={(t)=>navigate(t==='account'?'#/dashboard/account':'#/dashboard')}
+        accountProps={{
+          onChangePassword: acctChangePassword,
+          onLinkGoogle: acctLinkGoogle,
+          onLogoutThisDevice: acctLogoutThisDevice,
+          onDeleteAccount: acctDeleteAccount,
+          onUpdateDisplayName: acctUpdateDisplayName,
+        }}
         onSelectWedding={wid=>navigate(`#/w/${wid}`)}
         onCreateNew={()=>{ if(atProjectLimit){ uiAlert(`免費版最多建立 ${FREE_PROJECT_LIMIT} 個婚禮專案。\n\n升級 Pro 方案即可無限新增，功能即將開放！`); return; } navigate('#/setup'); }}
         onDeleteWedding={handleDeleteWedding}
@@ -5771,8 +6433,12 @@ export default function WeddingApp() {
 
   // 路由 page：URL 優先，否則用 state
   const activePage = (parsed.section==='w' && parsed.page) ? parsed.page : page;
-  // SaaS：已登入且為 owner = 視為已認證（取代密碼制）
-  const isAuthedAdmin = isLoggedIn && isOwnerOfCurrent;
+  // 角色權限：可進入後台 = 有任何角色；各頁細分權限
+  const isAuthedAdmin = isLoggedIn && isOwnerOfCurrent;  // 可進入後台（含 viewer）
+  const canInfo       = hasPerm(currentRole, 'info');       // 資訊管理（僅 admin）
+  const canEditGuests = hasPerm(currentRole, 'editGuests'); // 名單編輯（admin/editor）
+  const canEditSeating= hasPerm(currentRole, 'editSeating');// 排位編輯（admin/editor）
+  const readOnly      = currentRole === 'viewer';           // 唯讀模式
 
   return (
     <div className="wed" style={effTheme.dark ? {background:effTheme.pageBg,color:effTheme.text} : {background:effTheme.pageBg}}>
@@ -5815,14 +6481,30 @@ export default function WeddingApp() {
         );
       })()}
       <div style={previewMode ? {marginTop:70} : {}}>
-      <NavBar page={activePage} onNav={onNav} authed={isAuthedAdmin} onLogout={isLoggedIn?handleFirebaseLogout:logout} syncStatus={syncStatus} cfg={data.config} />
+      <NavBar page={activePage} onNav={onNav} authed={isAuthedAdmin} onLogout={isLoggedIn?handleFirebaseLogout:logout} onDashboard={isLoggedIn && weddings.length>0 ? ()=>navigate('#/dashboard') : null} syncStatus={syncStatus} cfg={data.config} role={currentRole} presence={presenceList} />
       {error&&<div style={{background:'#FAEEEE',color:'#C04040',padding:'7px 20px',fontSize:11,textAlign:'center'}}>⚠️ 同步問題：{error}</div>}
+
+      {/* 唯讀模式橫幅 */}
+      {readOnly && ['admin','seating','info'].includes(activePage) && (
+        <div style={{background:'#FFF4DC',color:'#8A6D1A',padding:'8px 20px',fontSize:12,textAlign:'center',borderBottom:'1px solid #F0DFA0'}}>
+          👁 您是檢視者（Viewer），此頁面為唯讀模式，無法編輯
+        </div>
+      )}
 
       {activePage==='rsvp'    && <RSVPPage data={dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={dataWithImages} />}
-      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={updateData} />}
-      {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={updateData} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} />}
-      {activePage==='info'    && isAuthedAdmin && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} />}
+      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} />}
+      {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} />}
+      {activePage==='info'    && isAuthedAdmin && canInfo && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} />}
+      {activePage==='info'    && isAuthedAdmin && !canInfo && (
+        <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{...S.card,padding:32,maxWidth:360,width:'100%',textAlign:'center'}}>
+            <div style={{fontSize:28,marginBottom:10}}>🔒</div>
+            <div style={{fontSize:15,marginBottom:8}}>資訊管理僅限管理員</div>
+            <div style={{fontSize:12,color:'#9A8F82'}}>您目前的角色為「{ROLE_LABEL[currentRole]||'—'}」</div>
+          </div>
+        </div>
+      )}
       {['admin','seating','info'].includes(activePage) && !isAuthedAdmin && (
         <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div style={{...S.card,padding:32,maxWidth:360,width:'100%',textAlign:'center'}}>
