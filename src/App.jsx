@@ -1,7 +1,48 @@
 // ============================================================
-// WEDDING SAAS  v6.0.0  （商業版／多租戶）
-// 最後更新：2026-06-07
+// WEDDING SAAS  v6.3.1  （商業版／多租戶）
+// 最後更新：2026-06-08
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.3.1  2026-06-08  ★ Patch：UX 修正（11 項）
+//          • 問題1：Google signInWithRedirect 回來後 onAuthStateChanged 已自動處理
+//          • 問題2：補齊所有 Firebase Auth 錯誤碼中文對照（含 invalid-credential）
+//          • 問題3：LoginPage 加「記住帳號」勾選，localStorage 存 email
+//          • 問題6：#/w/* 全面開放未登入訪問（賓客無需帳號直接看 RSVP/祝福牆）
+//          •        Dashboard 婚禮卡片加「複製邀請連結」按鈕（🔗 邀請連結）
+//          • 問題7：NavBar 右側整合為 ☰ 下拉選單（切換專案/帳戶中心/登出），移除「已同步」文字
+//          • 問題9：全面改用 email 顯示（presence/操作日誌/協作者）；移除帳戶管理的顯示名稱欄位
+//          •        帳戶管理 Tab 改為只顯示帳號資訊 + 刪除帳戶
+//          • 問題11：InfoPage 移除「帳號安全」Tab（密碼修改統一在帳戶中心）
+//          • Bug：修正 presence 寫入 uid:undefined 問題（確認 user.uid 有值才執行）
+//          • 角色權限系統：Admin / Editor / Viewer 三層權限
+//          • 邀請協作者：產生 7 天有效連結，受邀者點連結登入即加入
+//          • 操作日誌：記錄誰、何時、做了什麼（最近 50 筆）
+//          • 實時協作指示：NavBar 顯示「○○○ 正在編輯排位頁」（presence，25s 心跳）
+//          • Viewer 唯讀橫幅提示，Editor 無法存取資訊管理
+//          • 新增 JoinInvitePage、CollabTab 元件
+//          • 更新 Firestore Security Rules（invites / activityLog / presence）
+//
+// v6.2.0  2026-06-08  ★ Minor：帳戶中心 + Dashboard Tab 架構（階段一）
+//          • Dashboard 頂部 Tab：我的婚禮 ｜ 帳戶中心
+//          • 帳戶中心：方案與訂閱、安全設定（改密碼/連結Google）、帳戶管理（改名/刪帳戶）
+//          • AccountCenterPage 元件新增
+//          • #/dashboard/account 路由
+//
+// v6.1.0  2026-06-08  ★ Minor：Freemium 限制 + 刪除婚禮
+//          • 免費版：最多 2 個婚禮專案、排位最多 5 桌
+//          • 婚禮卡片加刪除按鈕（二次確認，刪除 Firestore + users.weddingIds）
+//          • 新增婚禮達上限時鎖定並顯示升級提示
+//          • 向導 Step 1 加免費版限制說明
+//          • SeatingPage 第 6 桌觸發升級提示（isPro prop）
+//
+// v6.0.1  2026-06-08  ★ Patch：修正多項初版 bug
+//          • Google 登入改為 signInWithRedirect（解決 popup-blocked）
+//          • getRedirectResult() 處理 redirect 回來的登入狀態
+//          • DEFAULT_PHOTO_B64 換成 SVG 引導圖（「上傳您的婚紗照片」）
+//          • NavBar 加「← 專案頁」按鈕（回 dashboard 不登出）
+//          • 外觀 Tab draft 切換時重新同步最新 cfg（修正顯示舊名字問題）
+//          • reCAPTCHA site key 換為 wedding-saas 專案的新 key
+//          • 向導完成後立刻更新本地 weddings state，避免重觸向導
 //
 // v6.0.0  2026-06-07  ★ Major：SaaS 多租戶架構（基於 v5.6.1 完整功能）
 //          • 全新獨立 Firebase 專案（wedding-saas-558d9）
@@ -4353,7 +4394,6 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
     {id:'theme',l:'🎨 外觀'},
     {id:'collab',l:'🤝 協作管理'},
     {id:'backup',l:'📦 備份'},
-    {id:'password',l:'🔒 帳號安全'},
   ];
 
   return (
@@ -4722,22 +4762,6 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
       {tab==='collab' && <CollabTab weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={onReloadWeddings} />}
 
       {/* PASSWORD */}
-      {tab==='password' && (
-        <div style={{...S.card,padding:28,maxWidth:380}}>
-          <div style={{fontFamily:FONT_STACK,fontSize:16,letterSpacing:1,marginBottom:20}}>修改後台密碼</div>
-          <Field label="目前密碼">
-            <div style={{padding:'9px 12px',border:'1px solid #E5DDD0',borderRadius:2,fontSize:13,color:'#9A8F82',background:'#F9F5EF',letterSpacing:3}}>{'•'.repeat((cfg.adminPw||'').length)}</div>
-          </Field>
-          <Field label="新密碼（至少 4 碼）">
-            <TInput type="password" value={pw1} onChange={setPw1} placeholder="輸入新密碼" />
-          </Field>
-          <Field label="確認新密碼">
-            <TInput type="password" value={pw2} onChange={setPw2} placeholder="再次輸入新密碼" />
-          </Field>
-          {pwMsg&&<div style={{fontSize:12,color:pwMsg.includes('✓')?'#7BA77B':'#C04040',marginBottom:10}}>{pwMsg}</div>}
-          <Btn onClick={changePw}>更新密碼</Btn>
-        </div>
-      )}
     </div>
   );
 }
@@ -4747,10 +4771,21 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 // NAVBAR  — public shows only RSVP + admin login
 // ============================================================
 function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,presence}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  // 點外面關閉選單
+  useEffect(()=>{
+    if(!menuOpen) return;
+    const handler = e => { if(menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return ()=>document.removeEventListener('mousedown', handler);
+  },[menuOpen]);
+
   const logoContent = cfg.logoType==='image'&&cfg.logoDataUrl
     ? <img src={cfg.logoDataUrl} alt="logo" style={{maxHeight:28,maxWidth:120,objectFit:'contain'}} />
     : <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,letterSpacing:4,color:'#B5895F',fontWeight:500}}>
-        {cfg.logoText||'馨&語'}
+        {cfg.logoText||'W&W'}
       </span>;
 
   return (
@@ -4792,11 +4827,11 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
         </div>
       )}
 
-      <div className="wed-nav-status" style={{display:'flex',alignItems:'center',gap:10,fontSize:11,color:'#9A8F82',flexShrink:0,whiteSpace:'nowrap'}}>
+      <div className="wed-nav-status" style={{display:'flex',alignItems:'center',gap:8,fontSize:11,color:'#9A8F82',flexShrink:0}}>
         {/* 實時協作：在線者 */}
         {authed && presence && presence.length>0 && (
           <span title={presence.map(p=>`${p.name} 正在看${p.page}`).join('\n')}
-            style={{display:'inline-flex',alignItems:'center',gap:4,background:'#EAF3DE',color:'#3B6D11',padding:'2px 8px',borderRadius:10,fontSize:10}}>
+            style={{display:'inline-flex',alignItems:'center',gap:4,background:'#EAF3DE',color:'#3B6D11',padding:'2px 8px',borderRadius:10,fontSize:10,whiteSpace:'nowrap'}}>
             🟢 {presence.length===1 ? `${presence[0].name} 正在編輯${presence[0].page}` : `${presence.length} 人在線`}
           </span>
         )}
@@ -4806,15 +4841,48 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
             {ROLE_LABEL[role]}
           </span>
         )}
-        {syncStatus==='connecting'&&<><Spinner size={11}/> <span className="wed-nav-status-txt">連線中</span></>}
-        {syncStatus==='connected'&&<><span style={{width:5,height:5,borderRadius:'50%',background:'#7BA77B',display:'inline-block'}}/> <span className="wed-nav-status-txt">已同步</span></>}
-        {syncStatus==='error'&&<><span style={{width:5,height:5,borderRadius:'50%',background:'#C04040',display:'inline-block'}}/> <span className="wed-nav-status-txt">離線</span></>}
-        {authed && onDashboard && <button onClick={onDashboard} style={{color:'#B5895F',fontSize:11,textDecoration:'underline',marginRight:4}}>← 專案頁</button>}
-        {authed&&<button onClick={onLogout} style={{color:'#9A8F82',fontSize:11,textDecoration:'underline'}}>登出</button>}
+        {/* 離線警示（只有 error 才顯示，connecting/connected 不顯示） */}
+        {syncStatus==='error' && <span style={{width:6,height:6,borderRadius:'50%',background:'#C04040',display:'inline-block',flexShrink:0}} title="離線" />}
+        {syncStatus==='connecting' && <Spinner size={10}/>}
+
+        {/* 整合下拉選單（僅後台登入狀態） */}
+        {authed && (
+          <div ref={menuRef} style={{position:'relative'}}>
+            <button onClick={()=>setMenuOpen(o=>!o)}
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',borderRadius:3,
+                border:'1px solid #E5DDD0',background:'#FFFEFA',cursor:'pointer',fontSize:12,color:'#6B6259'}}>
+              ☰
+            </button>
+            {menuOpen && (
+              <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',
+                background:'#FFFEFA',border:'1px solid #E5DDD0',borderRadius:4,
+                boxShadow:'0 4px 16px rgba(0,0,0,.08)',minWidth:150,zIndex:100}}>
+                {onDashboard && (
+                  <button onClick={()=>{setMenuOpen(false);onDashboard();}}
+                    style={{display:'block',width:'100%',padding:'11px 16px',textAlign:'left',
+                      fontSize:12,color:'#3A332B',borderBottom:'1px solid #F0EBE3',cursor:'pointer'}}>
+                    🏠 切換專案
+                  </button>
+                )}
+                <button onClick={()=>{setMenuOpen(false);navigate('#/dashboard/account');}}
+                  style={{display:'block',width:'100%',padding:'11px 16px',textAlign:'left',
+                    fontSize:12,color:'#3A332B',borderBottom:'1px solid #F0EBE3',cursor:'pointer'}}>
+                  👤 帳戶中心
+                </button>
+                <button onClick={()=>{setMenuOpen(false);onLogout();}}
+                  style={{display:'block',width:'100%',padding:'11px 16px',textAlign:'left',
+                    fontSize:12,color:'#C04060',cursor:'pointer'}}>
+                  🚪 登出
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </nav>
   );
 }
+
 
 // ============================================================
 // PASSWORD GATE
@@ -4876,16 +4944,33 @@ function parseRoute(hash) {
 // LOGIN PAGE — Email/Password + Google OAuth
 // ============================================================
 function LoginPage({ onAuthSuccess, inviteMode }) {
-  const [mode, setMode]     = useState('login'); // 'login' | 'register' | 'reset'
-  const [email, setEmail]   = useState('');
+  const [mode, setMode]     = useState('login');
+  const [email, setEmail]   = useState(()=>{ try{return localStorage.getItem('savedEmail')||'';}catch{return '';} });
   const [pw, setPw]         = useState('');
   const [pw2, setPw2]       = useState('');
+  const [remember, setRemember] = useState(()=>{ try{return !!localStorage.getItem('savedEmail');}catch{return false;} });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]       = useState({ type: '', text: '' });
-  const th = THEMES.cream;
 
   const err = (text) => setMsg({ type: 'err', text });
   const ok  = (text) => setMsg({ type: 'ok',  text });
+
+  // 完整中文錯誤訊息對照
+  const AUTH_ERRORS = {
+    'auth/user-not-found':        '找不到此帳號，請先點「建立新帳號」',
+    'auth/wrong-password':        '密碼錯誤，請再試一次',
+    'auth/invalid-credential':    '帳號或密碼錯誤，請再試一次',
+    'auth/invalid-email':         'Email 格式不正確',
+    'auth/email-already-in-use':  '此 Email 已被使用，請直接登入',
+    'auth/weak-password':         '密碼強度不足（至少 6 碼）',
+    'auth/too-many-requests':     '嘗試次數過多，請稍後再試或點「忘記密碼」重設',
+    'auth/user-disabled':         '此帳號已被停用，請聯繫客服',
+    'auth/network-request-failed':'網路連線異常，請確認網路後再試',
+    'auth/popup-closed-by-user':  '登入視窗已關閉，請重試',
+    'auth/cancelled-popup-request':'登入已取消',
+    'auth/requires-recent-login': '基於安全考量，請重新登入後再操作',
+    'auth/account-exists-with-different-credential': '此 Email 已用其他方式註冊，請改用 Email 登入',
+  };
 
   const doEmailAuth = async () => {
     if (!email.trim()) { err('請輸入 Email'); return; }
@@ -4900,17 +4985,13 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
       } else {
         await fb.auth.createUserWithEmailAndPassword(email.trim(), pw);
       }
-      // onAuthStateChanged 會觸發，WeddingApp 統一處理後續
+      // 記住帳號
+      try {
+        if (remember) localStorage.setItem('savedEmail', email.trim());
+        else localStorage.removeItem('savedEmail');
+      } catch {}
     } catch(e) {
-      const map = {
-        'auth/user-not-found':   '找不到此帳號，請先註冊',
-        'auth/wrong-password':   '密碼錯誤',
-        'auth/email-already-in-use': '此 Email 已被使用',
-        'auth/invalid-email':    'Email 格式不正確',
-        'auth/weak-password':    '密碼強度不足（至少 6 碼）',
-        'auth/too-many-requests':'嘗試次數過多，請稍後再試',
-      };
-      err(map[e.code] || e.message);
+      err(AUTH_ERRORS[e.code] || ('登入失敗：' + e.message));
     } finally { setLoading(false); }
   };
 
@@ -4918,27 +4999,26 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
     setLoading(true); setMsg({ type: '', text: '' });
     try {
       const fb = await initFirebase();
-      // 用 redirect 取代 popup，避免被瀏覽器封鎖
       await fb.auth.signInWithRedirect(fb.googleProvider);
-      // 頁面會被重導向，以下不會執行
+      // 頁面重導向，以下不執行
     } catch(e) {
-      err(e.message);
+      err(AUTH_ERRORS[e.code] || e.message);
       setLoading(false);
     }
   };
 
   const doReset = async () => {
-    if (!email.trim()) { err('請輸入 Email'); return; }
+    if (!email.trim()) { err('請先輸入您的 Email'); return; }
     setLoading(true);
     try {
       const fb = await initFirebase();
       await fb.auth.sendPasswordResetEmail(email.trim());
-      ok('重設連結已寄出，請查收 Email');
-    } catch(e) { err(e.message); }
+      ok('重設連結已寄出，請查收 Email（若沒收到請檢查垃圾信件）');
+    } catch(e) { err(AUTH_ERRORS[e.code] || e.message); }
     finally { setLoading(false); }
   };
 
-  const titles = { login: '登入', register: '建立帳號', reset: '重設密碼' };
+  const titles = { login: '登入', register: '建立新帳號', reset: '重設密碼' };
 
   return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',
@@ -4989,7 +5069,6 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
           </div>
         )}
 
-        {/* Email */}
         <Field label="Email">
           <TInput type="email" value={email} onChange={setEmail} placeholder="your@email.com"
             onKeyDown={e => { if(e.key==='Enter' && mode!=='reset') doEmailAuth(); }} />
@@ -5007,6 +5086,15 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
             <TInput type="password" value={pw2} onChange={setPw2} placeholder="再輸入一次密碼"
               onKeyDown={e => { if(e.key==='Enter') doEmailAuth(); }} />
           </Field>
+        )}
+
+        {/* 記住帳號（僅登入模式） */}
+        {mode === 'login' && (
+          <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#9A8F82',marginBottom:14,cursor:'pointer'}}>
+            <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}
+              style={{accentColor:'#B5895F'}} />
+            記住帳號
+          </label>
         )}
 
         {msg.text && (
@@ -5040,7 +5128,6 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
     </div>
   );
 }
-
 
 // ============================================================
 // WEDDING SETUP WIZARD — 新用戶建立婚禮（3 步驟）
@@ -5337,10 +5424,8 @@ function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
 // ============================================================
 // ACCOUNT CENTER — 帳戶中心（方案訂閱 / 安全設定 / 帳戶管理）
 // ============================================================
-function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount, onUpdateDisplayName }) {
+function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount }) {
   const [tab, setTab] = useState('plan');
-  const [displayName, setDisplayName] = useState(user.displayName || '');
-  const [savingName, setSavingName] = useState(false);
   const isPro = weddings.some(w => w.plan === 'pro');
   const providers = user.providerData ? user.providerData.map(p => p.providerId) : [];
   const hasGoogle = providers.includes('google.com');
@@ -5351,13 +5436,6 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
     { id: 'security', label: '安全設定' },
     { id: 'account',  label: '帳戶管理' },
   ];
-
-  const saveName = async () => {
-    setSavingName(true);
-    try { await onUpdateDisplayName(displayName.trim()); uiAlert('顯示名稱已更新'); }
-    catch(e) { uiAlert('更新失敗：' + e.message); }
-    finally { setSavingName(false); }
-  };
 
   return (
     <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
@@ -5474,13 +5552,11 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
       {tab === 'account' && (
         <div>
           <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
-            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:12}}>顯示名稱</div>
-            <Field label="名稱">
-              <TInput value={displayName} onChange={setDisplayName} placeholder="您的名稱" />
-            </Field>
-            <Btn onClick={saveName} disabled={savingName}>
-              {savingName ? '儲存中...' : '儲存'}
-            </Btn>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:12}}>帳號資訊</div>
+            <div style={{fontSize:13,color:'#6B6259',lineHeight:2}}>
+              <div>Email：<strong>{user.email}</strong></div>
+              <div>登入方式：{[hasGoogle&&'Google',hasPassword&&'Email/密碼'].filter(Boolean).join('、') || '—'}</div>
+            </div>
           </div>
 
           <div style={{...S.card,padding:'24px 26px',border:'1px solid #EECDD6'}}>
@@ -5636,6 +5712,17 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
                   <Tag small color="#B5895F" soft="#EFE3D0">
                     {w.plan === 'pro' ? '✦ Pro' : '免費版'}
                   </Tag>
+                  {/* 複製 RSVP 邀請連結 */}
+                  <button onClick={e=>{
+                    e.stopPropagation();
+                    const link = `${window.location.origin}${window.location.pathname}#/w/${w.weddingId}`;
+                    try { navigator.clipboard.writeText(link); uiAlert('✓ 邀請連結已複製！\n\n' + link); }
+                    catch { uiAlert('邀請連結：\n' + link); }
+                  }} style={{padding:'5px 10px',borderRadius:2,border:'1px solid #E5DDD0',
+                    background:'#F9F5EF',color:'#6B6259',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}
+                    title="複製賓客邀請連結">
+                    🔗 邀請連結
+                  </button>
                   <button onClick={e=>handleDelete(e,w)}
                     style={{padding:'5px 10px',borderRadius:2,border:'1px solid #EECDD6',
                       background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',
@@ -6131,22 +6218,30 @@ export default function WeddingApp() {
 
   // ── 實時協作 presence：每 25 秒回報，讀取在線者 ──
   useEffect(()=>{
-    if(!weddingId || !fbRef.current || !user || user.isAnonymous) return;
+    if(!weddingId || !fbRef.current || !user || !user.uid || user.isAnonymous) return;
     const db = fbRef.current.db;
-    const myRef = presenceColRef(db, weddingId).doc(user.uid);
+    // 確保 uid 有值才建立 doc ref
+    const safeUid = user.uid;
+    const myRef = presenceColRef(db, weddingId).doc(safeUid);
     const pageLabel = { admin:'名單', seating:'排位', info:'資訊管理', rsvp:'邀請函', blessings:'祝福牆' };
     const report = ()=>{
+      // 全部改用 email 顯示（問題9）
+      const name = user.email || safeUid;
       myRef.set({
-        uid:user.uid, name:user.displayName||user.email||'訪客',
-        page: pageLabel[parsed.page] || '瀏覽中', at: Date.now(),
+        uid: safeUid,
+        name,
+        page: pageLabel[parsed.page] || '瀏覽中',
+        at: Date.now(),
       }).catch(()=>{});
     };
     report();
     const timer = setInterval(report, 25000);
-    // 訂閱在線者（過濾 90 秒內活躍）
     const unsub = presenceColRef(db, weddingId).onSnapshot(snap=>{
       const now=Date.now(), list=[];
-      snap.forEach(d=>{ const p=d.data(); if(now-(p.at||0)<90000 && p.uid!==user.uid) list.push(p); });
+      snap.forEach(d=>{
+        const p=d.data();
+        if(p.uid && now-(p.at||0)<90000 && p.uid!==safeUid) list.push(p);
+      });
       setPresenceList(list);
     });
     return ()=>{ clearInterval(timer); unsub(); myRef.delete().catch(()=>{}); };
@@ -6220,13 +6315,6 @@ export default function WeddingApp() {
     catch(e) { uiAlert('連結失敗：' + e.message); }
   };
   const acctLogoutThisDevice = async () => { await handleFirebaseLogout(); };
-  const acctUpdateDisplayName = async (name) => {
-    if (!fbRef.current) return;
-    const u = fbRef.current.auth.currentUser;
-    await u.updateProfile({ displayName: name });
-    await fbRef.current.db.collection('users').doc(user.uid).set({ displayName: name }, { merge: true });
-    setUser({ ...u });
-  };
   const acctDeleteAccount = async () => {
     const ok = await uiConfirm({
       title: '永久刪除帳戶？',
@@ -6315,10 +6403,11 @@ export default function WeddingApp() {
   const isOwnerOfCurrent = !!currentRole; // 有任何角色即可存取（admin/editor/viewer）
   const adminPages = ['admin','seating','info','blessings'];
   const isAdminRoute = parsed.section==='w' && ['admin','seating','info'].includes(parsed.page);
-  const isPublicRSVP = parsed.section==='w' && (!parsed.page || parsed.page==='rsvp' || parsed.page==='blessings');
+  const isPublicRoute = parsed.section==='w'; // 所有 #/w/* 路由都允許未登入
 
-  // 公開 RSVP 不需登入；其餘非 #/w 路由若未登入 → 登入頁
-  if(!isLoggedIn && !isPublicRSVP && parsed.section!=='w'){
+  // 公開婚禮路由（#/w/{id} 及其子頁面）：賓客無需登入即可訪問 RSVP / 祝福牆
+  // 後台頁面（admin/seating/info）：需登入
+  if(!isLoggedIn && !isPublicRoute && parsed.section!=='join'){
     return <LoginPage onAuthSuccess={()=>{}} />;
   }
 
@@ -6385,7 +6474,6 @@ export default function WeddingApp() {
           onLinkGoogle: acctLinkGoogle,
           onLogoutThisDevice: acctLogoutThisDevice,
           onDeleteAccount: acctDeleteAccount,
-          onUpdateDisplayName: acctUpdateDisplayName,
         }}
         onSelectWedding={wid=>navigate(`#/w/${wid}`)}
         onCreateNew={()=>{ if(atProjectLimit){ uiAlert(`免費版最多建立 ${FREE_PROJECT_LIMIT} 個婚禮專案。\n\n升級 Pro 方案即可無限新增，功能即將開放！`); return; } navigate('#/setup'); }}
