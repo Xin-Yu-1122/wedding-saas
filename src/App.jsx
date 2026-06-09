@@ -1,7 +1,20 @@
 // ============================================================
-// WEDDING SAAS  v6.4.1  （商業版／多租戶）
+// WEDDING SAAS  v6.4.2  （商業版／多租戶）
 // 最後更新：2026-06-09
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.4.2  2026-06-09  ★ Patch：4 項問題修正
+//          1. 賓客 NavBar 移除「後台 🔒」按鈕（SaaS 後台走帳號登入，不在賓客頁面露出）
+//          2. 協作邀請連結已使用：當同一用戶再次點自己的連結，顯示「歡迎回來」引導頁
+//             而非「已被使用」錯誤；若是不同用戶才顯示錯誤訊息並說明重新產生連結。
+//          3. RSVP 提交：改用 arrayUnion 而非 runTransaction + set 整份 doc。
+//             不再需要讀取整份文件，僅需 Firestore update 權限，解決
+//             「Missing or insufficient permissions」問題（配合下方 Rules 說明）。
+//             ⚠ 還需要更新 Firestore Security Rules — 見下方說明。
+//          4. Presence（即時協作顯示）修正：
+//             (a) 每 30 秒重新過濾 presenceList（避免 onSnapshot 無變動時 stale 項永不消失）
+//             (b) 每次心跳順帶清除 Firestore 中的 stale presence docs（>90 秒無心跳）
+//             → 離線用戶最多 90 秒後消失，而非可能永遠顯示。
 //
 // v6.4.1  2026-06-09  ★ Patch：修復賓客邀請連結卡在讀取中 + 按鈕位置
 //          • 根因：WeddingApp 的 race condition：onAuthStateChanged(!u) 呼叫
@@ -4954,10 +4967,7 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
             borderBottom:page==='blessings'?'2px solid #B5895F':'2px solid transparent'}}>
             💝 祝福牆
           </button>
-          <button onClick={()=>onNav('login')} style={{padding:'6px 12px',fontSize:11,letterSpacing:.5,whiteSpace:'nowrap',
-            color:'#9A8F82',border:'1px solid #E5DDD0',borderRadius:2,marginLeft:8}}>
-            後台 🔒
-          </button>
+          {/* 後台入口已移除：SaaS 版後台登入走帳號登入系統，不在賓客頁面露出 */}
         </div>
       )}
 
@@ -5669,7 +5679,7 @@ function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
       const r = await onAccept(token);
       if(r.needLogin){ setStatus('error'); setMsg('請先登入後再接受邀請'); return; }
       if(r.error){ setStatus('error'); setMsg(r.error); return; }
-      setResult(r); setStatus('success');
+      setResult(r); setStatus(r.alreadyMember ? 'already' : 'success');
     })();
   },[]);
 
@@ -5684,6 +5694,14 @@ function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
           <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
           <div style={{fontSize:15,marginBottom:18,color:'#3A332B'}}>{msg}</div>
           <Btn onClick={onCancel}>返回</Btn>
+        </>}
+        {status==='already' && <>
+          <div style={{fontSize:32,marginBottom:12}}>👋</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:18,letterSpacing:1,marginBottom:8}}>歡迎回來！</div>
+          <div style={{fontSize:13,color:'#6B6259',marginBottom:20}}>
+            您已是此婚禮的協作成員（{ROLE_LABEL[result?.role]||'協作者'}），可直接進入後台。
+          </div>
+          <Btn onClick={()=>onDone(result.weddingId)} style={{width:'100%',justifyContent:'center'}}>進入婚禮後台</Btn>
         </>}
         {status==='success' && <>
           <div style={{fontSize:32,marginBottom:12}}>🎉</div>
@@ -6190,7 +6208,13 @@ export default function WeddingApp() {
       const inviteSnap = await inviteDocRef(fb.db, token).get();
       if (!inviteSnap.exists) return { error: '邀請連結無效或已過期' };
       const inv = inviteSnap.data();
-      if (inv.used) return { error: '此邀請已被使用' };
+      if (inv.used) {
+        // 同一個用戶重新點自己的邀請連結 → 已是成員，直接引導進入婚禮
+        if (inv.usedBy === u.uid) {
+          return { weddingId: inv.weddingId, role: inv.role, alreadyMember: true };
+        }
+        return { error: '此邀請連結已由其他人使用。如需新連結，請請主辦方重新產生。' };
+      }
       if (inv.expiresAt && Date.now() > inv.expiresAt) return { error: '邀請連結已過期' };
 
       // 寫入 collaborators
@@ -6523,18 +6547,21 @@ export default function WeddingApp() {
   useEffect(()=>{
     if(!weddingId || !fbRef.current || !user || !user.uid || user.isAnonymous) return;
     const db = fbRef.current.db;
-    // 確保 uid 有值才建立 doc ref
     const safeUid = user.uid;
     const myRef = presenceColRef(db, weddingId).doc(safeUid);
     const pageLabel = { admin:'名單', seating:'排位', info:'資訊管理', rsvp:'邀請函', blessings:'祝福牆' };
+    const STALE_MS = 90000;
     const report = ()=>{
-      // 全部改用 email 顯示（問題9）
       const name = user.email || safeUid;
       myRef.set({
-        uid: safeUid,
-        name,
+        uid: safeUid, name,
         page: pageLabel[parsed.page] || '瀏覽中',
         at: Date.now(),
+      }).catch(()=>{});
+      // 順帶清理 stale presence docs（瀏覽器崩潰未清理的殘留）
+      presenceColRef(db, weddingId).get().then(snap=>{
+        const now=Date.now();
+        snap.forEach(d=>{ if(now-(d.data().at||0)>STALE_MS) d.ref.delete().catch(()=>{}); });
       }).catch(()=>{});
     };
     report();
@@ -6543,11 +6570,18 @@ export default function WeddingApp() {
       const now=Date.now(), list=[];
       snap.forEach(d=>{
         const p=d.data();
-        if(p.uid && now-(p.at||0)<90000 && p.uid!==safeUid) list.push(p);
+        if(p.uid && now-(p.at||0)<STALE_MS && p.uid!==safeUid) list.push(p);
       });
       setPresenceList(list);
     });
-    return ()=>{ clearInterval(timer); unsub(); myRef.delete().catch(()=>{}); };
+    // 每 30 秒重新過濾 presenceList（避免 onSnapshot 無新變動時 stale 資料不消失）
+    const uiCleanTimer = setInterval(()=>{
+      setPresenceList(prev=>{
+        const now=Date.now();
+        return prev.filter(p=>now-(p.at||0)<STALE_MS);
+      });
+    }, 30000);
+    return ()=>{ clearInterval(timer); clearInterval(uiCleanTimer); unsub(); myRef.delete().catch(()=>{}); };
   },[weddingId, user, parsed.page]);
 
   useEffect(()=>{
@@ -6560,10 +6594,11 @@ export default function WeddingApp() {
     fbRef.current=fb;
     await fb.auth.signInAnonymously().catch(()=>{});
     const ref=mainDocRef(fb.db, weddingId);
-    return fb.db.runTransaction(async tx=>{
-      const snap=await tx.get(ref);
-      const cur=snap.exists?mergeData(snap.data()):emptyData();
-      tx.set(ref,{...cur,guests:[...cur.guests,guest],avoidPairs:packAvoid(cur.avoidPairs),lastUpdate:Date.now()});
+    // 改用 arrayUnion：只 append 賓客，不讀整份 doc，僅需 update 權限
+    // （Firestore rules 可設定匿名用戶只能更新 guests + lastUpdate 欄位）
+    return ref.update({
+      guests: window.firebase.firestore.FieldValue.arrayUnion(guest),
+      lastUpdate: Date.now()
     });
   },[weddingId]);
 
