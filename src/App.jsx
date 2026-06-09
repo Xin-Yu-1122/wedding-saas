@@ -1,7 +1,19 @@
 // ============================================================
-// WEDDING SAAS  v6.4.0  （商業版／多租戶）
+// WEDDING SAAS  v6.4.1  （商業版／多租戶）
 // 最後更新：2026-06-09
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.4.1  2026-06-09  ★ Patch：修復賓客邀請連結卡在讀取中 + 按鈕位置
+//          • 根因：WeddingApp 的 race condition：onAuthStateChanged(!u) 呼叫
+//            setWeddingId(null) 把 URL 裡的 weddingId 清掉；同時資料載入 effect
+//            依賴 [weddingId]，但 Firebase 尚未 ready 時 fbRef.current=null 導致
+//            effect 提前返回，之後 weddingId 不再改變故不重跑 → spinner 永遠不結束。
+//          • 修法：
+//            1. onAuthStateChanged(!u) 移除 setWeddingId(null)（公開路由需保留 URL weddingId）
+//            2. 新增 fbReady state，Firebase init 後 setFbReady(true)
+//            3. 資料載入 effect 依賴改為 [weddingId, fbReady]，確保 Firebase ready 後重試
+//          • InfoPage 賓客連結位置改善：從 header 右上移至 tabs 上方的獨立提示列，
+//            更顯眼、更易找，與 StorageMeter 不再擠在一起。
 //
 // v6.4.0  2026-06-09  ★ Minor：4 大新功能
 //          1. 建立向導 Step 2 主題預覽：選中主題卡顯示 ✓ 勾選徽章；
@@ -4518,17 +4530,25 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>SETTINGS</div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginTop:2,marginBottom:20,flexWrap:'wrap',gap:10}}>
         <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:1}}>資訊管理</div>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          {weddingId && (
-            <Btn v="ghost" size="sm" onClick={()=>{
-              const link=`${window.location.origin}${window.location.pathname}#/w/${weddingId}`;
-              try{ navigator.clipboard.writeText(link); uiAlert('✓ 邀請函連結已複製！\n\n賓客可直接開啟此連結填寫回覆：\n' + link); }
-              catch{ uiAlert('邀請函連結：\n' + link); }
-            }}>🔗 複製邀請函連結</Btn>
-          )}
-          <StorageMeter data={data} photoMap={photoMap} />
-        </div>
+        <StorageMeter data={data} photoMap={photoMap} />
       </div>
+
+      {/* 賓客邀請連結 — 放在 tabs 上方，隨時可見 */}
+      {weddingId && (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8,
+          padding:'10px 16px',marginBottom:16,
+          background:'#F4EDE3',borderRadius:3,border:'1px solid #E5DDD0'}}>
+          <div style={{fontSize:12,color:'#6B6259',display:'flex',alignItems:'center',gap:6}}>
+            <span style={{color:'#B5895F'}}>🔗</span>
+            <span>賓客邀請連結 — 分享給賓客填寫出席回覆 · 觀看祝福牆</span>
+          </div>
+          <Btn v="ghost" size="sm" onClick={()=>{
+            const link=`${window.location.origin}${window.location.pathname}#/w/${weddingId}`;
+            try{ navigator.clipboard.writeText(link); uiAlert('✓ 邀請函連結已複製！\n\n' + link); }
+            catch{ uiAlert('邀請函連結：\n' + link); }
+          }}>複製連結</Btn>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="wed-nav-menu" style={{display:'flex',gap:4,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
@@ -6022,6 +6042,7 @@ export default function WeddingApp() {
   const [authReady, setAuthReady] = useState(false);
   const [weddingId, setWeddingId] = useState(null);
   const [weddings, setWeddings]   = useState([]);
+  const [fbReady, setFbReady]     = useState(false); // Firebase 初始化完成旗標
   const [loadingWeddings, setLoadingWeddings] = useState(false);
   const [presenceList, setPresenceList] = useState([]); // 實時協作：在線使用者
   const route = useHashRoute();
@@ -6101,8 +6122,7 @@ export default function WeddingApp() {
         if(cancelled) return;
         if(!fb) throw lastErr || new Error('Firebase 初始化失敗');
         fbRef.current=fb;
-
-        // 處理 Google signInWithRedirect 返回的結果
+        setFbReady(true); // ← 觸發 data loading effect 重試（解決公開路由 race condition）
         try {
           await fb.auth.getRedirectResult();
           // 成功的話 onAuthStateChanged 會自動觸發，不需額外處理
@@ -6126,7 +6146,9 @@ export default function WeddingApp() {
               navigate(`#/join/${pending}`);
             }
           } else if(!u){
-            setWeddings([]); setWeddingId(null);
+            setWeddings([]);
+            // 不在這裡 setWeddingId(null)：公開賓客路由（#/w/{id}）需要保留 URL 中的 weddingId；
+            // 登出時由 handleFirebaseLogout 顯式清除 weddingId，確保安全。
           }
         });
       } catch(e){
@@ -6283,7 +6305,7 @@ export default function WeddingApp() {
       }
     })();
     return()=>{cancelled=true; if(unsubMain)unsubMain(); if(unsubPhotos)unsubPhotos();};
-  },[weddingId]);
+  },[weddingId, fbReady]); // fbReady 確保 Firebase 初始化後若 weddingId 已有值立即重試
 
 
   const persist=useCallback((next,immediate)=>{
