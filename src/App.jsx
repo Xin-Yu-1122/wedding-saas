@@ -1,9 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.3.4  （商業版／多租戶）
+// WEDDING SAAS  v6.3.5  （商業版／多租戶）
 // 最後更新：2026-06-09
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.3.4  2026-06-09  ★ Patch：修復 SaaS chrome 頁面缺少 .wed 容器與浮窗主機（根因修正）
+// v6.3.5  2026-06-09  ★ Patch：根治 Google 登入 window.opener 跨來源阻斷
+//          • 根因（截圖確認）：popup 流程中 firebaseapp.com/__/auth/handler 嘗試
+//            window.opener.postMessage() 回傳結果，但 firebaseapp.com ≠ vercel.app
+//            → 跨來源跳轉後 window.opener 被瀏覽器清空 → 主視窗永遠收不到訊號。
+//          • 解法（Firebase 官方 proxy 方案）：
+//            1. authDomain 改為 wedding-saas-lac.vercel.app（本檔案）
+//            2. 在 repo 根目錄新增 vercel.json，把 /__/auth/* 代理轉發給
+//               https://wedding-saas-558d9.firebaseapp.com/__/auth/*
+//            → popup 整個流程都在同來源（vercel.app）內完成，postMessage 不再跨來源。
+//          ⚠ 此版本必須搭配 vercel.json 一起部署才能生效。
+//            （僅改 authDomain 但沒加代理 → popup handler 404，登入依然失敗）
+//
+// v6.3.4  2026-06-09  ★ Patch：修復 SaaS chrome 頁面缺少 .wed 容器與浮窗主機
 //          • 根因：.wed 容器與 <ConfirmDialogHost/> 原本只包在 #/w/{id} 婚禮後台那層。
 //            登入頁／向導／Dashboard／帳戶中心／邀請頁全都在 .wed 之外渲染，導致：
 //            (1) 按鈕拿到瀏覽器預設外框（tab 變方框、連結鈕外觀亂掉）
@@ -183,7 +195,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 // ============================================================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCNIeg9Cz37CBCPL5BhVsosIw6OSp4v6Sk",
-  authDomain: "wedding-saas-558d9.firebaseapp.com",
+  authDomain: "wedding-saas-lac.vercel.app",   // v6.3.5：改為 Vercel 網域，搭配 vercel.json 代理修復 Google 登入
   projectId: "wedding-saas-558d9",
   storageBucket: "wedding-saas-558d9.firebasestorage.app",
   messagingSenderId: "586772571298",
