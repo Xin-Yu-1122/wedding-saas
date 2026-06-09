@@ -1,7 +1,32 @@
 // ============================================================
-// WEDDING SAAS  v6.3.1  （商業版／多租戶）
-// 最後更新：2026-06-08
+// WEDDING SAAS  v6.3.3  （商業版／多租戶）
+// 最後更新：2026-06-09
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.3.3  2026-06-09  ★ Patch：UI 風格一致性修正
+//          • InfoPage Tab 導覽：gap 0→4、padding '10px 18px'→'8px 16px'、
+//            letterSpacing .3→.5、加 marginBottom:-1（對齊 AccountCenterPage）
+//          • 外觀 Tab 選擇卡片：主題/中文/英文字體卡片 borderRadius 4→3
+//          • ConfirmDialogHost：改用 ...S.card（borderRadius:8→3），
+//            boxShadow 由 '0 16px 56px rgba(0,0,0,.28)' 改為 '0 4px 24px rgba(0,0,0,.12)'
+//          • 新增 uiProUpgrade(hint) 函式：帶品牌視覺的 Pro 升級浮窗
+//            （✦ 標題、Cormorant Garamond、功能清單、系統調色盤）
+//          • 全部 5 處 Pro 升級 uiAlert() 改用 uiProUpgrade()
+//          • 設施編輯 / 分區編輯 行內 Modal：borderRadius 8→3、陰影統一、加系統邊框
+//
+// v6.3.2  2026-06-09  ★ Patch：修復 Google 登入無法註冊／登入
+//          • 根因：signInWithRedirect 自 2024-06-24 起，在封鎖第三方 cookie 的瀏覽器
+//            （Chrome 115+／Safari 16.1+／Firefox 109+）失效。本站部署於 Vercel，
+//            app 網域 ≠ authDomain(firebaseapp.com)，跨網域 iframe 無法回傳登入狀態，
+//            導致 Google 授權後被導回卻仍未登入。
+//          • 解法（Firebase 官方建議 Option 2）：doGoogleLogin 改用 signInWithPopup 為主，
+//            僅在 popup 真被擋（popup-blocked / 環境不支援）時才退回 signInWithRedirect。
+//          • 帳戶中心「連結 Google」同步改用 linkWithPopup（+ redirect 後備）。
+//          • 補齊錯誤碼中文對照：popup-blocked / unauthorized-domain /
+//            operation-not-supported-in-environment / internal-error。
+//          • 使用者自行關閉 popup（popup-closed-by-user）不再誤報錯誤。
+//          ⚠ 部署後請確認 Firebase 主控台 Authentication → 授權網域 已加入
+//            wedding-saas-lac.vercel.app（否則會出現「此網域未授權登入」）。
 //
 // v6.3.1  2026-06-08  ★ Patch：UX 修正（11 項）
 //          • 問題1：Google signInWithRedirect 回來後 onAuthStateChanged 已自動處理
@@ -912,29 +937,74 @@ function uiPrompt(message, defaultValue) {
     _dialogSetter({mode:'prompt', message, defaultValue:defaultValue||'', _resolve:resolve});
   });
 }
+// Pro 升級提示 — 統一使用帶品牌視覺的 pro 模式浮窗
+// hint: 簡短說明當前觸發情境，e.g. '您已達免費版婚禮專案上限（2 個）'
+function uiProUpgrade(hint) {
+  return new Promise(resolve=>{
+    if(!_dialogSetter){ window.alert('Pro 方案付費功能即將開放，敬請期待！'); resolve(); return; }
+    _dialogSetter({ mode:'pro', hint: hint||'', _resolve: resolve });
+  });
+}
 function ConfirmDialogHost() {
   const [d,setD] = useState(null);
   const [inputVal,setInputVal] = useState('');
   useEffect(()=>{ _dialogSetter = (dlg)=>{ setInputVal(dlg&&dlg.defaultValue||''); setD(dlg); }; return ()=>{ _dialogSetter=null; }; },[]);
   if(!d) return null;
   const close = (val)=>{ const r=d._resolve; setD(null); r&&r(val); };
-  const isPrompt = d.mode==='prompt';
-  const isAlert  = d.mode==='alert';
+  const isPrompt  = d.mode==='prompt';
+  const isAlert   = d.mode==='alert' || d.mode==='pro';  // pro 模式同樣只有一個按鈕
+  const isProMode = d.mode==='pro';
   return (
     <div onClick={()=>{ if(isAlert) close(); else close(isPrompt?null:false); }}
       style={{position:'fixed',inset:0,zIndex:10001,background:'rgba(58,51,43,.5)',
         display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'blur(4px)'}}>
       <div onClick={e=>e.stopPropagation()} className="wfadein"
-        style={{background:'#FFFEFA',borderRadius:8,maxWidth:420,width:'100%',
-          padding:'26px 26px 20px',boxShadow:'0 16px 56px rgba(0,0,0,.28)',border:'1px solid #E5DDD0'}}>
-        {d.title && <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,letterSpacing:.5,color:'#3A332B',marginBottom:12}}>{d.title}</div>}
-        <div style={{fontSize:14,lineHeight:1.75,color:'#6B6259',whiteSpace:'pre-wrap',marginBottom:isPrompt?14:22}}>{d.message}</div>
+        style={{...S.card,maxWidth:420,width:'100%',
+          padding:'26px 26px 20px',boxShadow:'0 4px 24px rgba(0,0,0,.12)',border:'1px solid #E5DDD0'}}>
+
+        {/* Pro 升級模式：品牌化視覺標頭 */}
+        {isProMode && (
+          <div style={{textAlign:'center',paddingBottom:18,borderBottom:'1px solid #E5DDD0',marginBottom:18}}>
+            <div style={{fontSize:26,color:'#B5895F',marginBottom:6,lineHeight:1}}>✦</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,letterSpacing:3,color:'#B5895F'}}>
+              升級 Pro 方案
+            </div>
+            <div style={{fontSize:10,color:'#9A8F82',letterSpacing:3,textTransform:'uppercase',marginTop:4}}>
+              Premium Plan
+            </div>
+          </div>
+        )}
+        {isProMode && d.hint && (
+          <div style={{fontSize:13,color:'#6B6259',marginBottom:14,textAlign:'center',lineHeight:1.6}}>
+            {d.hint}
+          </div>
+        )}
+        {isProMode && (
+          <div style={{fontSize:13,color:'#3A332B',lineHeight:2,marginBottom:16,
+            padding:'12px 16px',background:'#F9F5EF',borderRadius:3}}>
+            <div>✓ 無限婚禮專案</div>
+            <div>✓ 無限排位桌數</div>
+            <div>✓ 更多進階功能即將開放</div>
+          </div>
+        )}
+        {isProMode && (
+          <div style={{fontSize:12,color:'#9A8F82',textAlign:'center',marginBottom:20,lineHeight:1.6}}>
+            付費功能即將開放，敬請期待！
+          </div>
+        )}
+
+        {/* 一般 alert / confirm / prompt 模式 */}
+        {!isProMode && d.title && <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,letterSpacing:.5,color:'#3A332B',marginBottom:12}}>{d.title}</div>}
+        {!isProMode && <div style={{fontSize:14,lineHeight:1.75,color:'#6B6259',whiteSpace:'pre-wrap',marginBottom:isPrompt?14:22}}>{d.message}</div>}
         {isPrompt && <input autoFocus autoComplete="nope" value={inputVal} onChange={e=>setInputVal(e.target.value)}
           onKeyDown={e=>{if(e.key==='Enter')close(inputVal);}}
           style={{...S.input,marginBottom:20}} />}
+
         <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
           {!isAlert && <Btn v="ghost" onClick={()=>close(isPrompt?null:false)}>{d.cancelText||'取消'}</Btn>}
-          <Btn v={d.danger?'rose':'gold'} onClick={()=>close(isPrompt?inputVal:(isAlert?undefined:true))}>{d.confirmText||(isAlert?'知道了':'確定')}</Btn>
+          <Btn v={d.danger?'rose':'gold'} onClick={()=>close(isPrompt?inputVal:(isAlert?undefined:true))}>
+            {d.confirmText||(isAlert?'知道了':'確定')}
+          </Btn>
         </div>
       </div>
     </div>
@@ -2847,7 +2917,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
   const addTable=()=>{
     // 免費版桌數限制
     if (!isPro && data.tables.length >= FREE_TABLE_LIMIT) {
-      uiAlert(`免費版最多新增 ${FREE_TABLE_LIMIT} 桌。\n\n升級 Pro 方案可建立無限桌數，功能即將開放，敬請期待！`);
+      uiProUpgrade(`您已達免費版上限（${FREE_TABLE_LIMIT} 桌）`);
       return;
     }
     const n=data.tables.length;
@@ -3209,7 +3279,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
       {facilityEdit && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
           onClick={()=>setFacilityEdit(null)}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'var(--wed-card,#FFFEFA)',borderRadius:8,padding:24,width:'100%',maxWidth:420,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,.18)'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'var(--wed-card,#FFFEFA)',borderRadius:3,padding:24,width:'100%',maxWidth:420,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 4px 24px rgba(0,0,0,.12)',border:'1px solid var(--wed-border,#E5DDD0)'}}>
             <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,color:'#3A332B',marginBottom:18}}>
               {facilityEdit._isNew?'新增環境設施':'編輯環境設施'}
             </div>
@@ -3276,7 +3346,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
       {zoneEdit && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
           onClick={()=>setZoneEdit(null)}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'var(--wed-card,#FFFEFA)',borderRadius:8,padding:24,width:'100%',maxWidth:420,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,.18)'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'var(--wed-card,#FFFEFA)',borderRadius:3,padding:24,width:'100%',maxWidth:420,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 4px 24px rgba(0,0,0,.12)',border:'1px solid var(--wed-border,#E5DDD0)'}}>
             <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,color:'#3A332B',marginBottom:18}}>編輯分區</div>
             {/* 預覽 */}
             <div style={{display:'flex',justifyContent:'center',marginBottom:18}}>
@@ -4405,11 +4475,12 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
       </div>
 
       {/* Tabs */}
-      <div className="wed-nav-menu" style={{display:'flex',gap:0,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
+      <div className="wed-nav-menu" style={{display:'flex',gap:4,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
         {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'10px 18px',fontSize:13,letterSpacing:.3,whiteSpace:'nowrap',flexShrink:0,
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'8px 16px',fontSize:13,letterSpacing:.5,whiteSpace:'nowrap',flexShrink:0,
             color:tab===t.id?'#3A332B':'#9A8F82',fontWeight:tab===t.id?600:400,
-            borderBottom:tab===t.id?'2px solid #B5895F':'2px solid transparent',transition:'all .15s'}}>
+            borderBottom:tab===t.id?'2px solid #B5895F':'2px solid transparent',
+            marginBottom:-1,transition:'all .15s'}}>
             {t.l}
           </button>
         ))}
@@ -4678,7 +4749,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
               const active = (draft.theme||'cream')===key;
               return (
                 <button key={key} data-tp="1" type="button" onClick={()=>setD('theme',key)}
-                  style={{padding:'16px',borderRadius:4,border:`2px solid ${active?th.primary:th.border}`,
+                  style={{padding:'16px',borderRadius:3,border:`2px solid ${active?th.primary:th.border}`,
                     background:th.pageBg,textAlign:'left',cursor:'pointer',transition:'all .15s',
                     boxShadow:active?`0 0 0 2px ${th.primary}40`:'none'}}>
                   <div data-tp="1" style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
@@ -4706,7 +4777,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                 return (
                   <button key={key} data-tp="1" type="button"
                     onClick={()=>{ setD('fontCJK',key); }}
-                    style={{padding:'14px',borderRadius:4,textAlign:'left',cursor:'pointer',transition:'all .15s',
+                    style={{padding:'14px',borderRadius:3,textAlign:'left',cursor:'pointer',transition:'all .15s',
                       border:`2px solid ${active?'#B5895F':'#E5DDD0'}`,background:'#FFFEFA',
                       boxShadow:active?'0 0 0 2px rgba(181,137,95,.25)':'none'}}>
                     <div data-tp="1" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -4735,7 +4806,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                 return (
                   <button key={key} data-tp="1" type="button"
                     onClick={()=>{ setD('fontLatin',key); }}
-                    style={{padding:'14px',borderRadius:4,textAlign:'left',cursor:'pointer',transition:'all .15s',
+                    style={{padding:'14px',borderRadius:3,textAlign:'left',cursor:'pointer',transition:'all .15s',
                       border:`2px solid ${active?'#B5895F':'#E5DDD0'}`,background:'#FFFEFA',
                       boxShadow:active?'0 0 0 2px rgba(181,137,95,.25)':'none'}}>
                     <div data-tp="1" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -4970,6 +5041,10 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
     'auth/cancelled-popup-request':'登入已取消',
     'auth/requires-recent-login': '基於安全考量，請重新登入後再操作',
     'auth/account-exists-with-different-credential': '此 Email 已用其他方式註冊，請改用 Email 登入',
+    'auth/popup-blocked':         '瀏覽器封鎖了登入視窗，請允許彈出視窗後再試一次',
+    'auth/unauthorized-domain':   '此網域未授權登入，請在 Firebase 主控台 Authentication → 授權網域 加入本網站網域',
+    'auth/operation-not-supported-in-environment': '目前環境不支援此登入方式，請改用 Email 登入',
+    'auth/internal-error':        '驗證服務暫時異常，請稍後再試',
   };
 
   const doEmailAuth = async () => {
@@ -4999,10 +5074,25 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
     setLoading(true); setMsg({ type: '', text: '' });
     try {
       const fb = await initFirebase();
-      await fb.auth.signInWithRedirect(fb.googleProvider);
-      // 頁面重導向，以下不執行
+      // 優先用 popup：不依賴第三方 cookie，跨網域（Vercel app 網域 ≠ firebaseapp.com authDomain）也能成功。
+      // signInWithRedirect 自 2024-06-24 起在 Chrome115+/Safari16.1+/Firefox109+ 因封鎖第三方儲存而失效
+      // （登入後被導回卻未驗證）。故改 popup 為主，僅在 popup 真被擋時才退回 redirect。
+      try {
+        await fb.auth.signInWithPopup(fb.googleProvider);
+        // 成功 → onAuthStateChanged 自動觸發後續導向，這裡不需額外處理
+      } catch (popupErr) {
+        const fallbackCodes = ['auth/popup-blocked','auth/operation-not-supported-in-environment'];
+        if (fallbackCodes.includes(popupErr.code)) {
+          await fb.auth.signInWithRedirect(fb.googleProvider);
+          return; // 頁面重導向，以下不執行
+        }
+        throw popupErr;
+      }
     } catch(e) {
-      err(AUTH_ERRORS[e.code] || e.message);
+      // 使用者自行關閉 popup 視窗不視為錯誤
+      if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+        err(AUTH_ERRORS[e.code] || ('Google 登入失敗：' + e.message));
+      }
       setLoading(false);
     }
   };
@@ -5486,7 +5576,7 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
               )}
             </div>
             {!isPro && (
-              <Btn onClick={()=>uiAlert('Pro 方案付費功能即將開放，敬請期待！')} style={{marginTop:16}}>
+              <Btn onClick={()=>uiProUpgrade()} style={{marginTop:16}}>
                 升級 Pro 方案
               </Btn>
             )}
@@ -5660,7 +5750,7 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
                 🔒 免費版限 {FREE_LIMIT} 個專案
               </div>
               <div style={{fontSize:11,color:'#B5895F',marginTop:4,cursor:'pointer',textDecoration:'underline'}}
-                onClick={()=>uiAlert('升級 Pro 可建立無限婚禮專案，功能即將開放，敬請期待！')}>
+                onClick={()=>uiProUpgrade('您已達免費版上限（2 個婚禮專案）')}>
                 升級解鎖 →
               </div>
             </div>
@@ -5675,7 +5765,7 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
             borderRadius:3,fontSize:12,color:'#7A5C00',marginBottom:20,lineHeight:1.7}}>
             💡 <strong>免費版限制：</strong>最多 {FREE_LIMIT} 個婚禮專案・排位最多 5 桌
             <span style={{color:'#B5895F',marginLeft:8,cursor:'pointer',textDecoration:'underline'}}
-              onClick={()=>uiAlert('升級 Pro 可建立無限婚禮專案與無限桌數，功能即將開放，敬請期待！')}>
+              onClick={()=>uiProUpgrade()}>
               了解 Pro 方案 →
             </span>
           </div>
@@ -6311,8 +6401,24 @@ export default function WeddingApp() {
   };
   const acctLinkGoogle = async () => {
     if (!fbRef.current) return;
-    try { await fbRef.current.auth.currentUser.linkWithRedirect(fbRef.current.googleProvider); }
-    catch(e) { uiAlert('連結失敗：' + e.message); }
+    const cu = fbRef.current.auth.currentUser;
+    if (!cu) return;
+    try {
+      try {
+        await cu.linkWithPopup(fbRef.current.googleProvider);
+        uiAlert('已成功連結 Google 帳號');
+      } catch (popupErr) {
+        if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/operation-not-supported-in-environment') {
+          await cu.linkWithRedirect(fbRef.current.googleProvider);
+          return; // 頁面重導向
+        }
+        throw popupErr;
+      }
+    } catch(e) {
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+      if (e.code === 'auth/credential-already-in-use') { uiAlert('此 Google 帳號已連結到其他帳戶'); return; }
+      uiAlert('連結失敗：' + e.message);
+    }
   };
   const acctLogoutThisDevice = async () => { await handleFirebaseLogout(); };
   const acctDeleteAccount = async () => {
@@ -6476,7 +6582,7 @@ export default function WeddingApp() {
           onDeleteAccount: acctDeleteAccount,
         }}
         onSelectWedding={wid=>navigate(`#/w/${wid}`)}
-        onCreateNew={()=>{ if(atProjectLimit){ uiAlert(`免費版最多建立 ${FREE_PROJECT_LIMIT} 個婚禮專案。\n\n升級 Pro 方案即可無限新增，功能即將開放！`); return; } navigate('#/setup'); }}
+        onCreateNew={()=>{ if(atProjectLimit){ uiProUpgrade(`您已達免費版上限（${FREE_PROJECT_LIMIT} 個婚禮專案）`); return; } navigate('#/setup'); }}
         onDeleteWedding={handleDeleteWedding}
         onLogout={handleFirebaseLogout} />
     );
