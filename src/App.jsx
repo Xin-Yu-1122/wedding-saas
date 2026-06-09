@@ -1,7 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.3.5  （商業版／多租戶）
+// WEDDING SAAS  v6.4.0  （商業版／多租戶）
 // 最後更新：2026-06-09
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.4.0  2026-06-09  ★ Minor：4 大新功能
+//          1. 建立向導 Step 2 主題預覽：選中主題卡顯示 ✓ 勾選徽章；
+//             新增「預覽效果」按鈕，開啟全頁 WizardPreviewOverlay，
+//             即時渲染邀請函頁面（新人名字、日期、場地 + 主題色 + 字體），
+//             讓使用者在建立前就能看到實際效果。
+//          2. 複製邀請函連結：資訊管理頁頭 + 名單頁頭均新增顯眼「複製邀請函連結」按鈕，
+//             一鍵取得公開賓客連結（#/w/{id}），方便新人分享給賓客。
+//          3. App 識別：document.title → '喜帖到排位一次搞定'；
+//             inject 💐 emoji favicon（SVG data URI）。
+//          4. 匿名登入（賓客免帳號存取）架構說明：
+//             程式已支援 #/w/* 路由免登入 + signInAnonymously；
+//             需在 Firebase Console → Authentication → 登入方式 → 啟用「匿名」供應商。
+//          ⚠ AdminPage 新增 weddingId prop，需同步更新呼叫端（已含在本版）。
 //
 // v6.3.5  2026-06-09  ★ Patch：根治 Google 登入 window.opener 跨來源阻斷
 //          • 根因（截圖確認）：popup 流程中 firebaseapp.com/__/auth/handler 嘗試
@@ -2053,7 +2067,7 @@ function SameTablePairsModal({open,onClose,data,onUpdate}) {
 // ============================================================
 // ADMIN PAGE
 // ============================================================
-function AdminPage({data,onUpdate}) {
+function AdminPage({data,onUpdate,weddingId}) {
   const GI = getGroupInfo(data.config);
   const [search,setSearch] = useState('');
   const [filterSide,setFilterSide] = useState('all');
@@ -2183,6 +2197,14 @@ function AdminPage({data,onUpdate}) {
           <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:1,marginTop:2}}>名單管理</div>
         </div>
         <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {/* 複製邀請函連結 — 顯眼，讓新人快速取得賓客連結 */}
+          {weddingId && (
+            <Btn v="gold" size="sm" onClick={()=>{
+              const link=`${window.location.origin}${window.location.pathname}#/w/${weddingId}`;
+              try{ navigator.clipboard.writeText(link); uiAlert('✓ 邀請函連結已複製！\n\n' + link); }
+              catch{ uiAlert('邀請函連結：\n' + link); }
+            }}>🔗 複製邀請函連結</Btn>
+          )}
           <Btn v="ghost" size="sm" onClick={()=>setShowAvoid(true)}>
             避桌管理 {avoidConflicts.length>0&&<span style={{background:'#C04040',color:'#fff',borderRadius:'50%',padding:'0 5px',fontSize:10,marginLeft:3}}>{avoidConflicts.length}</span>}
           </Btn>
@@ -4496,7 +4518,16 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F'}}>SETTINGS</div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginTop:2,marginBottom:20,flexWrap:'wrap',gap:10}}>
         <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:1}}>資訊管理</div>
-        <StorageMeter data={data} photoMap={photoMap} />
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {weddingId && (
+            <Btn v="ghost" size="sm" onClick={()=>{
+              const link=`${window.location.origin}${window.location.pathname}#/w/${weddingId}`;
+              try{ navigator.clipboard.writeText(link); uiAlert('✓ 邀請函連結已複製！\n\n賓客可直接開啟此連結填寫回覆：\n' + link); }
+              catch{ uiAlert('邀請函連結：\n' + link); }
+            }}>🔗 複製邀請函連結</Btn>
+          )}
+          <StorageMeter data={data} photoMap={photoMap} />
+        </div>
       </div>
 
       {/* Tabs */}
@@ -5247,9 +5278,110 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
 // ============================================================
 // WEDDING SETUP WIZARD — 新用戶建立婚禮（3 步驟）
 // ============================================================
+// ============================================================
+// WIZARD PREVIEW OVERLAY — 設定向導全頁主題預覽
+// 渲染仿邀請函頁面（新人名字 + 日期 + 場地 + 主題色 + 字體），
+// 讓使用者在建立婚禮前就能看到實際效果。
+// ============================================================
+function WizardPreviewOverlay({ form, onClose }) {
+  const theme  = THEMES[form.theme]     || THEMES.cream;
+  const cjkFnt = (FONTS_CJK[form.fontCJK]    || FONTS_CJK['noto-serif']).family;
+  const latFnt = (FONTS_LATIN[form.fontLatin] || FONTS_LATIN['cormorant']).family;
+  const groom  = form.groomName  || '新郎';
+  const bride  = form.brideName  || '新娘';
+  const logo   = form.logoText   || `${groom} & ${bride}`;
+
+  // 每次切換主題立刻套用，確保 CSS variables 正確
+  React.useEffect(()=>{ applyTheme(theme); applyFont(form.fontCJK, form.fontLatin); },[]);
+
+  const card = { background:theme.cardBg, border:`1px solid ${theme.border}`, borderRadius:3 };
+
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:9998,display:'flex',flexDirection:'column'}}>
+      {/* 頂部提示欄 */}
+      <div data-tp="1" style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+        padding:'10px 20px',background:'rgba(30,24,18,.88)',backdropFilter:'blur(10px)',flexShrink:0,
+        boxShadow:'0 2px 12px rgba(0,0,0,.3)'}}>
+        <div style={{fontFamily:FONT_STACK,fontSize:12,letterSpacing:2,color:'#D9CABC'}}>
+          主題預覽效果（尚未儲存）
+        </div>
+        <button onClick={onClose} data-tp="1" style={{display:'flex',alignItems:'center',gap:6,
+          fontSize:12,color:'#D9CABC',background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.2)',
+          borderRadius:3,padding:'5px 14px',cursor:'pointer',letterSpacing:1}}>
+          ✕ 關閉預覽
+        </button>
+      </div>
+
+      {/* 頁面內容 */}
+      <div style={{flex:1,overflowY:'auto',background:theme.pageBg}}>
+
+        {/* ── NavBar ── */}
+        <div style={{...card,borderRadius:0,borderLeft:'none',borderRight:'none',borderTop:'none',
+          padding:'13px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',
+          position:'sticky',top:0,zIndex:1}}>
+          <div style={{fontFamily:latFnt,fontSize:17,letterSpacing:5,color:theme.primary}}>{logo}</div>
+          <div style={{display:'flex',gap:18}}>
+            {['邀請函','祝福牆'].map(n=>(
+              <span key={n} style={{fontSize:12,letterSpacing:1,color:theme.subText}}>{n}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Hero ── */}
+        <div style={{...card,borderRadius:0,borderLeft:'none',borderRight:'none',textAlign:'center',
+          padding:'52px 24px 40px'}}>
+          <div style={{fontFamily:latFnt,fontSize:10,letterSpacing:7,color:theme.subText,
+            marginBottom:18,textTransform:'uppercase'}}>Wedding Invitation</div>
+          <div style={{fontFamily:cjkFnt,fontSize:'clamp(28px,6vw,48px)',color:theme.text,
+            letterSpacing:8,lineHeight:1.3,marginBottom:8}}>
+            {groom}
+            <span style={{color:theme.primary,margin:'0 10px',fontFamily:latFnt,fontSize:'clamp(22px,4vw,36px)'}}>✦</span>
+            {bride}
+          </div>
+          {form.weddingDate&&(
+            <div style={{fontFamily:cjkFnt,fontSize:14,color:theme.subText,marginTop:18,letterSpacing:2}}>
+              {form.weddingDate}
+            </div>
+          )}
+          {form.venue&&(
+            <div style={{fontFamily:cjkFnt,fontSize:12,color:theme.subText,marginTop:6,letterSpacing:1}}>
+              {form.venue}
+            </div>
+          )}
+          <div style={{width:32,height:2,background:theme.primary,margin:'28px auto 0'}}/>
+        </div>
+
+        {/* ── RSVP 表單模擬 ── */}
+        <div style={{maxWidth:520,margin:'0 auto',padding:'28px 20px 60px'}}>
+          <div style={{...card,padding:'24px 20px',boxShadow:'0 2px 12px rgba(0,0,0,.06)'}}>
+            <div style={{fontFamily:cjkFnt,fontSize:16,color:theme.text,letterSpacing:2,marginBottom:20}}>
+              出席回覆
+            </div>
+            {['姓名','出席人數','飲食備註'].map(f=>(
+              <div key={f} style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:theme.subText,letterSpacing:.5,marginBottom:5}}>{f}</div>
+                <div style={{border:`1px solid ${theme.border}`,borderRadius:2,
+                  background:theme.pageBg,height:36}}/>
+              </div>
+            ))}
+            <div style={{marginTop:18,padding:'11px 0',borderRadius:2,background:theme.primary,
+              textAlign:'center',fontFamily:cjkFnt,fontSize:13,color:'#FFFEFA',letterSpacing:3,cursor:'default'}}>
+              確認出席
+            </div>
+          </div>
+          <div style={{marginTop:12,textAlign:'center',fontSize:11,color:theme.subText,letterSpacing:1}}>
+            以上為示意內容，實際邀請函可在「資訊管理」中進一步編輯
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WeddingSetupWizard({ user, fbRef, onComplete }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [form, setForm] = useState({
     groomName: '', brideName: '',
     weddingDate: '', weddingTime: '入席 18:00　·　開席 18:30',
@@ -5399,18 +5531,29 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
         {/* Step 2: 外觀風格 */}
         {step === 2 && (
           <div className="wfadein">
-            <div style={{fontFamily:FONT_STACK,fontSize:17,letterSpacing:1,marginBottom:20}}>外觀風格</div>
+            {showPreview && <WizardPreviewOverlay form={form} onClose={()=>setShowPreview(false)} />}
+
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+              <div style={{fontFamily:FONT_STACK,fontSize:17,letterSpacing:1}}>外觀風格</div>
+              <Btn v="ghost" size="sm" onClick={()=>setShowPreview(true)}>👁 預覽效果</Btn>
+            </div>
 
             {/* 主題選擇 */}
             <Field label="主題配色">
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
                 {Object.entries(THEMES).map(([k, t]) => (
                   <button key={k} onClick={() => set('theme', k)}
-                    style={{padding:'10px 6px',borderRadius:3,fontSize:11,cursor:'pointer',
+                    style={{position:'relative',padding:'10px 6px',borderRadius:3,fontSize:11,cursor:'pointer',
                       background: form.theme===k ? t.primary : t.cardBg,
                       color: form.theme===k ? '#FFFEFA' : t.text,
                       border: `2px solid ${form.theme===k ? t.primary : t.border}`,
                       transition:'all .15s'}}>
+                    {form.theme===k && (
+                      <span style={{position:'absolute',top:4,right:5,
+                        background:'#FFFEFA',color:t.primary,borderRadius:'50%',
+                        width:16,height:16,fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',
+                        fontWeight:700,lineHeight:1}}>✓</span>
+                    )}
                     <div style={{width:20,height:20,borderRadius:'50%',background:t.primary,margin:'0 auto 4px'}} />
                     {t.name}
                   </button>
@@ -5898,7 +6041,14 @@ export default function WeddingApp() {
   const fbRef = useRef(null);
 
   // 設定頁面標題
-  useEffect(()=>{ document.title = '婚禮管理系統 v6.0'; },[]);
+  useEffect(()=>{
+    document.title = '喜帖到排位一次搞定';
+    // 注入 💐 emoji favicon（SVG data URI）
+    const svgFav = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💐</text></svg>`;
+    let link = document.querySelector("link[rel~='icon']");
+    if(!link){ link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    link.href = svgFav;
+  },[]);
   const writeTimer = useRef(null);
   // 資料保護：追蹤上次同步到的 Firestore lastUpdate
   const lastSyncedRef = useRef(0);
@@ -6730,7 +6880,7 @@ export default function WeddingApp() {
 
       {activePage==='rsvp'    && <RSVPPage data={dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={dataWithImages} />}
-      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} />}
+      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} />}
       {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} />}
       {activePage==='info'    && isAuthedAdmin && canInfo && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} />}
       {activePage==='info'    && isAuthedAdmin && !canInfo && (
