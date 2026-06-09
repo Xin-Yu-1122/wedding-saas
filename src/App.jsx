@@ -1,7 +1,20 @@
 // ============================================================
-// WEDDING SAAS  v6.3.3  （商業版／多租戶）
+// WEDDING SAAS  v6.3.4  （商業版／多租戶）
 // 最後更新：2026-06-09
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.3.4  2026-06-09  ★ Patch：修復 SaaS chrome 頁面缺少 .wed 容器與浮窗主機（根因修正）
+//          • 根因：.wed 容器與 <ConfirmDialogHost/> 原本只包在 #/w/{id} 婚禮後台那層。
+//            登入頁／向導／Dashboard／帳戶中心／邀請頁全都在 .wed 之外渲染，導致：
+//            (1) 按鈕拿到瀏覽器預設外框（tab 變方框、連結鈕外觀亂掉）
+//            (2) ConfirmDialogHost 未掛載 → uiAlert/uiProUpgrade 退回原生 window.alert
+//          • 解法：新增 <AppShell> 外殼元件（.wed + ConfirmDialogHost + applyTheme(null)
+//            強制奶油主題，避免從深色主題婚禮返回時被殘留主題 CSS 染色），
+//            包裹 LoginPage(×3)／WeddingSetupWizard／JoinInvitePage／DashboardPage／無權限頁。
+//          • 帳戶中心「連結」Google 按鈕：進入 .wed 後外框消失，回復系統文字連結樣式。
+//          • acctLinkGoogle：明確顯示 auth/unauthorized-domain 與錯誤碼，便於診斷 Google 連結問題。
+//          ⚠ Google 登入／連結若仍失敗，極可能是 Firebase 主控台未授權網域：
+//            Authentication → Settings → 授權網域 必須包含 wedding-saas-lac.vercel.app。
 //
 // v6.3.3  2026-06-09  ★ Patch：UI 風格一致性修正
 //          • InfoPage Tab 導覽：gap 0→4、padding '10px 18px'→'8px 16px'、
@@ -5832,6 +5845,22 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
 }
 
 
+// ============================================================
+// APP SHELL — SaaS chrome 頁面（登入／向導／Dashboard／帳戶中心／邀請）的統一外殼
+// 確保這些頁面與婚禮後台一樣：(1) 包在 .wed 內 → 套用全域字體與按鈕重置
+// (2) 掛載 ConfirmDialogHost → uiAlert/uiConfirm/uiProUpgrade 走系統浮窗而非原生 alert
+// (3) 強制重設為奶油主題 → 避免從深色主題婚禮返回時被殘留的主題 CSS 染色
+// ============================================================
+function AppShell({ children }) {
+  React.useEffect(() => { applyTheme(null); }, []);
+  return (
+    <div className="wed" style={{ minHeight:'100vh', background:'#F9F5EF' }}>
+      <ConfirmDialogHost />
+      {children}
+    </div>
+  );
+}
+
 export default function WeddingApp() {
   // ── SaaS：Auth & routing & 多租戶 state ──
   const [user, setUser]           = useState(null);
@@ -6415,9 +6444,11 @@ export default function WeddingApp() {
         throw popupErr;
       }
     } catch(e) {
-      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+      if (e.code === 'auth/cancelled-popup-request') return;
+      if (e.code === 'auth/popup-closed-by-user') { uiAlert('連結視窗已關閉。若視窗中出現錯誤，多半是此網域尚未在 Firebase 授權，請見下方說明。'); return; }
       if (e.code === 'auth/credential-already-in-use') { uiAlert('此 Google 帳號已連結到其他帳戶'); return; }
-      uiAlert('連結失敗：' + e.message);
+      if (e.code === 'auth/unauthorized-domain') { uiAlert('此網域未授權登入。\n\n請至 Firebase 主控台 → Authentication → Settings → 授權網域，加入 wedding-saas-lac.vercel.app 後再試。'); return; }
+      uiAlert(`連結失敗（${e.code||'unknown'}）：${e.message}`);
     }
   };
   const acctLogoutThisDevice = async () => { await handleFirebaseLogout(); };
@@ -6514,7 +6545,7 @@ export default function WeddingApp() {
   // 公開婚禮路由（#/w/{id} 及其子頁面）：賓客無需登入即可訪問 RSVP / 祝福牆
   // 後台頁面（admin/seating/info）：需登入
   if(!isLoggedIn && !isPublicRoute && parsed.section!=='join'){
-    return <LoginPage onAuthSuccess={()=>{}} />;
+    return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
   }
 
   // 已登入、在 #/login → 依婚禮數量導向
@@ -6544,14 +6575,14 @@ export default function WeddingApp() {
       return null;
     }
     return (
-      <WeddingSetupWizard user={user} fbRef={fbRef}
+      <AppShell><WeddingSetupWizard user={user} fbRef={fbRef}
         onComplete={(newId)=>{
           // 立刻在本地加入這筆婚禮，避免 loadUserWeddings 期間 weddings.length===0 再次觸發向導
           setWeddings(prev => prev.length===0 ? [{weddingId:newId, config:{}}] : prev);
           setWeddingId(newId);
           navigate(`#/w/${newId}`);
           if(fbRef.current) loadUserWeddings(fbRef.current, user.uid);
-        }} />
+        }} /></AppShell>
     );
   }
 
@@ -6562,17 +6593,17 @@ export default function WeddingApp() {
     if(!isLoggedIn){
       // 未登入 → 記住 token，導去登入
       try { sessionStorage.setItem('pendingInvite', token); } catch {}
-      return <LoginPage onAuthSuccess={()=>{}} inviteMode />;
+      return <AppShell><LoginPage onAuthSuccess={()=>{}} inviteMode /></AppShell>;
     }
-    return <JoinInvitePage token={token} onAccept={acceptInvite}
+    return <AppShell><JoinInvitePage token={token} onAccept={acceptInvite}
       onDone={(wid)=>{ navigate(`#/w/${wid}`); }}
-      onCancel={()=>navigate('#/dashboard')} />;
+      onCancel={()=>navigate('#/dashboard')} /></AppShell>;
   }
 
   if(parsed.section==='dashboard'){
     const dashTab = parsed.weddingId === 'account' ? 'account' : 'weddings';
     return (
-      <DashboardPage user={user} weddings={weddings}
+      <AppShell><DashboardPage user={user} weddings={weddings}
         activeTab={dashTab}
         onTabChange={(t)=>navigate(t==='account'?'#/dashboard/account':'#/dashboard')}
         accountProps={{
@@ -6584,25 +6615,25 @@ export default function WeddingApp() {
         onSelectWedding={wid=>navigate(`#/w/${wid}`)}
         onCreateNew={()=>{ if(atProjectLimit){ uiProUpgrade(`您已達免費版上限（${FREE_PROJECT_LIMIT} 個婚禮專案）`); return; } navigate('#/setup'); }}
         onDeleteWedding={handleDeleteWedding}
-        onLogout={handleFirebaseLogout} />
+        onLogout={handleFirebaseLogout} /></AppShell>
     );
   }
 
   // 後台頁面但未登入 → 要求登入
   if(isAdminRoute && !isLoggedIn){
-    return <LoginPage onAuthSuccess={()=>{}} />;
+    return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
   }
 
   // 後台頁面但非此婚禮 owner → 拒絕
   if(isAdminRoute && isLoggedIn && !isOwnerOfCurrent && weddings.length>0){
     return (
-      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
+      <AppShell><div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
         <div style={{...S.card,padding:32,textAlign:'center'}}>
           <div style={{fontSize:28,marginBottom:8}}>🔒</div>
           <div style={{fontSize:15,color:'#3A332B',marginBottom:16}}>無權限存取此婚禮後台</div>
           <Btn onClick={handleFirebaseLogout}>登出</Btn>
         </div>
-      </div>
+      </div></AppShell>
     );
   }
 
