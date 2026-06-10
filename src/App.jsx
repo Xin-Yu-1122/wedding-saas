@@ -1,7 +1,30 @@
 // ============================================================
-// WEDDING SAAS  v6.5.0  （商業版／多租戶）
+// WEDDING SAAS  v6.6.0  （商業版／多租戶）
 // 最後更新：2026-06-10
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.6.0  2026-06-10  ★ Minor：風格系統全面深化（主框架 NavBar + 細節 + 預覽修正）
+//          1. 主框架 NavBar 完全風格化：logo 字體（navLogoFont）、背景（navBg）、
+//             底線（navBorder）、tab 前綴 emoji（icons，每主題專屬）全隨主題切換；
+//             公開 2 tab 與後台 5 tab（邀請函/祝福牆/名單/排位/資訊管理）統一 renderTab，
+//             支援 underline / pill / block 三種樣式。
+//          2. 主題排序調整：奶油→東方→玫瑰→手寫→薰衣草→海洋→森林→植物→現代→暗黑奢→夜幕。
+//          3. 出席按鈕統一主題主色跳色：新增 onColorText() 亮度判斷，
+//             暗黑奢=金底黑字、東方=暗紅底白字，不再用固定綠/粉。
+//          4. 新增 GsCheckbox 自訂勾選元件（取代原生 checkbox）：
+//             隨主題圓角與主色，勾號顏色依底色亮度自動判斷。
+//          5. 預覽模式修正（重要）：previewDraft 現在合併進 RSVPPage/BlessingWallPage/NavBar
+//             的 config，預覽時圓角/裝飾/tab樣式/按鈕等全部外觀屬性即時生效
+//             （先前只有 CSS 變數的顏色字體生效）。
+//          6. WizardPreviewOverlay 重寫：完整渲染 gs（NavBar tab 樣式、出席按鈕跳色、
+//             checkbox、分隔裝飾、頁面花紋）。
+//          7. 既有 6 主題補上完整風格屬性（專屬 ornament/divider/圓角/icons/祝福卡樣式）。
+//          8. 風格細節修正：
+//             • 現代簡約：移除全部 emoji，改用 NavIcon SVG 線條圖示
+//             • 典雅東方：圓角 0→16、新增淡雅四瓣花 SVG 頁面花紋 + NavBar 同心圓紋
+//             • 自然植物：tab icons 改花草 emoji（🌸🌷🍃🌿🪴）
+//             • 手寫溫柔：中文標題字體改用 LXGW WenKai TC 霞鶩文楷（開源可商用手寫楷體）
+//          9. Google Fonts 新增：Caveat、Lato、LXGW WenKai TC、Noto Sans TC。
 //
 // v6.5.0  2026-06-10  ★ Minor：5 大完整設計風格系統（僅影響賓客端邀請函＋祝福牆）
 //          新增 getGuestStyle(themeKey) — 返回賓客端完整視覺語言：
@@ -336,17 +359,16 @@ const DEFAULT_CONFIG = {
 // ============================================================
 const THEMES = {
   cream:    { name:"典雅奶油", pageBg:"#F9F5EF", cardBg:"#FFFEFA", primary:"#B5895F", primaryHover:"#9F754C", soft:"#EFE3D0", border:"#E5DDD0", borderSoft:"#E5D5BD", text:"#3A332B", subText:"#6B6259", mutedText:"#9A8F82", heroOverlayTop:"rgba(58,51,43,.08)", heroOverlayMid:"rgba(58,51,43,.42)", heroOverlayBot:"rgba(58,51,43,.72)", modalOverlay:"rgba(58,51,43,.45)", dark:false },
-  rose:     { name:"玫瑰金粉", pageBg:"#FDF6F8", cardBg:"#FFFBFC", primary:"#BF7090", primaryHover:"#A85A7C", soft:"#F5DCE2", border:"#EECDD6", borderSoft:"#F0D4DC", text:"#3A2B2E", subText:"#7B5A62", mutedText:"#A08090", heroOverlayTop:"rgba(60,30,40,.10)", heroOverlayMid:"rgba(60,30,40,.45)", heroOverlayBot:"rgba(60,30,40,.75)", modalOverlay:"rgba(60,30,40,.50)", dark:false },
-  lavender: { name:"薰衣草紫", pageBg:"#F8F6FD", cardBg:"#FDFBFF", primary:"#8B6EC4", primaryHover:"#7158AD", soft:"#EAE4F6", border:"#D8CEF0", borderSoft:"#DED4F0", text:"#2E2A3A", subText:"#6B6380", mutedText:"#9A94B0", heroOverlayTop:"rgba(40,35,60,.10)", heroOverlayMid:"rgba(40,35,60,.45)", heroOverlayBot:"rgba(40,35,60,.75)", modalOverlay:"rgba(40,35,60,.50)", dark:false },
-  forest:   { name:"森林深綠", pageBg:"#F5F8F5", cardBg:"#FAFCFA", primary:"#4A7C59", primaryHover:"#36633F", soft:"#D8EDE0", border:"#C5DDD0", borderSoft:"#D0DDCC", text:"#1E3028", subText:"#4A6255", mutedText:"#7A9A88", heroOverlayTop:"rgba(20,45,28,.10)", heroOverlayMid:"rgba(20,45,28,.45)", heroOverlayBot:"rgba(20,45,28,.75)", modalOverlay:"rgba(20,45,28,.50)", dark:false },
-  ocean:    { name:"海洋湛藍", pageBg:"#F4F7FC", cardBg:"#F9FBFE", primary:"#3A60A8", primaryHover:"#284680", soft:"#DCE4F2", border:"#C8D5EB", borderSoft:"#D5DDED", text:"#1A2640", subText:"#3A4F6A", mutedText:"#7A90B0", heroOverlayTop:"rgba(20,35,70,.10)", heroOverlayMid:"rgba(20,35,70,.45)", heroOverlayBot:"rgba(20,35,70,.75)", modalOverlay:"rgba(20,35,70,.50)", dark:false },
-  dark:        { name:"夜幕暗黑",   pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true },
-  // ── 五大完整設計系統（影響賓客端全部視覺語言）──
-  modern:      { name:"現代簡約",   pageBg:"#FFFFFF", cardBg:"#F7F7F7", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false },
   oriental:    { name:"典雅東方",   pageBg:"#FAF4EB", cardBg:"#FFF9F0", primary:"#8B1A1A", primaryHover:"#6E1414", soft:"#F5E4CC", border:"#D4B896", borderSoft:"#DCC4A0", text:"#2C1A0E", subText:"#7A5C3C", mutedText:"#A87C54", heroOverlayTop:"rgba(44,26,14,.06)", heroOverlayMid:"rgba(44,26,14,.42)", heroOverlayBot:"rgba(44,26,14,.72)", modalOverlay:"rgba(44,26,14,.55)", dark:false },
-  botanical:   { name:"自然植物",   pageBg:"#F4F7F0", cardBg:"#FAFCF7", primary:"#4A6E3F", primaryHover:"#3A5A30", soft:"#D4E8CA", border:"#C0D4B4", borderSoft:"#CCD8C0", text:"#1E2E1A", subText:"#4A6040", mutedText:"#7A9070", heroOverlayTop:"rgba(30,46,26,.08)", heroOverlayMid:"rgba(30,46,26,.42)", heroOverlayBot:"rgba(30,46,26,.72)", modalOverlay:"rgba(30,46,26,.50)", dark:false },
-  'dark-luxury':{ name:"夢幻暗黑奢",pageBg:"#14110E", cardBg:"#1E1A15", primary:"#C9A84C", primaryHover:"#DDB95C", soft:"#332D20", border:"#3A3020", borderSoft:"#4A3E2A", text:"#EDE4D3", subText:"#B8A888", mutedText:"#8A7A60", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.20)", heroOverlayBot:"rgba(0,0,0,.50)", modalOverlay:"rgba(0,0,0,.75)", dark:true },
+  rose:     { name:"玫瑰金粉", pageBg:"#FDF6F8", cardBg:"#FFFBFC", primary:"#BF7090", primaryHover:"#A85A7C", soft:"#F5DCE2", border:"#EECDD6", borderSoft:"#F0D4DC", text:"#3A2B2E", subText:"#7B5A62", mutedText:"#A08090", heroOverlayTop:"rgba(60,30,40,.10)", heroOverlayMid:"rgba(60,30,40,.45)", heroOverlayBot:"rgba(60,30,40,.75)", modalOverlay:"rgba(60,30,40,.50)", dark:false },
   handwritten: { name:"手寫溫柔",   pageBg:"#FFF5F7", cardBg:"#FFFCFD", primary:"#C07090", primaryHover:"#A85A7A", soft:"#FAE0E8", border:"#F0C8D5", borderSoft:"#EDD0DA", text:"#3A2030", subText:"#7A5060", mutedText:"#B090A0", heroOverlayTop:"rgba(60,32,48,.06)", heroOverlayMid:"rgba(60,32,48,.40)", heroOverlayBot:"rgba(60,32,48,.70)", modalOverlay:"rgba(60,32,48,.55)", dark:false },
+  lavender: { name:"薰衣草紫", pageBg:"#F8F6FD", cardBg:"#FDFBFF", primary:"#8B6EC4", primaryHover:"#7158AD", soft:"#EAE4F6", border:"#D8CEF0", borderSoft:"#DED4F0", text:"#2E2A3A", subText:"#6B6380", mutedText:"#9A94B0", heroOverlayTop:"rgba(40,35,60,.10)", heroOverlayMid:"rgba(40,35,60,.45)", heroOverlayBot:"rgba(40,35,60,.75)", modalOverlay:"rgba(40,35,60,.50)", dark:false },
+  ocean:    { name:"海洋湛藍", pageBg:"#F4F7FC", cardBg:"#F9FBFE", primary:"#3A60A8", primaryHover:"#284680", soft:"#DCE4F2", border:"#C8D5EB", borderSoft:"#D5DDED", text:"#1A2640", subText:"#3A4F6A", mutedText:"#7A90B0", heroOverlayTop:"rgba(20,35,70,.10)", heroOverlayMid:"rgba(20,35,70,.45)", heroOverlayBot:"rgba(20,35,70,.75)", modalOverlay:"rgba(20,35,70,.50)", dark:false },
+  forest:   { name:"森林深綠", pageBg:"#F5F8F5", cardBg:"#FAFCFA", primary:"#4A7C59", primaryHover:"#36633F", soft:"#D8EDE0", border:"#C5DDD0", borderSoft:"#D0DDCC", text:"#1E3028", subText:"#4A6255", mutedText:"#7A9A88", heroOverlayTop:"rgba(20,45,28,.10)", heroOverlayMid:"rgba(20,45,28,.45)", heroOverlayBot:"rgba(20,45,28,.75)", modalOverlay:"rgba(20,45,28,.50)", dark:false },
+  botanical:   { name:"自然植物",   pageBg:"#F4F7F0", cardBg:"#FAFCF7", primary:"#4A6E3F", primaryHover:"#3A5A30", soft:"#D4E8CA", border:"#C0D4B4", borderSoft:"#CCD8C0", text:"#1E2E1A", subText:"#4A6040", mutedText:"#7A9070", heroOverlayTop:"rgba(30,46,26,.08)", heroOverlayMid:"rgba(30,46,26,.42)", heroOverlayBot:"rgba(30,46,26,.72)", modalOverlay:"rgba(30,46,26,.50)", dark:false },
+  modern:      { name:"現代簡約",   pageBg:"#FFFFFF", cardBg:"#F7F7F7", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false },
+  'dark-luxury':{ name:"夢幻暗黑奢",pageBg:"#14110E", cardBg:"#1E1A15", primary:"#C9A84C", primaryHover:"#DDB95C", soft:"#332D20", border:"#3A3020", borderSoft:"#4A3E2A", text:"#EDE4D3", subText:"#B8A888", mutedText:"#8A7A60", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.20)", heroOverlayBot:"rgba(0,0,0,.50)", modalOverlay:"rgba(0,0,0,.75)", dark:true },
+  dark:        { name:"夜幕暗黑",   pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true },
 };
 
 function getTheme(cfg) {
@@ -354,8 +376,9 @@ function getTheme(cfg) {
 }
 
 // ============================================================
-// GUEST STYLE SYSTEM — 賓客端（邀請函/祝福牆）完整視覺語言
-// 不影響管理後台。gs 物件包含色彩（繼承自 THEMES）+ 延伸風格屬性。
+// GUEST STYLE SYSTEM — 賓客端 + 主框架 NavBar 完整視覺語言
+// gs 物件包含色彩（繼承 THEMES）+ 延伸風格屬性。
+// navTabIcons：後台 5 個 tab 的主題專屬 emoji；navLogoFont：logo 字體。
 // ============================================================
 function getGuestStyle(themeKey) {
   const t = THEMES[themeKey] || THEMES.cream;
@@ -363,24 +386,162 @@ function getGuestStyle(themeKey) {
     radius:3, btnRadius:2, inputRadius:2,
     btnCase:'none', btnSpacing:.5, btnWeight:500,
     shadow:'0 2px 16px rgba(0,0,0,.06)',
-    ornament:'✦', dividerChar:null,
+    ornament:'✦', dividerChar:null, useIcon:false,
     labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:6,
+    headingFont:null,
     tabStyle:'underline',        // 'underline' | 'pill' | 'block'
     blessingRotate:true, blessingRadius:6,
     inputUnderline:false,
-    headingFont:null,
-    blessingCardBgs:null,
-    blessingCardText:null,
-    blessingBorderColor:null,
+    blessingCardBgs:null, blessingCardText:null, blessingBorderColor:null,
+    // NavBar 主框架
+    navBg:'rgba(249,245,239,.94)', navBorder:t.border, navLogoFont:"'Cormorant Garamond',serif",
+    navPattern:null,             // 主框架背景花紋（CSS background-image）
+    pagePattern:null,            // 頁面背景花紋
+    // tab 前綴 emoji（公開 2 + 後台 5）
+    icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
   };
   const overrides = {
-    modern:      { radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none', ornament:null, dividerChar:null, labelFont:"'Lato','Noto Sans TC',sans-serif", labelCase:'uppercase', labelSpacing:8, tabStyle:'underline', blessingRotate:false, blessingRadius:0, inputUnderline:true },
-    oriental:    { radius:0, btnRadius:0, inputRadius:0, btnCase:'none', btnSpacing:4, btnWeight:600, shadow:'inset 0 0 0 1px rgba(139,26,26,.15),0 2px 8px rgba(139,26,26,.08)', ornament:'囍', dividerChar:'◈', labelFont:"'Noto Serif TC',serif", labelCase:'none', labelSpacing:3, tabStyle:'block', blessingRotate:false, blessingRadius:0, blessingBorderColor:'rgba(212,184,150,.5)' },
-    botanical:   { radius:8, btnRadius:8, inputRadius:6, btnCase:'none', btnSpacing:1, shadow:'0 4px 20px rgba(74,110,63,.10)', ornament:'✿', dividerChar:'✿', labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:5, tabStyle:'pill', blessingRotate:true, blessingRadius:10, blessingCardBgs:['#F5FAF0','#EFF8EC','#F7FAF4','#F2F8EE','#F0F7EC','#EEF8E8'] },
-    'dark-luxury':{ radius:2, btnRadius:2, inputRadius:2, btnCase:'uppercase', btnSpacing:4, btnWeight:300, shadow:'0 6px 28px rgba(201,168,76,.22)', ornament:'✦', dividerChar:'✦', labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:7, tabStyle:'underline', blessingRotate:false, blessingRadius:2, blessingCardBgs:['#201C17','#241F18','#1E1A14','#221E18','#261F14','#201B16'], blessingCardText:'#EDE4D3', blessingBorderColor:'rgba(201,168,76,.2)' },
-    handwritten: { radius:20, btnRadius:24, inputRadius:16, btnCase:'none', btnSpacing:1, btnWeight:400, shadow:'0 6px 24px rgba(192,112,144,.15)', ornament:'♡', dividerChar:'♡', labelFont:"'Caveat',cursive", labelCase:'none', labelSpacing:2, tabStyle:'pill', blessingRotate:true, blessingRadius:16, headingFont:"'Caveat',cursive" },
+    modern: {
+      radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none',
+      ornament:null, dividerChar:null, useIcon:true,
+      labelFont:"'Lato','Noto Sans TC',sans-serif", labelCase:'uppercase', labelSpacing:8,
+      headingFont:"'Lato','Noto Sans TC',sans-serif",
+      tabStyle:'underline', blessingRotate:false, blessingRadius:0, inputUnderline:true,
+      navLogoFont:"'Lato','Noto Sans TC',sans-serif",
+      icons:{ rsvp:'', blessings:'', admin:'', seating:'', info:'' },  // 無 emoji，改用 SVG icon
+    },
+    oriental: {
+      radius:16, btnRadius:16, inputRadius:12, btnCase:'none', btnSpacing:4, btnWeight:600,
+      shadow:'inset 0 0 0 1px rgba(139,26,26,.12),0 4px 16px rgba(139,26,26,.10)',
+      ornament:'囍', dividerChar:'◈',
+      labelFont:"'Noto Serif TC',serif", labelCase:'none', labelSpacing:3,
+      headingFont:"'Noto Serif TC',serif",
+      tabStyle:'block', blessingRotate:false, blessingRadius:16, blessingBorderColor:'rgba(212,184,150,.5)',
+      navLogoFont:"'Noto Serif TC',serif",
+      // 淡雅花紋（同心圓 + 斜線織紋，暗紅低透明度）
+      navPattern:'radial-gradient(circle at 20% 50%, rgba(139,26,26,.04) 0%, transparent 8%), radial-gradient(circle at 80% 50%, rgba(139,26,26,.04) 0%, transparent 8%)',
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%238B1A1A' fill-opacity='0.035'%3E%3Cpath d='M20 0c2 6 8 12 14 14-6 2-12 8-14 14-2-6-8-12-14-14 6-2 12-8 14-14z'/%3E%3C/g%3E%3C/svg%3E\")",
+      icons:{ rsvp:'🏮', blessings:'🧧', admin:'📜', seating:'🪑', info:'⚙️' },
+    },
+    botanical: {
+      radius:8, btnRadius:8, inputRadius:6, btnCase:'none', btnSpacing:1, shadow:'0 4px 20px rgba(74,110,63,.10)',
+      ornament:'🌿', dividerChar:'❀',
+      labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:5,
+      headingFont:null,
+      tabStyle:'pill', blessingRotate:true, blessingRadius:10,
+      blessingCardBgs:['#F5FAF0','#EFF8EC','#F7FAF4','#F2F8EE','#F0F7EC','#EEF8E8'],
+      navLogoFont:"'Cormorant Garamond',serif",
+      icons:{ rsvp:'🌸', blessings:'🌷', admin:'🍃', seating:'🌿', info:'🪴' },
+    },
+    'dark-luxury': {
+      radius:2, btnRadius:2, inputRadius:2, btnCase:'uppercase', btnSpacing:4, btnWeight:300,
+      shadow:'0 6px 28px rgba(201,168,76,.22)',
+      ornament:'✦', dividerChar:'✦',
+      labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:7,
+      headingFont:null,
+      tabStyle:'underline', blessingRotate:false, blessingRadius:2,
+      blessingCardBgs:['#201C17','#241F18','#1E1A14','#221E18','#261F14','#201B16'],
+      blessingCardText:'#EDE4D3', blessingBorderColor:'rgba(201,168,76,.2)',
+      navBg:'rgba(20,17,14,.92)', navLogoFont:"'Cormorant Garamond',serif",
+      icons:{ rsvp:'✦', blessings:'❖', admin:'◆', seating:'◇', info:'✧' },
+    },
+    handwritten: {
+      radius:20, btnRadius:24, inputRadius:16, btnCase:'none', btnSpacing:1, btnWeight:400,
+      shadow:'0 6px 24px rgba(192,112,144,.15)',
+      ornament:'♡', dividerChar:'♡',
+      labelFont:"'Caveat',cursive", labelCase:'none', labelSpacing:2,
+      headingFont:"'LXGW WenKai TC',cursive",   // 中文手寫楷體（霞鶩文楷）
+      tabStyle:'pill', blessingRotate:true, blessingRadius:16,
+      navLogoFont:"'Caveat',cursive",
+      icons:{ rsvp:'🌷', blessings:'💗', admin:'📝', seating:'🪑', info:'⚙️' },
+    },
+    // ── 既有 6 主題補上完整風格屬性 ──
+    cream: {
+      radius:3, btnRadius:3, inputRadius:2, dividerChar:null, ornament:'✦',
+      tabStyle:'underline', blessingRadius:6, blessingRotate:true,
+      icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
+    },
+    rose: {
+      radius:10, btnRadius:10, inputRadius:8, dividerChar:'❤', ornament:'❤',
+      labelSpacing:5, tabStyle:'pill', blessingRadius:12, blessingRotate:true,
+      shadow:'0 3px 18px rgba(191,112,144,.12)',
+      icons:{ rsvp:'💗', blessings:'💞', admin:'📋', seating:'🪑', info:'⚙️' },
+    },
+    lavender: {
+      radius:8, btnRadius:8, inputRadius:6, dividerChar:'❧', ornament:'❧',
+      labelSpacing:5, tabStyle:'pill', blessingRadius:10, blessingRotate:true,
+      shadow:'0 3px 18px rgba(139,110,196,.12)',
+      icons:{ rsvp:'💜', blessings:'🔮', admin:'📋', seating:'🪑', info:'⚙️' },
+    },
+    forest: {
+      radius:6, btnRadius:6, inputRadius:4, dividerChar:'❦', ornament:'❦',
+      labelSpacing:5, tabStyle:'underline', blessingRadius:8, blessingRotate:true,
+      shadow:'0 3px 16px rgba(74,124,89,.12)',
+      icons:{ rsvp:'🌲', blessings:'🍀', admin:'📋', seating:'🪑', info:'⚙️' },
+    },
+    ocean: {
+      radius:6, btnRadius:6, inputRadius:4, dividerChar:'≈', ornament:'⚓',
+      labelSpacing:6, tabStyle:'underline', blessingRadius:8, blessingRotate:true,
+      shadow:'0 3px 16px rgba(58,96,168,.12)',
+      icons:{ rsvp:'🌊', blessings:'🐚', admin:'📋', seating:'🪑', info:'⚙️' },
+    },
+    dark: {
+      radius:3, btnRadius:3, inputRadius:2, dividerChar:'·', ornament:'✦',
+      labelSpacing:6, tabStyle:'underline', blessingRadius:4, blessingRotate:false,
+      blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
+      blessingCardText:'#F0EDE8', blessingBorderColor:'rgba(212,170,112,.18)',
+      navBg:'rgba(26,26,32,.92)',
+      icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
+    },
   };
   return { ...base, ...t, ...(overrides[themeKey] || {}) };
+}
+
+// 賓客端 SVG icon（現代簡約用，取代 emoji）
+const NAV_ICONS = {
+  rsvp:     'M3 5h18v14H3zM3 5l9 7 9-7',                                  // envelope
+  blessings:'M12 21s-7-4.5-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.5-9 9-9 9z',  // heart
+  admin:    'M4 4h16v4H4zM4 10h16v4H4zM4 16h16v4H4z',                     // list
+  seating:  'M5 11V7a2 2 0 012-2h10a2 2 0 012 2v4M5 11h14v6H5zM7 17v2M17 17v2', // chair
+  info:     'M12 8v.01M11 12h1v4h1',                                       // info
+};
+function NavIcon({ name, color, size=14 }) {
+  const d = NAV_ICONS[name];
+  if(!d) return null;
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+    style={{flexShrink:0,verticalAlign:'middle'}}><path d={d}/></svg>;
+}
+
+// 判斷色彩亮度 → 決定按鈕選中時文字用深色或淺色
+// （例：夢幻暗黑奢金色底 → 黑字；典雅東方暗紅底 → 白字）
+function onColorText(hex) {
+  if(!hex || hex[0]!=='#') return '#FFFEFA';
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return lum > 0.55 ? '#1A1A1A' : '#FFFEFA';
+}
+
+// 自訂 checkbox（取代原生），隨主題 gs 的圓角與主色
+function GsCheckbox({ checked, onChange, gs, style }) {
+  const boxRadius = Math.min(gs?.btnRadius ?? 3, 6);
+  const primary = gs?.primary || '#B5895F';
+  return (
+    <span onClick={()=>onChange(!checked)} role="checkbox" aria-checked={checked} tabIndex={0}
+      onKeyDown={e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); onChange(!checked); } }}
+      style={{display:'inline-flex',alignItems:'center',justifyContent:'center',
+        width:18,height:18,flexShrink:0,cursor:'pointer',transition:'all .15s',
+        borderRadius:boxRadius,
+        border:`1.5px solid ${checked?primary:(gs?.border||'#C5BDB0')}`,
+        background:checked?primary:'transparent', ...style}}>
+      {checked && (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+          stroke={onColorText(primary)} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 12l5 5L20 6"/>
+        </svg>
+      )}
+    </span>
+  );
 }
 
 // ============================================================
@@ -489,7 +650,7 @@ function injectCSS() {
   const link = document.createElement('link');
   link.id = 'wed-css-font';
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Caveat:wght@400;600&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Noto+Sans+TC:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Caveat:wght@400;600&family=Lato:wght@300;400;700&family=LXGW+WenKai+TC&display=swap';
   document.head.appendChild(link);
   const s = document.createElement('style');
   s.id = 'wed-css';
@@ -1581,7 +1742,7 @@ function RSVPPage({data,onSubmit}) {
   }
 
   return (
-    <div>
+    <div style={{backgroundImage:gs.pagePattern||'none'}}>
       {/* Hero */}
       <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
         <PhotoCarousel photos={data.photos} speed={data.config.carouselSpeed||4500} />
@@ -1654,15 +1815,22 @@ function RSVPPage({data,onSubmit}) {
           </Field>
           <Field label="是否出席" required>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              {[{v:'yes',l:'我一定到！！',c:'#7BA77B'},{v:'no',l:'無法參與\n我想留下祝福',c:'#BF7090'}].map(o=>(
-                <button key={o.v} type="button" onClick={()=>set('attending',o.v)} style={{
-                  padding:'10px 8px',fontSize:13,
-                  borderRadius:gs.btnRadius,whiteSpace:'pre-line',lineHeight:1.4,minHeight:48,
-                  textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?.5:0,
-                  fontWeight:gs.btnWeight,
-                  background:form.attending===o.v?o.c:gs.pageBg,color:form.attending===o.v?'#FFFEFA':gs.subText,
-                  border:`1px solid ${form.attending===o.v?o.c:gs.border}`,display:'flex',alignItems:'center',justifyContent:'center'}}>{o.l}</button>
-              ))}
+              {/* 統一用主題主色跳色（如暗黑奢=金底黑字），不再用固定綠/粉 */}
+              {[{v:'yes',l:'我一定到！！'},{v:'no',l:'無法參與\n我想留下祝福'}].map(o=>{
+                const active = form.attending===o.v;
+                return (
+                  <button key={o.v} type="button" onClick={()=>set('attending',o.v)} style={{
+                    padding:'10px 8px',fontSize:13,
+                    borderRadius:gs.btnRadius,whiteSpace:'pre-line',lineHeight:1.4,minHeight:48,
+                    textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?.5:0,
+                    fontWeight:active?600:gs.btnWeight,transition:'all .15s',
+                    background:active?gs.primary:gs.pageBg,
+                    color:active?onColorText(gs.primary):gs.subText,
+                    border:`1px solid ${active?gs.primary:gs.border}`,
+                    boxShadow:active?gs.shadow:'none',
+                    display:'flex',alignItems:'center',justifyContent:'center'}}>{o.l}</button>
+                );
+              })}
             </div>
           </Field>
           {form.attending==='yes' && (<>
@@ -1678,8 +1846,8 @@ function RSVPPage({data,onSubmit}) {
               <TTextarea value={form.special} onChange={v=>set('special',v)} placeholder="若無請留空" rows={2} />
             </Field>
             <Field label="">
-              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'#6B6259'}}>
-                <input type="checkbox" checked={form.needInvitation} onChange={e=>set('needInvitation',e.target.checked)} />
+              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:gs.subText}}>
+                <GsCheckbox checked={form.needInvitation} onChange={v=>set('needInvitation',v)} gs={gs} />
                 需要紙本喜帖
               </label>
             </Field>
@@ -1691,8 +1859,8 @@ function RSVPPage({data,onSubmit}) {
           </>)}
           <Field label="給新人的祝福（非必填）">
             <TTextarea value={form.blessing} onChange={v=>set('blessing',v)} placeholder="留下您的祝福..." rows={3} />
-            <label style={{display:'flex',alignItems:'flex-start',gap:8,marginTop:10,fontSize:12,color:'#6B6259',cursor:'pointer',lineHeight:1.6}}>
-              <input type="checkbox" checked={form.publicBlessing||false} onChange={e=>set('publicBlessing',e.target.checked)} style={{cursor:'pointer',marginTop:2,flexShrink:0}} />
+            <label style={{display:'flex',alignItems:'flex-start',gap:8,marginTop:10,fontSize:12,color:gs.subText,cursor:'pointer',lineHeight:1.6}}>
+              <GsCheckbox checked={form.publicBlessing||false} onChange={v=>set('publicBlessing',v)} gs={gs} style={{marginTop:2}} />
               公開我的祝福：勾選後將顯示在「祝福牆」公開頁面（優先顯示您的暱稱）；如不希望公開，請取消勾選。
             </label>
           </Field>
@@ -1755,7 +1923,7 @@ function BlessingWallPage({data}) {
   },[blessings,cols]);
 
   return (
-    <div style={{minHeight:'100vh',padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto'}}>
+    <div style={{minHeight:'100vh',padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto',backgroundImage:gs.pagePattern||'none'}}>
       {/* 標題區 */}
       <div style={{textAlign:'center',marginBottom:40}}>
         <div style={{fontFamily:gs.labelFont,fontSize:12,letterSpacing:gs.labelSpacing,
@@ -5017,8 +5185,8 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,presence}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const gs = getGuestStyle(cfg?.theme);
 
-  // 點外面關閉選單
   useEffect(()=>{
     if(!menuOpen) return;
     const handler = e => { if(menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
@@ -5028,107 +5196,104 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
 
   const logoContent = cfg.logoType==='image'&&cfg.logoDataUrl
     ? <img src={cfg.logoDataUrl} alt="logo" style={{maxHeight:28,maxWidth:120,objectFit:'contain'}} />
-    : <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,letterSpacing:4,color:'#B5895F',fontWeight:500}}>
+    : <span style={{fontFamily:gs.navLogoFont,fontSize:gs.navLogoFont.includes('Caveat')?26:19,
+        letterSpacing:gs.navLogoFont.includes('Caveat')?1:4,color:gs.primary,fontWeight:500}}>
         {cfg.logoText||'W&W'}
       </span>;
 
+  // 統一的 tab 按鈕渲染（公開 + 後台共用），依 gs.tabStyle 切換外觀
+  const renderTab = (t) => {
+    const active = page===t.id;
+    const icon = gs.useIcon
+      ? <NavIcon name={t.id} color={active?(gs.tabStyle==='underline'?gs.primary:'#FFFEFA'):gs.mutedText} />
+      : (gs.icons[t.id] ? <span>{gs.icons[t.id]}</span> : null);
+    const label = <span style={{display:'inline-flex',alignItems:'center',gap:5}}>{icon}{t.l}</span>;
+
+    if(gs.tabStyle==='pill') return (
+      <button key={t.id} onClick={()=>onNav(t.id)} style={{
+        padding:'5px 14px',fontSize:12,letterSpacing:.5,whiteSpace:'nowrap',cursor:'pointer',
+        borderRadius:20,transition:'all .15s',
+        background:active?gs.primary:'transparent',
+        color:active?'#FFFEFA':gs.subText,
+        border:`1px solid ${active?gs.primary:gs.border}`,
+      }}>{label}</button>
+    );
+    if(gs.tabStyle==='block') return (
+      <button key={t.id} onClick={()=>onNav(t.id)} style={{
+        padding:'7px 16px',fontSize:12,letterSpacing:gs.labelSpacing*.5,whiteSpace:'nowrap',cursor:'pointer',
+        fontFamily:gs.headingFont||'inherit',transition:'all .15s',
+        background:active?gs.primary:'transparent',
+        color:active?'#FFFEFA':gs.subText,border:'none',
+      }}>{label}</button>
+    );
+    // underline
+    return (
+      <button key={t.id} onClick={()=>onNav(t.id)} style={{
+        padding:'7px 13px',fontSize:12,letterSpacing:.5,whiteSpace:'nowrap',cursor:'pointer',
+        color:active?gs.text:gs.subText,fontWeight:active?600:400,transition:'all .15s',
+        borderBottom:active?`2px solid ${gs.primary}`:'2px solid transparent',
+      }}>{label}</button>
+    );
+  };
+
+  const publicTabs = [{id:'rsvp',l:'邀請函'},{id:'blessings',l:'祝福牆'}];
+  const adminTabs  = [{id:'rsvp',l:'邀請函'},{id:'blessings',l:'祝福牆'},{id:'admin',l:'名單'},{id:'seating',l:'排位'},{id:'info',l:'資訊管理'}];
+
   return (
-    <nav className="no-print wed-nav" style={{position:'sticky',top:0,zIndex:50,background:'rgba(249,245,239,.94)',
-      backdropFilter:'blur(12px)',borderBottom:'1px solid #E5DDD0',
+    <nav className="no-print wed-nav" style={{position:'sticky',top:0,zIndex:50,
+      background:gs.navBg, backgroundImage:gs.navPattern||'none',
+      backdropFilter:'blur(12px)',borderBottom:`1px solid ${gs.navBorder}`,
       padding:'11px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',minHeight:58,gap:8}}>
       <div className="wed-nav-logo" style={{flexShrink:0}}>{logoContent}</div>
 
-      {/* Public: RSVP + Blessing wall */}
       {!authed && (
-        <div className="wed-nav-menu" style={{display:'flex',gap:4,alignItems:'center',overflowX:'auto'}}>
-          {(()=>{
-            const gs = getGuestStyle(cfg?.theme);
-            const tabs = [{id:'rsvp',l:'💌 邀請函'},{id:'blessings',l:'💝 祝福牆'}];
-            if(gs.tabStyle==='pill') return tabs.map(t=>(
-              <button key={t.id} onClick={()=>onNav(t.id)} style={{
-                padding:'5px 16px',fontSize:12,letterSpacing:.5,whiteSpace:'nowrap',cursor:'pointer',
-                borderRadius:20, transition:'all .15s',
-                background: page===t.id ? gs.primary : 'transparent',
-                color: page===t.id ? '#FFFEFA' : gs.subText,
-                border: `1px solid ${page===t.id ? gs.primary : gs.border}`,
-              }}>{t.l}</button>
-            ));
-            if(gs.tabStyle==='block') return tabs.map(t=>(
-              <button key={t.id} onClick={()=>onNav(t.id)} style={{
-                padding:'7px 18px',fontSize:12,letterSpacing:gs.labelSpacing*.6,whiteSpace:'nowrap',cursor:'pointer',
-                fontFamily: gs.labelFont, textTransform: gs.labelCase,
-                transition:'all .15s',
-                background: page===t.id ? gs.primary : 'transparent',
-                color: page===t.id ? (gs.dark?'#FFFEFA':'#FFFEFA') : gs.subText,
-                border: 'none',
-              }}>{t.l}</button>
-            ));
-            // default: underline
-            return tabs.map(t=>(
-              <button key={t.id} onClick={()=>onNav(t.id)} style={{
-                padding:'7px 14px',fontSize:12,letterSpacing:.8,whiteSpace:'nowrap',
-                color:page===t.id?gs.text:gs.subText,
-                borderBottom:page===t.id?`2px solid ${gs.primary}`:'2px solid transparent',
-              }}>{t.l}</button>
-            ));
-          })()}
-          {/* 後台入口已移除：SaaS 版後台登入走帳號登入系統，不在賓客頁面露出 */}
+        <div className="wed-nav-menu" style={{display:'flex',gap:gs.tabStyle==='pill'?6:4,alignItems:'center',overflowX:'auto'}}>
+          {publicTabs.map(renderTab)}
         </div>
       )}
 
-      {/* Admin: full menu */}
       {authed && (
-        <div className="wed-nav-menu" style={{display:'flex',gap:2,overflowX:'auto'}}>
-          {[{id:'rsvp',l:'邀請函',icon:'💌'},{id:'blessings',l:'祝福牆',icon:'💝'},{id:'admin',l:'名單',icon:'📋'},{id:'seating',l:'排位',icon:'🪑'},{id:'info',l:'資訊管理',icon:'⚙️'}].map(t=>(
-            <button key={t.id} onClick={()=>onNav(t.id)} style={{padding:'7px 13px',fontSize:12,letterSpacing:.5,whiteSpace:'nowrap',
-              color:page===t.id?'#3A332B':'#9A8F82',fontWeight:page===t.id?600:400,
-              borderBottom:page===t.id?'2px solid #B5895F':'2px solid transparent',transition:'all .15s'}}>
-              {t.icon} {t.l}
-            </button>
-          ))}
+        <div className="wed-nav-menu" style={{display:'flex',gap:gs.tabStyle==='pill'?5:2,alignItems:'center',overflowX:'auto'}}>
+          {adminTabs.map(renderTab)}
         </div>
       )}
 
-      <div className="wed-nav-status" style={{display:'flex',alignItems:'center',gap:8,fontSize:11,color:'#9A8F82',flexShrink:0}}>
-        {/* 實時協作：在線者 */}
+      <div className="wed-nav-status" style={{display:'flex',alignItems:'center',gap:8,fontSize:11,color:gs.mutedText,flexShrink:0}}>
         {authed && presence && presence.length>0 && (
           <span title={presence.map(p=>`${p.name} 正在看${p.page}`).join('\n')}
             style={{display:'inline-flex',alignItems:'center',gap:4,background:'#EAF3DE',color:'#3B6D11',padding:'2px 8px',borderRadius:10,fontSize:10,whiteSpace:'nowrap'}}>
             🟢 {presence.length===1 ? `${presence[0].name} 正在編輯${presence[0].page}` : `${presence.length} 人在線`}
           </span>
         )}
-        {/* 角色徽章 */}
         {authed && role && role!=='admin' && (
           <span style={{background:'#E3E8EF',color:'#5A6B85',padding:'2px 8px',borderRadius:10,fontSize:10}}>
             {ROLE_LABEL[role]}
           </span>
         )}
-        {/* 離線警示（只有 error 才顯示，connecting/connected 不顯示） */}
         {syncStatus==='error' && <span style={{width:6,height:6,borderRadius:'50%',background:'#C04040',display:'inline-block',flexShrink:0}} title="離線" />}
         {syncStatus==='connecting' && <Spinner size={10}/>}
 
-        {/* 整合下拉選單（僅後台登入狀態） */}
         {authed && (
           <div ref={menuRef} style={{position:'relative'}}>
             <button onClick={()=>setMenuOpen(o=>!o)}
-              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',borderRadius:3,
-                border:'1px solid #E5DDD0',background:'#FFFEFA',cursor:'pointer',fontSize:12,color:'#6B6259'}}>
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',borderRadius:gs.btnRadius,
+                border:`1px solid ${gs.border}`,background:gs.cardBg,cursor:'pointer',fontSize:12,color:gs.subText}}>
               ☰
             </button>
             {menuOpen && (
               <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',
-                background:'#FFFEFA',border:'1px solid #E5DDD0',borderRadius:4,
-                boxShadow:'0 4px 16px rgba(0,0,0,.08)',minWidth:150,zIndex:100}}>
+                background:gs.cardBg,border:`1px solid ${gs.border}`,borderRadius:4,
+                boxShadow:'0 4px 16px rgba(0,0,0,.12)',minWidth:150,zIndex:100}}>
                 {onDashboard && (
                   <button onClick={()=>{setMenuOpen(false);onDashboard();}}
                     style={{display:'block',width:'100%',padding:'11px 16px',textAlign:'left',
-                      fontSize:12,color:'#3A332B',borderBottom:'1px solid #F0EBE3',cursor:'pointer'}}>
+                      fontSize:12,color:gs.text,borderBottom:`1px solid ${gs.border}`,cursor:'pointer'}}>
                     🏠 切換專案
                   </button>
                 )}
                 <button onClick={()=>{setMenuOpen(false);navigate('#/dashboard/account');}}
                   style={{display:'block',width:'100%',padding:'11px 16px',textAlign:'left',
-                    fontSize:12,color:'#3A332B',borderBottom:'1px solid #F0EBE3',cursor:'pointer'}}>
+                    fontSize:12,color:gs.text,borderBottom:`1px solid ${gs.border}`,cursor:'pointer'}}>
                   👤 帳戶中心
                 </button>
                 <button onClick={()=>{setMenuOpen(false);onLogout();}}
@@ -5420,16 +5585,16 @@ function LoginPage({ onAuthSuccess, inviteMode }) {
 // ============================================================
 function WizardPreviewOverlay({ form, onClose }) {
   const theme  = THEMES[form.theme]     || THEMES.cream;
+  const gs     = getGuestStyle(form.theme);   // 完整視覺語言（圓角/裝飾/tab/按鈕）
   const cjkFnt = (FONTS_CJK[form.fontCJK]    || FONTS_CJK['noto-serif']).family;
   const latFnt = (FONTS_LATIN[form.fontLatin] || FONTS_LATIN['cormorant']).family;
   const groom  = form.groomName  || '新郎';
   const bride  = form.brideName  || '新娘';
   const logo   = form.logoText   || `${groom} & ${bride}`;
 
-  // 每次切換主題立刻套用，確保 CSS variables 正確
   React.useEffect(()=>{ applyTheme(theme); applyFont(form.fontCJK, form.fontLatin); },[]);
 
-  const card = { background:theme.cardBg, border:`1px solid ${theme.border}`, borderRadius:3 };
+  const card = { background:theme.cardBg, border:`1px solid ${theme.border}`, borderRadius:gs.radius };
 
   return (
     <div style={{position:'fixed',inset:0,zIndex:9998,display:'flex',flexDirection:'column'}}>
@@ -5448,33 +5613,48 @@ function WizardPreviewOverlay({ form, onClose }) {
       </div>
 
       {/* 頁面內容 */}
-      <div style={{flex:1,overflowY:'auto',background:theme.pageBg}}>
+      <div style={{flex:1,overflowY:'auto',background:theme.pageBg,backgroundImage:gs.pagePattern||'none'}}>
 
-        {/* ── NavBar ── */}
-        <div style={{...card,borderRadius:0,borderLeft:'none',borderRight:'none',borderTop:'none',
+        {/* ── NavBar（含 tab 樣式預覽）── */}
+        <div style={{background:gs.navBg,backgroundImage:gs.navPattern||'none',
+          borderBottom:`1px solid ${gs.navBorder}`,
           padding:'13px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',
           position:'sticky',top:0,zIndex:1}}>
-          <div style={{fontFamily:latFnt,fontSize:17,letterSpacing:5,color:theme.primary}}>{logo}</div>
-          <div style={{display:'flex',gap:18}}>
-            {['邀請函','祝福牆'].map(n=>(
-              <span key={n} style={{fontSize:12,letterSpacing:1,color:theme.subText}}>{n}</span>
-            ))}
+          <div style={{fontFamily:gs.navLogoFont,fontSize:gs.navLogoFont.includes('Caveat')?24:17,
+            letterSpacing:gs.navLogoFont.includes('Caveat')?1:5,color:theme.primary}}>{logo}</div>
+          <div style={{display:'flex',gap:gs.tabStyle==='pill'?6:10,alignItems:'center'}}>
+            {[{id:'rsvp',l:'邀請函'},{id:'blessings',l:'祝福牆'}].map((n,i)=>{
+              const active=i===0;
+              const icon = gs.useIcon
+                ? <NavIcon name={n.id} color={active?(gs.tabStyle==='underline'?theme.primary:'#FFFEFA'):theme.mutedText} />
+                : (gs.icons[n.id]?<span>{gs.icons[n.id]}</span>:null);
+              const label=<span style={{display:'inline-flex',alignItems:'center',gap:5}}>{icon}{n.l}</span>;
+              if(gs.tabStyle==='pill') return <span key={n.id} style={{padding:'4px 14px',fontSize:12,borderRadius:20,
+                background:active?theme.primary:'transparent',color:active?'#FFFEFA':theme.subText,
+                border:`1px solid ${active?theme.primary:theme.border}`}}>{label}</span>;
+              if(gs.tabStyle==='block') return <span key={n.id} style={{padding:'6px 14px',fontSize:12,
+                background:active?theme.primary:'transparent',color:active?'#FFFEFA':theme.subText}}>{label}</span>;
+              return <span key={n.id} style={{padding:'6px 4px',fontSize:12,color:active?theme.text:theme.subText,
+                borderBottom:active?`2px solid ${theme.primary}`:'2px solid transparent'}}>{label}</span>;
+            })}
           </div>
         </div>
 
         {/* ── Hero ── */}
         <div style={{...card,borderRadius:0,borderLeft:'none',borderRight:'none',textAlign:'center',
           padding:'52px 24px 40px'}}>
-          <div style={{fontFamily:latFnt,fontSize:10,letterSpacing:7,color:theme.subText,
-            marginBottom:18,textTransform:'uppercase'}}>Wedding Invitation</div>
-          <div style={{fontFamily:cjkFnt,fontSize:'clamp(28px,6vw,48px)',color:theme.text,
+          <div style={{fontFamily:gs.labelFont,fontSize:10,letterSpacing:gs.labelSpacing,color:theme.subText,
+            marginBottom:18,textTransform:gs.labelCase}}>Wedding Invitation</div>
+          <div style={{fontFamily:gs.headingFont||cjkFnt,fontSize:'clamp(28px,6vw,48px)',color:theme.text,
             letterSpacing:8,lineHeight:1.3,marginBottom:8}}>
             {groom}
-            <span style={{color:theme.primary,margin:'0 10px',fontFamily:latFnt,fontSize:'clamp(22px,4vw,36px)'}}>✦</span>
+            <span style={{color:theme.primary,margin:'0 10px',fontFamily:latFnt,fontSize:'clamp(22px,4vw,36px)'}}>
+              {gs.ornament||'&'}
+            </span>
             {bride}
           </div>
           {form.weddingDate&&(
-            <div style={{fontFamily:cjkFnt,fontSize:14,color:theme.subText,marginTop:18,letterSpacing:2}}>
+            <div style={{fontFamily:gs.headingFont||cjkFnt,fontSize:14,color:theme.subText,marginTop:18,letterSpacing:2}}>
               {form.weddingDate}
             </div>
           )}
@@ -5483,24 +5663,53 @@ function WizardPreviewOverlay({ form, onClose }) {
               {form.venue}
             </div>
           )}
-          <div style={{width:32,height:2,background:theme.primary,margin:'28px auto 0'}}/>
+          {gs.dividerChar ? (
+            <div style={{margin:'28px auto 0',fontSize:13,color:theme.primary,letterSpacing:6,opacity:.7}}>
+              {gs.dividerChar}　{gs.dividerChar}　{gs.dividerChar}
+            </div>
+          ) : (
+            <div style={{width:32,height:gs.radius===0?2:1,background:theme.primary,margin:'28px auto 0'}}/>
+          )}
         </div>
 
-        {/* ── RSVP 表單模擬 ── */}
+        {/* ── RSVP 表單模擬（含按鈕/checkbox 風格）── */}
         <div style={{maxWidth:520,margin:'0 auto',padding:'28px 20px 60px'}}>
-          <div style={{...card,padding:'24px 20px',boxShadow:'0 2px 12px rgba(0,0,0,.06)'}}>
-            <div style={{fontFamily:cjkFnt,fontSize:16,color:theme.text,letterSpacing:2,marginBottom:20}}>
+          <div style={{...card,padding:'24px 20px',boxShadow:gs.shadow}}>
+            <div style={{fontFamily:gs.headingFont||cjkFnt,fontSize:16,color:theme.text,letterSpacing:2,marginBottom:20}}>
               出席回覆
             </div>
-            {['姓名','出席人數','飲食備註'].map(f=>(
+            {['姓名','出席人數'].map(f=>(
               <div key={f} style={{marginBottom:14}}>
                 <div style={{fontSize:11,color:theme.subText,letterSpacing:.5,marginBottom:5}}>{f}</div>
-                <div style={{border:`1px solid ${theme.border}`,borderRadius:2,
-                  background:theme.pageBg,height:36}}/>
+                {gs.inputUnderline
+                  ? <div style={{borderBottom:`1px solid ${theme.border}`,height:32}}/>
+                  : <div style={{border:`1px solid ${theme.border}`,borderRadius:gs.inputRadius,background:theme.pageBg,height:36}}/>}
               </div>
             ))}
-            <div style={{marginTop:18,padding:'11px 0',borderRadius:2,background:theme.primary,
-              textAlign:'center',fontFamily:cjkFnt,fontSize:13,color:'#FFFEFA',letterSpacing:3,cursor:'default'}}>
+            {/* 是否出席 按鈕（主色跳色預覽）*/}
+            <div style={{fontSize:11,color:theme.subText,letterSpacing:.5,marginBottom:5}}>是否出席</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+              <div style={{padding:'10px 8px',borderRadius:gs.btnRadius,textAlign:'center',fontSize:13,
+                background:theme.primary,color:onColorText(theme.primary),fontWeight:600,
+                textTransform:gs.btnCase,boxShadow:gs.shadow}}>我一定到！！</div>
+              <div style={{padding:'10px 8px',borderRadius:gs.btnRadius,textAlign:'center',fontSize:13,
+                background:theme.pageBg,color:theme.subText,border:`1px solid ${theme.border}`,
+                textTransform:gs.btnCase}}>無法參與</div>
+            </div>
+            {/* checkbox 預覽 */}
+            <div style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:theme.subText,marginBottom:16}}>
+              <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',
+                width:18,height:18,borderRadius:Math.min(gs.btnRadius,6),
+                border:`1.5px solid ${theme.primary}`,background:theme.primary}}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                  stroke={onColorText(theme.primary)} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12l5 5L20 6"/></svg>
+              </span>
+              公開我的祝福
+            </div>
+            <div style={{padding:'11px 0',borderRadius:gs.btnRadius,background:theme.primary,
+              textAlign:'center',fontFamily:gs.headingFont||cjkFnt,fontSize:13,color:onColorText(theme.primary),
+              letterSpacing:gs.btnCase==='uppercase'?3:3,textTransform:gs.btnCase,cursor:'default',boxShadow:gs.shadow}}>
               確認出席
             </div>
           </div>
@@ -7083,7 +7292,7 @@ export default function WeddingApp() {
         );
       })()}
       <div style={previewMode ? {marginTop:70} : {}}>
-      <NavBar page={activePage} onNav={onNav} authed={isAuthedAdmin} onLogout={isLoggedIn?handleFirebaseLogout:logout} onDashboard={isLoggedIn && weddings.length>0 ? ()=>navigate('#/dashboard') : null} syncStatus={syncStatus} cfg={data.config} role={currentRole} presence={presenceList} />
+      <NavBar page={activePage} onNav={onNav} authed={isAuthedAdmin} onLogout={isLoggedIn?handleFirebaseLogout:logout} onDashboard={isLoggedIn && weddings.length>0 ? ()=>navigate('#/dashboard') : null} syncStatus={syncStatus} cfg={previewMode&&previewDraft?{...data.config,...previewDraft}:data.config} role={currentRole} presence={presenceList} />
       {error&&<div style={{background:'#FAEEEE',color:'#C04040',padding:'7px 20px',fontSize:11,textAlign:'center'}}>⚠️ 同步問題：{error}</div>}
 
       {/* 唯讀模式橫幅 */}
@@ -7093,8 +7302,8 @@ export default function WeddingApp() {
         </div>
       )}
 
-      {activePage==='rsvp'    && <RSVPPage data={dataWithImages} onSubmit={submitRSVP} />}
-      {activePage==='blessings' && <BlessingWallPage data={dataWithImages} />}
+      {activePage==='rsvp'    && <RSVPPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} onSubmit={submitRSVP} />}
+      {activePage==='blessings' && <BlessingWallPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} />}
       {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} />}
       {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} />}
       {activePage==='info'    && isAuthedAdmin && canInfo && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} />}
