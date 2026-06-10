@@ -1,7 +1,34 @@
 // ============================================================
-// WEDDING SAAS  v6.4.2  （商業版／多租戶）
-// 最後更新：2026-06-09
+// WEDDING SAAS  v6.5.0  （商業版／多租戶）
+// 最後更新：2026-06-10
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.5.0  2026-06-10  ★ Minor：5 大完整設計風格系統（僅影響賓客端邀請函＋祝福牆）
+//          新增 getGuestStyle(themeKey) — 返回賓客端完整視覺語言：
+//          按鈕圓角/文字大小寫/間距、輸入框樣式、分隔線/裝飾符號、
+//          祝福牆卡片旋轉/圓角/背景、Tab 樣式（underline/pill/block）等。
+//          五種新設計系統：
+//          • modern   「現代簡約」— 純白底、銳利邊角(radius:0)、全大寫標籤、
+//                     輸入框底線風格、祝福牆卡片不旋轉、無陰影
+//          • oriental 「典雅東方」— 暖米底、暗紅主色、草書感大字距按鈕、◈ 裝飾符、
+//                     Block Tab 樣式、祝福牆方正卡片、微紅暗紋陰影
+//          • botanical「自然植物」— 霧綠底、圓角(radius:8)、✿ 裝飾符、Pill Tab 樣式、
+//                     綠意卡片背景、有機感陰影
+//          • dark-luxury「夢幻暗黑奢」— 近黑底、香檳金主色、金色光暈陰影、
+//                     ✦ 裝飾符、深色祝福牆卡片、全大寫標籤
+//          • handwritten「手寫溫柔」— 玫瑰粉底、超圓角(btnRadius:24)、Caveat 手寫字體、
+//                     ♡ 裝飾符、Pill Tab 樣式、柔和粉色陰影
+//          NavBar guest tabs 同步三種樣式切換；Google Fonts 加入 Caveat。
+//          管理後台（名單/排位/資訊管理）不受任何影響。
+//
+// v6.4.3  2026-06-10  ★ Patch：3 項修正
+//          1. 祝福查看浮窗關閉按鈕被遮擋：Modal 關閉按鈕加 zIndex:2
+//          2. 帳戶中心方案 tab 主從帳號區分：
+//             - 純協作帳號（無自有婚禮）：顯示「協作帳號」說明，列出協作中的婚禮，
+//               不顯示升級按鈕（方案費用由主辦方帳號管理）
+//             - 主帳號（有自有婚禮）：顯示自己的方案，若也有協作婚禮則補充說明
+//             - isPro 邏輯改為基於 ownedWeddings（自有婚禮），不含協作婚禮
+//             - loadUserWeddings 組裝時補上 myRole 欄位
 //
 // v6.4.2  2026-06-09  ★ Patch：4 項問題修正
 //          1. 賓客 NavBar 移除「後台 🔒」按鈕（SaaS 後台走帳號登入，不在賓客頁面露出）
@@ -313,11 +340,47 @@ const THEMES = {
   lavender: { name:"薰衣草紫", pageBg:"#F8F6FD", cardBg:"#FDFBFF", primary:"#8B6EC4", primaryHover:"#7158AD", soft:"#EAE4F6", border:"#D8CEF0", borderSoft:"#DED4F0", text:"#2E2A3A", subText:"#6B6380", mutedText:"#9A94B0", heroOverlayTop:"rgba(40,35,60,.10)", heroOverlayMid:"rgba(40,35,60,.45)", heroOverlayBot:"rgba(40,35,60,.75)", modalOverlay:"rgba(40,35,60,.50)", dark:false },
   forest:   { name:"森林深綠", pageBg:"#F5F8F5", cardBg:"#FAFCFA", primary:"#4A7C59", primaryHover:"#36633F", soft:"#D8EDE0", border:"#C5DDD0", borderSoft:"#D0DDCC", text:"#1E3028", subText:"#4A6255", mutedText:"#7A9A88", heroOverlayTop:"rgba(20,45,28,.10)", heroOverlayMid:"rgba(20,45,28,.45)", heroOverlayBot:"rgba(20,45,28,.75)", modalOverlay:"rgba(20,45,28,.50)", dark:false },
   ocean:    { name:"海洋湛藍", pageBg:"#F4F7FC", cardBg:"#F9FBFE", primary:"#3A60A8", primaryHover:"#284680", soft:"#DCE4F2", border:"#C8D5EB", borderSoft:"#D5DDED", text:"#1A2640", subText:"#3A4F6A", mutedText:"#7A90B0", heroOverlayTop:"rgba(20,35,70,.10)", heroOverlayMid:"rgba(20,35,70,.45)", heroOverlayBot:"rgba(20,35,70,.75)", modalOverlay:"rgba(20,35,70,.50)", dark:false },
-  dark:     { name:"夜幕暗黑", pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true },
+  dark:        { name:"夜幕暗黑",   pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true },
+  // ── 五大完整設計系統（影響賓客端全部視覺語言）──
+  modern:      { name:"現代簡約",   pageBg:"#FFFFFF", cardBg:"#F7F7F7", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false },
+  oriental:    { name:"典雅東方",   pageBg:"#FAF4EB", cardBg:"#FFF9F0", primary:"#8B1A1A", primaryHover:"#6E1414", soft:"#F5E4CC", border:"#D4B896", borderSoft:"#DCC4A0", text:"#2C1A0E", subText:"#7A5C3C", mutedText:"#A87C54", heroOverlayTop:"rgba(44,26,14,.06)", heroOverlayMid:"rgba(44,26,14,.42)", heroOverlayBot:"rgba(44,26,14,.72)", modalOverlay:"rgba(44,26,14,.55)", dark:false },
+  botanical:   { name:"自然植物",   pageBg:"#F4F7F0", cardBg:"#FAFCF7", primary:"#4A6E3F", primaryHover:"#3A5A30", soft:"#D4E8CA", border:"#C0D4B4", borderSoft:"#CCD8C0", text:"#1E2E1A", subText:"#4A6040", mutedText:"#7A9070", heroOverlayTop:"rgba(30,46,26,.08)", heroOverlayMid:"rgba(30,46,26,.42)", heroOverlayBot:"rgba(30,46,26,.72)", modalOverlay:"rgba(30,46,26,.50)", dark:false },
+  'dark-luxury':{ name:"夢幻暗黑奢",pageBg:"#14110E", cardBg:"#1E1A15", primary:"#C9A84C", primaryHover:"#DDB95C", soft:"#332D20", border:"#3A3020", borderSoft:"#4A3E2A", text:"#EDE4D3", subText:"#B8A888", mutedText:"#8A7A60", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.20)", heroOverlayBot:"rgba(0,0,0,.50)", modalOverlay:"rgba(0,0,0,.75)", dark:true },
+  handwritten: { name:"手寫溫柔",   pageBg:"#FFF5F7", cardBg:"#FFFCFD", primary:"#C07090", primaryHover:"#A85A7A", soft:"#FAE0E8", border:"#F0C8D5", borderSoft:"#EDD0DA", text:"#3A2030", subText:"#7A5060", mutedText:"#B090A0", heroOverlayTop:"rgba(60,32,48,.06)", heroOverlayMid:"rgba(60,32,48,.40)", heroOverlayBot:"rgba(60,32,48,.70)", modalOverlay:"rgba(60,32,48,.55)", dark:false },
 };
 
 function getTheme(cfg) {
   return THEMES[cfg && cfg.theme] || THEMES.cream;
+}
+
+// ============================================================
+// GUEST STYLE SYSTEM — 賓客端（邀請函/祝福牆）完整視覺語言
+// 不影響管理後台。gs 物件包含色彩（繼承自 THEMES）+ 延伸風格屬性。
+// ============================================================
+function getGuestStyle(themeKey) {
+  const t = THEMES[themeKey] || THEMES.cream;
+  const base = {
+    radius:3, btnRadius:2, inputRadius:2,
+    btnCase:'none', btnSpacing:.5, btnWeight:500,
+    shadow:'0 2px 16px rgba(0,0,0,.06)',
+    ornament:'✦', dividerChar:null,
+    labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:6,
+    tabStyle:'underline',        // 'underline' | 'pill' | 'block'
+    blessingRotate:true, blessingRadius:6,
+    inputUnderline:false,
+    headingFont:null,
+    blessingCardBgs:null,
+    blessingCardText:null,
+    blessingBorderColor:null,
+  };
+  const overrides = {
+    modern:      { radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none', ornament:null, dividerChar:null, labelFont:"'Lato','Noto Sans TC',sans-serif", labelCase:'uppercase', labelSpacing:8, tabStyle:'underline', blessingRotate:false, blessingRadius:0, inputUnderline:true },
+    oriental:    { radius:0, btnRadius:0, inputRadius:0, btnCase:'none', btnSpacing:4, btnWeight:600, shadow:'inset 0 0 0 1px rgba(139,26,26,.15),0 2px 8px rgba(139,26,26,.08)', ornament:'囍', dividerChar:'◈', labelFont:"'Noto Serif TC',serif", labelCase:'none', labelSpacing:3, tabStyle:'block', blessingRotate:false, blessingRadius:0, blessingBorderColor:'rgba(212,184,150,.5)' },
+    botanical:   { radius:8, btnRadius:8, inputRadius:6, btnCase:'none', btnSpacing:1, shadow:'0 4px 20px rgba(74,110,63,.10)', ornament:'✿', dividerChar:'✿', labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:5, tabStyle:'pill', blessingRotate:true, blessingRadius:10, blessingCardBgs:['#F5FAF0','#EFF8EC','#F7FAF4','#F2F8EE','#F0F7EC','#EEF8E8'] },
+    'dark-luxury':{ radius:2, btnRadius:2, inputRadius:2, btnCase:'uppercase', btnSpacing:4, btnWeight:300, shadow:'0 6px 28px rgba(201,168,76,.22)', ornament:'✦', dividerChar:'✦', labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:7, tabStyle:'underline', blessingRotate:false, blessingRadius:2, blessingCardBgs:['#201C17','#241F18','#1E1A14','#221E18','#261F14','#201B16'], blessingCardText:'#EDE4D3', blessingBorderColor:'rgba(201,168,76,.2)' },
+    handwritten: { radius:20, btnRadius:24, inputRadius:16, btnCase:'none', btnSpacing:1, btnWeight:400, shadow:'0 6px 24px rgba(192,112,144,.15)', ornament:'♡', dividerChar:'♡', labelFont:"'Caveat',cursive", labelCase:'none', labelSpacing:2, tabStyle:'pill', blessingRotate:true, blessingRadius:16, headingFont:"'Caveat',cursive" },
+  };
+  return { ...base, ...t, ...(overrides[themeKey] || {}) };
 }
 
 // ============================================================
@@ -426,7 +489,7 @@ function injectCSS() {
   const link = document.createElement('link');
   link.id = 'wed-css-font';
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Caveat:wght@400;600&display=swap';
   document.head.appendChild(link);
   const s = document.createElement('style');
   s.id = 'wed-css';
@@ -968,7 +1031,7 @@ function Modal({open,onClose,children,title,width=520}) {
         style={{...S.card,padding:28,maxWidth:width,width:'100%',maxHeight:'92vh',overflowY:'auto',position:'relative'}}>
         {title && <div style={{fontFamily:FONT_STACK,fontSize:20,fontWeight:500,letterSpacing:1,
           borderBottom:'1px solid #E5DDD0',paddingBottom:14,marginBottom:20}}>{title}</div>}
-        <button onClick={onClose} style={{position:'absolute',top:14,right:14,fontSize:22,color:'#9A8F82',lineHeight:1}}>×</button>
+        <button onClick={onClose} style={{position:'absolute',top:14,right:14,fontSize:22,color:'#9A8F82',lineHeight:1,zIndex:2}}>×</button>
         {children}
       </div>
     </div>
@@ -1315,7 +1378,8 @@ function ImageLightbox({src, onClose, canShare, shareText}) {
 
 function RSVPPage({data,onSubmit}) {
   const cfg = data.config;
-  const heroTheme = getTheme(cfg);  // 取得當前主題用於 Hero 遮罩
+  const heroTheme = getTheme(cfg);
+  const gs = getGuestStyle(cfg.theme);   // ← 賓客端視覺語言
   const GI = getGroupInfo(cfg);
   const defaultSide = Object.keys(GI)[2] || Object.keys(GI)[0];
   const [enlargedImg, setEnlargedImg] = useState(null);
@@ -1535,48 +1599,69 @@ function RSVPPage({data,onSubmit}) {
 
       {/* Info bar */}
       <div style={{maxWidth:540,margin:'0 auto',padding:'48px 20px 24px',textAlign:'center'}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F',marginBottom:12}}>THE CEREMONY</div>
-        <div style={{fontFamily:FONT_STACK,fontSize:20,letterSpacing:1,marginBottom:3}}>{cfg.venue}</div>
-        <div style={{color:'#6B6259',fontSize:13,marginBottom:2}}>{cfg.address}</div>
-        <div style={{color:'#9A8F82',fontSize:12,marginBottom:14}}>{cfg.phone}</div>
-        <div style={{display:'inline-block',padding:'7px 18px',border:'1px solid #E5D5BD',borderRadius:2,fontSize:12,color:'#B5895F',letterSpacing:2}}>{cfg.weddingTime}</div>
-        {cfg.transportInfo && <div style={{marginTop:12,fontSize:11,color:'#9A8F82'}}>{cfg.transportInfo}</div>}
+        <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
+          color:gs.primary,textTransform:gs.labelCase,marginBottom:12}}>THE CEREMONY</div>
+        <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:20,letterSpacing:1,
+          color:gs.text,marginBottom:3}}>{cfg.venue}</div>
+        <div style={{color:gs.subText,fontSize:13,marginBottom:2}}>{cfg.address}</div>
+        <div style={{color:gs.mutedText,fontSize:12,marginBottom:14}}>{cfg.phone}</div>
+        <div style={{display:'inline-block',padding:'7px 18px',
+          border:`1px solid ${gs.borderSoft}`,borderRadius:gs.btnRadius,
+          fontSize:12,color:gs.primary,letterSpacing:2}}>{cfg.weddingTime}</div>
+        {cfg.transportInfo && <div style={{marginTop:12,fontSize:11,color:gs.mutedText}}>{cfg.transportInfo}</div>}
       </div>
 
       {/* Form */}
       <div style={{maxWidth:540,margin:'0 auto',padding:'12px 20px 64px'}}>
         <div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:6,color:'#B5895F',marginBottom:10}}>RSVP</div>
-          <div style={{fontFamily:FONT_STACK,fontSize:22,letterSpacing:2}}>賓客回覆</div>
-          <div style={{width:28,height:1,background:'#D4B894',margin:'14px auto'}} />
+          <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
+            color:gs.primary,textTransform:gs.labelCase,marginBottom:10}}>RSVP</div>
+          <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:22,letterSpacing:2,color:gs.text}}>賓客回覆</div>
+          {/* 分隔線 / 裝飾 */}
+          {gs.dividerChar ? (
+            <div style={{margin:'14px auto',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.7}}>
+              {gs.dividerChar}　{gs.dividerChar}　{gs.dividerChar}
+            </div>
+          ) : (
+            <div style={{width:28,height:gs.radius===0?2:1,background:gs.primary,margin:'14px auto',opacity:.6}} />
+          )}
         </div>
 
-        <form onSubmit={submit} style={{...S.card,padding:'28px 24px'}}>
+        <form onSubmit={submit} style={{...S.card,padding:'28px 24px',
+          borderRadius:gs.radius,boxShadow:gs.shadow,
+          background:gs.cardBg,border:`1px solid ${gs.border}`}}>
           <Field label="姓名" required>
-            <TInput value={form.name} onChange={v=>set('name',v)} placeholder="您的全名" />
+            <TInput value={form.name} onChange={v=>set('name',v)} placeholder="您的全名"
+              style={gs.inputUnderline?{border:'none',borderBottom:`1px solid ${gs.border}`,borderRadius:0,background:'transparent',paddingLeft:0}:{borderRadius:gs.inputRadius}} />
           </Field>
           <Field label="暱稱" hint="新人習慣的稱呼">
-            <TInput value={form.nickname} onChange={v=>set('nickname',v)} placeholder="例：王哥、小芬" />
+            <TInput value={form.nickname} onChange={v=>set('nickname',v)} placeholder="例：王哥、小芬"
+              style={gs.inputUnderline?{border:'none',borderBottom:`1px solid ${gs.border}`,borderRadius:0,background:'transparent',paddingLeft:0}:{borderRadius:gs.inputRadius}} />
           </Field>
           <Field label="與新人關係" required>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:7,marginBottom:8}}>
               {orderedGroupEntries(GI).map(([k,g])=>(
                 <button key={k} type="button" onClick={()=>set('side',k)} style={{
-                  padding:'9px 6px',fontSize:13,borderRadius:2,transition:'all .15s',
-                  background:form.side===k?g.color:'#F9F5EF',color:form.side===k?'#FFFEFA':'#6B6259',
-                  border:`1px solid ${form.side===k?g.color:'#E5DDD0'}`}}>{g.label}</button>
+                  padding:'9px 6px',fontSize:13,borderRadius:Math.min(gs.btnRadius,10),transition:'all .15s',
+                  textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?.5:0,
+                  background:form.side===k?g.color:gs.pageBg,color:form.side===k?'#FFFEFA':gs.subText,
+                  border:`1px solid ${form.side===k?g.color:gs.border}`}}>{g.label}</button>
               ))}
             </div>
             <TSelect value={form.subGroup} onChange={v=>set('subGroup',v)}
-              options={[{v:'',l:'— 請選擇細分類 —'},...(GI[form.side]||GI[defaultSide]).subs.map(s=>({v:s,l:s}))]} />
+              options={[{v:'',l:'— 請選擇細分類 —'},...(GI[form.side]||GI[defaultSide]).subs.map(s=>({v:s,l:s}))]}
+              style={{borderRadius:gs.inputRadius}} />
           </Field>
           <Field label="是否出席" required>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               {[{v:'yes',l:'我一定到！！',c:'#7BA77B'},{v:'no',l:'無法參與\n我想留下祝福',c:'#BF7090'}].map(o=>(
                 <button key={o.v} type="button" onClick={()=>set('attending',o.v)} style={{
-                  padding:'10px 8px',fontSize:13,borderRadius:2,whiteSpace:'pre-line',lineHeight:1.4,minHeight:48,
-                  background:form.attending===o.v?o.c:'#F9F5EF',color:form.attending===o.v?'#FFFEFA':'#6B6259',
-                  border:`1px solid ${form.attending===o.v?o.c:'#E5DDD0'}`,display:'flex',alignItems:'center',justifyContent:'center'}}>{o.l}</button>
+                  padding:'10px 8px',fontSize:13,
+                  borderRadius:gs.btnRadius,whiteSpace:'pre-line',lineHeight:1.4,minHeight:48,
+                  textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?.5:0,
+                  fontWeight:gs.btnWeight,
+                  background:form.attending===o.v?o.c:gs.pageBg,color:form.attending===o.v?'#FFFEFA':gs.subText,
+                  border:`1px solid ${form.attending===o.v?o.c:gs.border}`,display:'flex',alignItems:'center',justifyContent:'center'}}>{o.l}</button>
               ))}
             </div>
           </Field>
@@ -1616,17 +1701,23 @@ function RSVPPage({data,onSubmit}) {
               ⚠ {validationError}
             </div>
           )}
-          <Btn type="submit" disabled={submitting||!form.name.trim()||!!validationError} style={{width:'100%',marginTop:8,padding:'13px 0',fontSize:15,justifyContent:'center'}}>
+          <Btn type="submit" disabled={submitting||!form.name.trim()||!!validationError}
+            style={{width:'100%',marginTop:8,padding:'13px 0',fontSize:15,justifyContent:'center',
+              borderRadius:gs.btnRadius,textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?3:gs.btnSpacing,
+              fontWeight:gs.btnWeight}}>
             {submitting?<><Spinner size={14} color="#FFFEFA" /> 送出中</>:'送出回覆'}
           </Btn>
         </form>
       </div>
       {cfg.footerText ? (
-        <div style={{textAlign:'center',padding:'24px 20px',borderTop:'1px solid #E5DDD0',color:'#9A8F82',fontSize:11,letterSpacing:.5,lineHeight:1.9,whiteSpace:'pre-line'}}>
+        <div style={{textAlign:'center',padding:'24px 20px',borderTop:`1px solid ${gs.border}`,
+          color:gs.mutedText,fontSize:11,letterSpacing:.5,lineHeight:1.9,whiteSpace:'pre-line'}}>
           {cfg.footerText}
         </div>
       ) : (
-        <div style={{textAlign:'center',padding:'24px 20px',borderTop:'1px solid #E5DDD0',color:'#9A8F82',fontSize:10,letterSpacing:3}}>
+        <div style={{textAlign:'center',padding:'24px 20px',borderTop:`1px solid ${gs.border}`,
+          fontFamily:gs.labelFont,color:gs.mutedText,fontSize:10,letterSpacing:gs.labelCase==='uppercase'?3:2,
+          textTransform:gs.labelCase}}>
           WEDDING OF {cfg.groomName} &amp; {cfg.brideName}
         </div>
       )}
@@ -1640,97 +1731,90 @@ function RSVPPage({data,onSubmit}) {
 // ============================================================
 function BlessingWallPage({data}) {
   const cfg = data.config || {};
+  const gs = getGuestStyle(cfg.theme);   // ← 賓客端視覺語言
   const GI = getGroupInfo(cfg);
-  // 只取勾選公開的祝福
   const blessings = useMemo(()=>{
     return (data.guests||[])
       .filter(g => g.blessing && g.blessing.trim() && g.publicBlessing === true)
       .sort((a,b) => (b.submittedAt||0) - (a.submittedAt||0));
   },[data.guests]);
 
-  // 卡片顏色 (依分類取色，無分類用預設)
-  const cardBgs = ['#FFF8F0','#F5F8FF','#FFF0F5','#F0FFF4','#FFFAF0','#F5F0FF','#FFFFF0'];
+  const defaultCardBgs = ['#FFF8F0','#F5F8FF','#FFF0F5','#F0FFF4','#FFFAF0','#F5F0FF','#FFFFF0'];
+  const cardBgs = gs.blessingCardBgs || defaultCardBgs;
 
-  // 響應式欄數
   const [cols, setCols] = useState(3);
   useEffect(()=>{
-    const update = () => {
-      const w = window.innerWidth;
-      if (w < 640) setCols(1);
-      else if (w < 1024) setCols(2);
-      else setCols(3);
-    };
-    update();
-    window.addEventListener('resize', update);
-    return ()=>window.removeEventListener('resize', update);
+    const update = () => { const w=window.innerWidth; if(w<640)setCols(1); else if(w<1024)setCols(2); else setCols(3); };
+    update(); window.addEventListener('resize',update); return()=>window.removeEventListener('resize',update);
   },[]);
 
-  // 把祝福分配到各欄（瀑布流：填入最短欄）
   const columns = useMemo(()=>{
-    const cols_ = Array.from({length:cols}, ()=>[]);
-    const heights = Array(cols).fill(0);
-    blessings.forEach(b => {
-      const minIdx = heights.indexOf(Math.min(...heights));
-      cols_[minIdx].push(b);
-      // 估算高度：基於文字長度
-      heights[minIdx] += 120 + (b.blessing.length * 0.6);
-    });
+    const cols_=Array.from({length:cols},()=>[]); const heights=Array(cols).fill(0);
+    blessings.forEach(b=>{ const mi=heights.indexOf(Math.min(...heights)); cols_[mi].push(b); heights[mi]+=120+(b.blessing.length*.6); });
     return cols_;
-  },[blessings, cols]);
+  },[blessings,cols]);
 
   return (
     <div style={{minHeight:'100vh',padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto'}}>
       {/* 標題區 */}
       <div style={{textAlign:'center',marginBottom:40}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,letterSpacing:6,color:'#B5895F',marginBottom:10}}>BLESSING WALL</div>
-        <div style={{fontFamily:FONT_STACK,fontSize:28,letterSpacing:3,color:'#3A332B',marginBottom:8}}>給新人的祝福</div>
-        <div style={{fontSize:13,color:'#9A8F82'}}>來自親友們的溫暖祝福　·　共 {blessings.length} 則</div>
-        <div style={{margin:'18px auto 0',width:60,height:1,background:'#E5DDD0'}} />
+        <div style={{fontFamily:gs.labelFont,fontSize:12,letterSpacing:gs.labelSpacing,
+          color:gs.primary,textTransform:gs.labelCase,marginBottom:10}}>BLESSING WALL</div>
+        <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:28,letterSpacing:3,
+          color:gs.text,marginBottom:8}}>給新人的祝福</div>
+        <div style={{fontSize:13,color:gs.subText}}>來自親友們的溫暖祝福　·　共 {blessings.length} 則</div>
+        {gs.dividerChar ? (
+          <div style={{margin:'18px auto 0',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.6}}>
+            {gs.dividerChar}　{gs.dividerChar}　{gs.dividerChar}
+          </div>
+        ) : (
+          <div style={{margin:'18px auto 0',width:60,height:1,background:gs.border}} />
+        )}
       </div>
 
-      {/* 沒有祝福時 */}
       {blessings.length === 0 ? (
-        <div style={{textAlign:'center',padding:'80px 20px',color:'#9A8F82'}}>
-          <div style={{fontSize:48,marginBottom:16,opacity:.5}}>💌</div>
+        <div style={{textAlign:'center',padding:'80px 20px',color:gs.subText}}>
+          <div style={{fontSize:48,marginBottom:16,opacity:.5}}>{gs.ornament||'💌'}</div>
           <div style={{fontSize:14,marginBottom:6}}>目前還沒有公開的祝福</div>
           <div style={{fontSize:12}}>歡迎在邀請函留下祝福，並勾選公開讓大家看到 💝</div>
         </div>
       ) : (
-        /* 瀑布流卡片 */
         <div style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,gap:16,alignItems:'start'}}>
-          {columns.map((col, ci) => (
+          {columns.map((col,ci)=>(
             <div key={ci} style={{display:'flex',flexDirection:'column',gap:16}}>
-              {col.map((g, gi) => {
-                const info = GI[g.side] || {color:'#9A8F82',soft:'#E8E8E8',label:''};
-                const cardBg = cardBgs[(ci*7+gi) % cardBgs.length];
-                const seed = (g.id.charCodeAt(0)||0)*7 + (g.id.charCodeAt(1)||0)*3 + (g.id.charCodeAt(2)||0);
-                const rotate = ((seed % 17) - 8) * 0.35; // -2.8° ~ +2.8°，更隨機更自然
-                const nudgeY  = ((seed % 9) - 4) * 3;    // ±12px 垂直微移
+              {col.map((g,gi)=>{
+                const info=GI[g.side]||{color:gs.primary,soft:'#E8E8E8',label:''};
+                const cardBg=cardBgs[(ci*7+gi)%cardBgs.length];
+                const seed=(g.id.charCodeAt(0)||0)*7+(g.id.charCodeAt(1)||0)*3+(g.id.charCodeAt(2)||0);
+                const rotate=gs.blessingRotate?((seed%17)-8)*.35:0;
+                const nudgeY=gs.blessingRotate?((seed%9)-4)*3:0;
+                const cardText=gs.blessingCardText||'#3A332B';
+                const borderColor=gs.blessingBorderColor||(gs.dark?'rgba(255,255,255,.06)':'rgba(255,255,255,.6)');
                 return (
                   <div key={g.id} data-tp="1" style={{
-                    background:cardBg,
-                    padding:'22px 22px 18px',
-                    borderRadius:6,
-                    boxShadow:'0 2px 12px rgba(58,51,43,.08), 0 1px 3px rgba(58,51,43,.05)',
+                    background:cardBg, padding:'22px 22px 18px',
+                    borderRadius:gs.blessingRadius,
+                    boxShadow:gs.shadow,
                     transform:`rotate(${rotate}deg) translateY(${nudgeY}px)`,
                     transition:'transform .3s ease, box-shadow .3s ease',
-                    position:'relative',
-                    border:'1px solid rgba(255,255,255,.6)'
+                    position:'relative', border:`1px solid ${borderColor}`
                   }}
-                  onMouseEnter={e=>{e.currentTarget.style.transform=`rotate(0deg) translateY(-2px)`; e.currentTarget.style.boxShadow='0 8px 20px rgba(58,51,43,.12), 0 2px 5px rgba(58,51,43,.06)';}}
-                  onMouseLeave={e=>{e.currentTarget.style.transform=`rotate(${rotate}deg) translateY(${nudgeY}px)`; e.currentTarget.style.boxShadow='0 2px 12px rgba(58,51,43,.08), 0 1px 3px rgba(58,51,43,.05)';}}
-                  >
-                    <div data-tp="1" style={{position:'absolute',top:14,right:18,fontSize:18,opacity:.3}}>💝</div>
-                    <div data-tp="1" style={{fontSize:14,lineHeight:1.85,color:'#3A332B',whiteSpace:'pre-line',
-                      fontFamily:'"Noto Serif TC", serif',marginBottom:16,letterSpacing:.3}}>
+                  onMouseEnter={e=>{e.currentTarget.style.transform=`rotate(0deg) translateY(-2px)`;e.currentTarget.style.boxShadow='0 8px 20px rgba(58,51,43,.12), 0 2px 5px rgba(58,51,43,.06)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform=`rotate(${rotate}deg) translateY(${nudgeY}px)`;e.currentTarget.style.boxShadow=gs.shadow;}}>
+                    <div data-tp="1" style={{position:'absolute',top:14,right:18,fontSize:18,opacity:.25,color:gs.primary}}>{gs.ornament||'💝'}</div>
+                    <div data-tp="1" style={{fontSize:14,lineHeight:1.85,color:cardText,whiteSpace:'pre-line',
+                      fontFamily:gs.headingFont||'"Noto Serif TC",serif',marginBottom:16,letterSpacing:.3}}>
                       "{g.blessing}"
                     </div>
-                    <div data-tp="1" style={{borderTop:'1px dashed rgba(58,51,43,.15)',paddingTop:10,
+                    <div data-tp="1" style={{borderTop:`1px dashed ${gs.dark?'rgba(255,255,255,.12)':'rgba(58,51,43,.12)'}`,paddingTop:10,
                       display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                      <div data-tp="1" style={{fontSize:13,fontWeight:600,color:'#3A332B'}}>
+                      <div data-tp="1" style={{fontSize:13,fontWeight:600,color:cardText}}>
                         — {g.nickname || g.name}
                       </div>
-                      {info.label && <span data-tp="1" style={{fontSize:10,padding:'2px 7px',background:'rgba(255,255,255,.5)',color:info.color,borderRadius:10,border:`1px solid ${info.color}40`}}>{info.label}</span>}
+                      {info.label && <span data-tp="1" style={{fontSize:10,padding:'2px 7px',
+                        background:gs.dark?'rgba(255,255,255,.08)':'rgba(255,255,255,.5)',
+                        color:gs.dark?gs.primary:info.color,borderRadius:gs.blessingRadius,
+                        border:`1px solid ${(gs.dark?gs.primary:info.color)+'40'}`}}>{info.label}</span>}
                     </div>
                   </div>
                 );
@@ -4957,16 +5041,37 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
       {/* Public: RSVP + Blessing wall */}
       {!authed && (
         <div className="wed-nav-menu" style={{display:'flex',gap:4,alignItems:'center',overflowX:'auto'}}>
-          <button onClick={()=>onNav('rsvp')} style={{padding:'7px 14px',fontSize:12,letterSpacing:.8,whiteSpace:'nowrap',
-            color:page==='rsvp'?'#3A332B':'#9A8F82',
-            borderBottom:page==='rsvp'?'2px solid #B5895F':'2px solid transparent'}}>
-            💌 邀請函
-          </button>
-          <button onClick={()=>onNav('blessings')} style={{padding:'7px 14px',fontSize:12,letterSpacing:.8,whiteSpace:'nowrap',
-            color:page==='blessings'?'#3A332B':'#9A8F82',
-            borderBottom:page==='blessings'?'2px solid #B5895F':'2px solid transparent'}}>
-            💝 祝福牆
-          </button>
+          {(()=>{
+            const gs = getGuestStyle(cfg?.theme);
+            const tabs = [{id:'rsvp',l:'💌 邀請函'},{id:'blessings',l:'💝 祝福牆'}];
+            if(gs.tabStyle==='pill') return tabs.map(t=>(
+              <button key={t.id} onClick={()=>onNav(t.id)} style={{
+                padding:'5px 16px',fontSize:12,letterSpacing:.5,whiteSpace:'nowrap',cursor:'pointer',
+                borderRadius:20, transition:'all .15s',
+                background: page===t.id ? gs.primary : 'transparent',
+                color: page===t.id ? '#FFFEFA' : gs.subText,
+                border: `1px solid ${page===t.id ? gs.primary : gs.border}`,
+              }}>{t.l}</button>
+            ));
+            if(gs.tabStyle==='block') return tabs.map(t=>(
+              <button key={t.id} onClick={()=>onNav(t.id)} style={{
+                padding:'7px 18px',fontSize:12,letterSpacing:gs.labelSpacing*.6,whiteSpace:'nowrap',cursor:'pointer',
+                fontFamily: gs.labelFont, textTransform: gs.labelCase,
+                transition:'all .15s',
+                background: page===t.id ? gs.primary : 'transparent',
+                color: page===t.id ? (gs.dark?'#FFFEFA':'#FFFEFA') : gs.subText,
+                border: 'none',
+              }}>{t.l}</button>
+            ));
+            // default: underline
+            return tabs.map(t=>(
+              <button key={t.id} onClick={()=>onNav(t.id)} style={{
+                padding:'7px 14px',fontSize:12,letterSpacing:.8,whiteSpace:'nowrap',
+                color:page===t.id?gs.text:gs.subText,
+                borderBottom:page===t.id?`2px solid ${gs.primary}`:'2px solid transparent',
+              }}>{t.l}</button>
+            ));
+          })()}
           {/* 後台入口已移除：SaaS 版後台登入走帳號登入系統，不在賓客頁面露出 */}
         </div>
       )}
@@ -5722,7 +5827,11 @@ function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
 // ============================================================
 function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount }) {
   const [tab, setTab] = useState('plan');
-  const isPro = weddings.some(w => w.plan === 'pro');
+  // 區分「自有婚禮」vs「協作婚禮」
+  const ownedWeddings = weddings.filter(w => w.ownerId === user?.uid);
+  const collabWeddings = weddings.filter(w => w.ownerId !== user?.uid);
+  const isPureCollab = ownedWeddings.length === 0 && collabWeddings.length > 0;
+  const isPro = ownedWeddings.some(w => w.plan === 'pro');
   const providers = user.providerData ? user.providerData.map(p => p.providerId) : [];
   const hasGoogle = providers.includes('google.com');
   const hasPassword = providers.includes('password');
@@ -5755,51 +5864,97 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
 
       {tab === 'plan' && (
         <div>
-          <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div>
-                <div style={{fontSize:12,color:'#9A8F82',letterSpacing:1,marginBottom:4}}>目前方案</div>
-                <div style={{fontFamily:FONT_STACK,fontSize:22,letterSpacing:1}}>
-                  {isPro ? '✦ Pro 方案' : '免費版'}
+          {/* ── 協作帳號：不顯示升級按鈕，只說明角色 ── */}
+          {isPureCollab ? (
+            <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:12,color:'#9A8F82',letterSpacing:1,marginBottom:4}}>帳號類型</div>
+                  <div style={{fontFamily:FONT_STACK,fontSize:20,letterSpacing:1}}>協作帳號</div>
+                </div>
+                <Tag small color='#7BA77B' soft='#EEF5EE'>協作中</Tag>
+              </div>
+              <div style={{height:1,background:'#F0EBE3',marginBottom:16}} />
+              <div style={{fontSize:13,color:'#6B6259',lineHeight:2,marginBottom:14}}>
+                您目前以協作身份參與 {collabWeddings.length} 個婚禮專案，方案費用由各婚禮主辦方帳號管理。
+              </div>
+              <div style={{padding:'12px 16px',background:'#F9F5EF',borderRadius:3,fontSize:12,color:'#9A8F82',lineHeight:1.8}}>
+                如需自行建立婚禮專案，可使用本帳號新增（免費版最多 {FREE_PROJECT_LIMIT} 個）。
+              </div>
+              <div style={{marginTop:18}}>
+                <div style={{fontSize:12,color:'#9A8F82',letterSpacing:.5,marginBottom:8}}>您協作的婚禮</div>
+                {collabWeddings.map(w=>(
+                  <div key={w.weddingId} style={{display:'flex',justifyContent:'space-between',
+                    fontSize:13,color:'#3A332B',padding:'6px 0',borderBottom:'1px solid #F0EBE3'}}>
+                    <span>{w.config?.groomName||''} & {w.config?.brideName||''}</span>
+                    <span style={{color:'#9A8F82'}}>{w.plan==='pro'?'✦ Pro 方案':'免費版'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* ── 主帳號：顯示自己的方案與升級 ── */
+            <>
+              <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <div>
+                    <div style={{fontSize:12,color:'#9A8F82',letterSpacing:1,marginBottom:4}}>目前方案</div>
+                    <div style={{fontFamily:FONT_STACK,fontSize:22,letterSpacing:1}}>
+                      {isPro ? '✦ Pro 方案' : '免費版'}
+                    </div>
+                  </div>
+                  <Tag small color={isPro?'#B5895F':'#9A8F82'} soft={isPro?'#EFE3D0':'#F0EBE3'}>
+                    {isPro ? '已訂閱' : 'Free'}
+                  </Tag>
+                </div>
+                <div style={{height:1,background:'#F0EBE3',margin:'18px 0'}} />
+                <div style={{fontSize:13,color:'#6B6259',lineHeight:2}}>
+                  {isPro ? (
+                    <>
+                      <div>續期日期：—（Stripe 整合後顯示）</div>
+                      <div>方案內容：無限婚禮專案・無限桌數</div>
+                    </>
+                  ) : (
+                    <>
+                      <div>• 最多 {FREE_PROJECT_LIMIT} 個婚禮專案</div>
+                      <div>• 排位最多 {FREE_TABLE_LIMIT} 桌</div>
+                    </>
+                  )}
+                </div>
+                {!isPro && (
+                  <Btn onClick={()=>uiProUpgrade()} style={{marginTop:16}}>
+                    升級 Pro 方案
+                  </Btn>
+                )}
+                {isPro && (
+                  <Btn v="ghost" onClick={()=>uiAlert('取消訂閱功能將在 Stripe 整合後開放。')} style={{marginTop:16}}>
+                    取消訂閱
+                  </Btn>
+                )}
+              </div>
+              {collabWeddings.length > 0 && (
+                <div style={{...S.card,padding:'20px 26px',marginBottom:16,background:'#FAFAF7'}}>
+                  <div style={{fontSize:12,color:'#9A8F82',letterSpacing:.5,marginBottom:10}}>
+                    您也在協作的婚禮（費用由主辦方管理）
+                  </div>
+                  {collabWeddings.map(w=>(
+                    <div key={w.weddingId} style={{display:'flex',justifyContent:'space-between',
+                      fontSize:13,color:'#3A332B',padding:'5px 0',borderBottom:'1px solid #F0EBE3'}}>
+                      <span>{w.config?.groomName||''} & {w.config?.brideName||''}</span>
+                      <span style={{color:'#9A8F82',fontSize:11}}>{ROLE_LABEL[w.myRole]||'協作者'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{...S.card,padding:'24px 26px'}}>
+                <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:14}}>帳單歷史</div>
+                <div style={{textAlign:'center',padding:'28px 0',color:'#9A8F82',fontSize:13}}>
+                  <div style={{fontSize:28,marginBottom:8}}>🧾</div>
+                  尚無付費記錄
                 </div>
               </div>
-              <Tag small color={isPro?'#B5895F':'#9A8F82'} soft={isPro?'#EFE3D0':'#F0EBE3'}>
-                {isPro ? '已訂閱' : 'Free'}
-              </Tag>
-            </div>
-            <div style={{height:1,background:'#F0EBE3',margin:'18px 0'}} />
-            <div style={{fontSize:13,color:'#6B6259',lineHeight:2}}>
-              {isPro ? (
-                <>
-                  <div>續期日期：—（Stripe 整合後顯示）</div>
-                  <div>方案內容：無限婚禮專案・無限桌數</div>
-                </>
-              ) : (
-                <>
-                  <div>• 最多 2 個婚禮專案</div>
-                  <div>• 排位最多 5 桌</div>
-                </>
-              )}
-            </div>
-            {!isPro && (
-              <Btn onClick={()=>uiProUpgrade()} style={{marginTop:16}}>
-                升級 Pro 方案
-              </Btn>
-            )}
-            {isPro && (
-              <Btn v="ghost" onClick={()=>uiAlert('取消訂閱功能將在 Stripe 整合後開放。')} style={{marginTop:16}}>
-                取消訂閱
-              </Btn>
-            )}
-          </div>
-
-          <div style={{...S.card,padding:'24px 26px'}}>
-            <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:14}}>帳單歷史</div>
-            <div style={{textAlign:'center',padding:'28px 0',color:'#9A8F82',fontSize:13}}>
-              <div style={{fontSize:28,marginBottom:8}}>🧾</div>
-              尚無付費記錄
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -6188,8 +6343,11 @@ export default function WeddingApp() {
       ));
       const withCfg = await Promise.all(docs.filter(Boolean).map(async w => {
         try { const m = await mainDocRef(fb.db, w.weddingId).get();
-          return {...w, config: m.exists ? (m.data().config||{}) : {}}; }
-        catch { return {...w, config:{}}; }
+          // 帶上 myRole：若非擁有者則從 collaborators 取自己的角色
+          const myRole = w.ownerId === uid ? 'admin'
+            : (w.collaborators?.[uid]?.role || 'viewer');
+          return {...w, config: m.exists ? (m.data().config||{}) : {}, myRole}; }
+        catch { return {...w, config:{}, myRole: w.ownerId===uid?'admin':'viewer'}; }
       }));
       setWeddings(withCfg);
     } catch(e){ console.error('loadUserWeddings:', e); }
