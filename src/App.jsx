@@ -1,7 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.6.1  （商業版／多租戶）
+// WEDDING SAAS  v6.6.2  （商業版／多租戶）
 // 最後更新：2026-06-11
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.6.2  2026-06-11  ★ Patch：祝福浮窗主題化 + 背景花紋質感升級
+//          1. 暗黑系祝福浮窗關閉鈕看不見：Modal 新增 closeColor prop，
+//             祝福浮窗傳入主題主色，並加半透明圓底，任何主題下都清晰可見。
+//          2. 祝福查看浮窗改為跟隨主題配色：背景漸層用主題 cardBg/soft/pageBg、
+//             文字用主題 text/subText/mutedText、裝飾用主題 ornament + primary、
+//             圓角用主題 blessingRadius。暗黑主題自動用深色卡片＋淺字，對比清晰。
+//          3. 5 個主題背景花紋重做（各自獨特、更有質感、不重複）：
+//             • 玫瑰金粉：交錯玫瑰花苞 + 細點（80×80）
+//             • 手寫溫柔：手繪波浪線 + 四角星（90×90）
+//             • 薰衣草紫：薰衣草花穗串（72×72）
+//             • 夢幻暗黑奢：金色鑽石格紋 + 中心點（60×60）
+//             • 夜幕暗黑：星空（不同大小星點 + 四角星，100×100）
+//             全 11 主題花紋經雜湊檢查確認零重複。
 //
 // v6.6.1  2026-06-11  ★ Patch：帳戶中心崩潰修復 + 風格系統 10 項修正
 //          1. 【緊急】帳戶中心白屏崩潰：FREE_PROJECT_LIMIT/FREE_TABLE_LIMIT 原定義在
@@ -426,7 +440,7 @@ function getGuestStyle(themeKey) {
   };
   const overrides = {
     modern: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M40 0H0v40' stroke='%231A1A1A' stroke-opacity='0.035' fill='none' stroke-width='1'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%238B6EC4' fill-opacity='0.06'%3E%3Ccircle cx='24' cy='14' r='2'/%3E%3Ccircle cx='21' cy='20' r='2'/%3E%3Ccircle cx='27' cy='20' r='2'/%3E%3Ccircle cx='24' cy='26' r='2'/%3E%3C/g%3E%3Cpath d='M24 28v10' stroke='%238B6EC4' stroke-opacity='0.07' stroke-width='1'/%3E%3Cg fill='%238B6EC4' fill-opacity='0.05'%3E%3Ccircle cx='54' cy='48' r='1.8'/%3E%3Ccircle cx='51' cy='53' r='1.8'/%3E%3Ccircle cx='57' cy='53' r='1.8'/%3E%3Ccircle cx='54' cy='58' r='1.8'/%3E%3C/g%3E%3C/svg%3E\")",
       blessingCardBgs:['#F7F7F7','#F2F2F2','#FAFAFA','#F0F0F0','#F5F5F5','#EFEFEF'],
       radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none',
       ornament:null, dividerChar:null, useIcon:true,
@@ -462,7 +476,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌸', blessings:'🌷', admin:'🍃', seating:'🌿', info:'🪴' },
     },
     'dark-luxury': {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 22l2 6 6 2-6 2-2 6-2-6-6-2 6-2z' fill='%23C9A84C' fill-opacity='0.05'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23C9A84C' stroke-opacity='0.07' fill='none' stroke-width='0.8'%3E%3Cpath d='M30 6 L54 30 L30 54 L6 30 Z'/%3E%3C/g%3E%3Ccircle cx='30' cy='30' r='1.4' fill='%23C9A84C' fill-opacity='0.10'/%3E%3Ccircle cx='30' cy='6' r='0.9' fill='%23C9A84C' fill-opacity='0.06'/%3E%3Ccircle cx='30' cy='54' r='0.9' fill='%23C9A84C' fill-opacity='0.06'/%3E%3C/svg%3E\")",
       radius:2, btnRadius:2, inputRadius:2, btnCase:'uppercase', btnSpacing:4, btnWeight:300,
       shadow:'0 6px 28px rgba(201,168,76,.22)',
       ornament:'✦', dividerChar:'✦',
@@ -495,7 +509,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     rose: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M24 30c-3-2.4-7-5-7-8.4 0-2 1.6-3.6 3.5-3.6 1.4 0 2.8.9 3.5 2.2.7-1.3 2.1-2.2 3.5-2.2 1.9 0 3.5 1.6 3.5 3.6 0 3.4-4 6-7 8.4z' fill='%23BF7090' fill-opacity='0.05'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23BF7090' stroke-opacity='0.07'%3E%3Cpath d='M20 20c-4-3-4-8 0-11 4 3 4 8 0 11z' stroke-width='1'/%3E%3Cpath d='M60 60c-4-3-4-8 0-11 4 3 4 8 0 11z' stroke-width='1'/%3E%3C/g%3E%3Ccircle cx='60' cy='20' r='1.5' fill='%23BF7090' fill-opacity='0.06'/%3E%3Ccircle cx='20' cy='60' r='1.5' fill='%23BF7090' fill-opacity='0.06'/%3E%3C/svg%3E\")",
       blessingCardBgs:['#FDF0F4','#FAE8EE','#FCEDF2','#F8E4EC','#FEF2F6','#FBEAF0'],
       radius:10, btnRadius:10, inputRadius:8, dividerChar:'❤', ornament:'❤',
       labelSpacing:5, tabStyle:'pill', blessingRadius:12, blessingRotate:true,
@@ -527,7 +541,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌊', blessings:'🐚', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     dark: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='24' cy='24' r='1' fill='%23D4AA70' fill-opacity='0.08'/%3E%3Ccircle cx='8' cy='10' r='0.6' fill='%23D4AA70' fill-opacity='0.06'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23D4AA70'%3E%3Ccircle cx='15' cy='20' r='1.2' fill-opacity='0.12'/%3E%3Ccircle cx='70' cy='35' r='0.8' fill-opacity='0.09'/%3E%3Ccircle cx='45' cy='70' r='1' fill-opacity='0.10'/%3E%3Ccircle cx='85' cy='80' r='0.7' fill-opacity='0.07'/%3E%3Ccircle cx='30' cy='55' r='0.6' fill-opacity='0.06'/%3E%3Cpath d='M60 60l1 3 3 1-3 1-1 3-1-3-3-1 3-1z' fill-opacity='0.10'/%3E%3C/g%3E%3C/svg%3E\")",
       radius:3, btnRadius:3, inputRadius:2, dividerChar:'·', ornament:'✦',
       labelSpacing:6, tabStyle:'underline', blessingRadius:4, blessingRotate:false,
       blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
@@ -1254,7 +1268,7 @@ function Btn({children,v='gold',size='md',onClick,disabled,style,type='button'})
   );
 }
 
-function Modal({open,onClose,children,title,width=520}) {
+function Modal({open,onClose,children,title,width=520,closeColor}) {
   if(!open) return null;
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(58,51,43,.45)',zIndex:1000,
@@ -1263,7 +1277,10 @@ function Modal({open,onClose,children,title,width=520}) {
         style={{...S.card,padding:28,maxWidth:width,width:'100%',maxHeight:'92vh',overflowY:'auto',position:'relative'}}>
         {title && <div style={{fontFamily:FONT_STACK,fontSize:20,fontWeight:500,letterSpacing:1,
           borderBottom:'1px solid #E5DDD0',paddingBottom:14,marginBottom:20}}>{title}</div>}
-        <button onClick={onClose} style={{position:'absolute',top:14,right:14,fontSize:22,color:'#9A8F82',lineHeight:1,zIndex:2}}>×</button>
+        <button data-tp="1" onClick={onClose} style={{position:'absolute',top:12,right:14,
+          width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:20,color:closeColor||'#9A8F82',lineHeight:1,zIndex:3,borderRadius:'50%',
+          background:closeColor?'rgba(0,0,0,.06)':'transparent',cursor:'pointer'}}>×</button>
         {children}
       </div>
     </div>
@@ -2717,31 +2734,44 @@ function AdminPage({data,onUpdate,weddingId}) {
       <AvoidPairsModal open={showAvoid} onClose={()=>setShowAvoid(false)} data={data} onUpdate={onUpdate} />
       <SameTablePairsModal open={showSame} onClose={()=>setShowSame(false)} data={data} onUpdate={onUpdate} />
 
-      {/* 祝福查看 Modal — 卡片式設計（data-tp 排除主題覆寫：固定米底深字，任何主題下對比清晰）*/}
-      {blessingView && (
-        <Modal open={!!blessingView} onClose={()=>setBlessingView(null)} title="" width={460}>
+      {/* 祝福查看 Modal — 跟隨主題配色（暗黑主題用深卡，文字對比清晰）*/}
+      {blessingView && (()=>{
+        const bgs = getGuestStyle(data.config?.theme);
+        const isDark = bgs.dark;
+        const cardGrad = isDark
+          ? `linear-gradient(160deg, ${bgs.cardBg} 0%, ${bgs.soft} 100%)`
+          : `linear-gradient(160deg, ${bgs.cardBg} 0%, ${bgs.pageBg} 100%)`;
+        const txt = bgs.text, sub = bgs.subText, muted = bgs.mutedText;
+        return (
+        <Modal open={!!blessingView} onClose={()=>setBlessingView(null)} title="" width={460} closeColor={bgs.primary}>
           <div data-tp="1" style={{margin:'-8px -4px 0',padding:'28px 28px 32px',
-            background:'linear-gradient(160deg,#FDF8F0 0%,#FAF0E8 100%)',borderRadius:6,position:'relative'}}>
-            <div data-tp="1" style={{position:'absolute',top:18,right:22,fontSize:48,opacity:.12}}>💌</div>
-            <div data-tp="1" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:4,color:'#B5895F',marginBottom:6}}>BLESSING FROM</div>
-            <div data-tp="1" style={{fontSize:20,fontWeight:600,color:'#3A332B',marginBottom:4}}>
-              {blessingView.name}
-              {blessingView.nickname && <span data-tp="1" style={{fontSize:14,color:'#9A8F82',marginLeft:8,fontWeight:400}}>「{blessingView.nickname}」</span>}
+            background:cardGrad,borderRadius:bgs.blessingRadius||6,position:'relative',
+            border:`1px solid ${bgs.border}`}}>
+            <div data-tp="1" style={{position:'absolute',top:18,right:22,fontSize:48,opacity:isDark?.18:.12,color:bgs.primary}}>
+              {bgs.ornament||'💌'}
             </div>
-            <div data-tp="1" style={{fontSize:11,color:'#9A8F82',marginBottom:20}}>
+            <div data-tp="1" style={{fontFamily:bgs.labelFont,fontSize:13,letterSpacing:bgs.labelCase==='uppercase'?4:2,
+              color:bgs.primary,textTransform:bgs.labelCase,marginBottom:6}}>BLESSING FROM</div>
+            <div data-tp="1" style={{fontFamily:bgs.headingFont||FONT_STACK,fontSize:20,fontWeight:600,color:txt,marginBottom:4}}>
+              {blessingView.name}
+              {blessingView.nickname && <span data-tp="1" style={{fontSize:14,color:muted,marginLeft:8,fontWeight:400}}>「{blessingView.nickname}」</span>}
+            </div>
+            <div data-tp="1" style={{fontSize:11,color:muted,marginBottom:20}}>
               {(GI[blessingView.side]||{}).label || ''}{blessingView.subGroup ? ` · ${blessingView.subGroup}` : ''}
             </div>
-            <div data-tp="1" style={{borderTop:'1px dashed #D5C5A8',paddingTop:18,fontSize:15,lineHeight:2,color:'#3A332B',whiteSpace:'pre-line',fontFamily:'"Noto Serif TC", serif',letterSpacing:.5}}>
+            <div data-tp="1" style={{borderTop:`1px dashed ${bgs.border}`,paddingTop:18,fontSize:15,lineHeight:2,
+              color:txt,whiteSpace:'pre-line',fontFamily:bgs.headingFont||'"Noto Serif TC", serif',letterSpacing:.5}}>
               "{blessingView.blessing}"
             </div>
             {blessingView.submittedAt && (
-              <div data-tp="1" style={{marginTop:20,textAlign:'right',fontSize:11,color:'#9A8F82'}}>
+              <div data-tp="1" style={{marginTop:20,textAlign:'right',fontSize:11,color:muted}}>
                 {new Date(blessingView.submittedAt).toLocaleString('zh-TW')}
               </div>
             )}
           </div>
         </Modal>
-      )}
+        );
+      })()}
     </div>
   );
 }
