@@ -1,7 +1,31 @@
 // ============================================================
-// WEDDING SAAS  v6.6.0  （商業版／多租戶）
-// 最後更新：2026-06-10
+// WEDDING SAAS  v6.6.1  （商業版／多租戶）
+// 最後更新：2026-06-11
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.6.1  2026-06-11  ★ Patch：帳戶中心崩潰修復 + 風格系統 10 項修正
+//          1. 【緊急】帳戶中心白屏崩潰：FREE_PROJECT_LIMIT/FREE_TABLE_LIMIT 原定義在
+//             WeddingApp 函式內，AccountCenterPage 無法存取 → ReferenceError。
+//             已提升為模組層級常數，移除三處區域重複定義。
+//          2. 登入頁被主題污染：AppShell 改為渲染前同步清除主題 CSS（不等 useEffect），
+//             並強制重設 body 背景，登入/Dashboard/帳戶中心不再受任何主題影響。
+//          3. 暗黑系祝福查看浮窗對比：整卡加 data-tp 排除主題覆寫（固定米底深字）。
+//          4. 暗黑系資訊管理賓客連結橫幅對比：底色改 #EFE3D0（在主題替換清單內），
+//             與文字色成對轉換，任何主題下對比正常。
+//          5. 暗黑系金底按鈕淺字看不清：applyTheme 新增 dark 專屬規則，
+//             金色主色底上的 #FFFEFA 文字自動轉深色。
+//          6. 奶油主題按鈕/勾選文字反白：onColorText 閾值 0.55→0.62
+//             （奶油金 0.57→白字；暗黑奢 0.66/夜幕 0.69→黑字）。
+//          7. 關係按鈕（新郎方/共同/新娘方）選取後改用主題主色（背景+邊框+自動文字色）。
+//          8. 全部 11 主題加上專屬簡約背景花紋（SVG data URI，低透明度）：
+//             奶油=細點、東方=囍字（換掉四瓣花，更喜慶）、玫瑰/手寫=愛心、薰衣草=花瓣、
+//             海洋=波浪、森林=松枝、植物=葉子、現代=細網格、暗黑奢=金菱星、夜幕=星點。
+//          9. 祝福牆改滿版：花紋鋪滿整個視窗寬度，內容維持限寬置中。
+//          10. 8 個主題補上 blessingCardBgs（祝福卡片色組），11 主題全數齊備。
+//          11. 點選主題自動帶入推薦字體組合（THEME_FONT_RECO，外觀 Tab + 向導皆生效），
+//              使用者之後手動改字體則尊重其選擇。
+//          12. 外觀預覽橫幅顯示「目前預覽的主題：XX」（資訊管理 + 向導皆有）。
+//          13. 現代簡約 info icon 修正（補圓圈外框）、admin/seating icon 線條優化。
 //
 // v6.6.0  2026-06-10  ★ Minor：風格系統全面深化（主框架 NavBar + 細節 + 預覽修正）
 //          1. 主框架 NavBar 完全風格化：logo 字體（navLogoFont）、背景（navBg）、
@@ -402,6 +426,8 @@ function getGuestStyle(themeKey) {
   };
   const overrides = {
     modern: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M40 0H0v40' stroke='%231A1A1A' stroke-opacity='0.035' fill='none' stroke-width='1'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#F7F7F7','#F2F2F2','#FAFAFA','#F0F0F0','#F5F5F5','#EFEFEF'],
       radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none',
       ornament:null, dividerChar:null, useIcon:true,
       labelFont:"'Lato','Noto Sans TC',sans-serif", labelCase:'uppercase', labelSpacing:8,
@@ -411,6 +437,8 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'', blessings:'', admin:'', seating:'', info:'' },  // 無 emoji，改用 SVG icon
     },
     oriental: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='36' y='44' font-size='26' text-anchor='middle' fill='%238B1A1A' fill-opacity='0.045' font-family='serif'%3E%E5%9B%8D%3C/text%3E%3C/svg%3E\")",  // 囍字喜慶花紋
+      blessingCardBgs:['#FBEFE0','#F8E8D4','#FAEDDC','#F6E4CC','#FCF1E4','#F9EAD8'],
       radius:16, btnRadius:16, inputRadius:12, btnCase:'none', btnSpacing:4, btnWeight:600,
       shadow:'inset 0 0 0 1px rgba(139,26,26,.12),0 4px 16px rgba(139,26,26,.10)',
       ornament:'囍', dividerChar:'◈',
@@ -420,10 +448,10 @@ function getGuestStyle(themeKey) {
       navLogoFont:"'Noto Serif TC',serif",
       // 淡雅花紋（同心圓 + 斜線織紋，暗紅低透明度）
       navPattern:'radial-gradient(circle at 20% 50%, rgba(139,26,26,.04) 0%, transparent 8%), radial-gradient(circle at 80% 50%, rgba(139,26,26,.04) 0%, transparent 8%)',
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%238B1A1A' fill-opacity='0.035'%3E%3Cpath d='M20 0c2 6 8 12 14 14-6 2-12 8-14 14-2-6-8-12-14-14 6-2 12-8 14-14z'/%3E%3C/g%3E%3C/svg%3E\")",
       icons:{ rsvp:'🏮', blessings:'🧧', admin:'📜', seating:'🪑', info:'⚙️' },
     },
     botanical: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 16c6 5 8 12 0 24-8-12-6-19 0-24z' fill='%234A6E3F' fill-opacity='0.05'/%3E%3Cpath d='M28 18v20' stroke='%234A6E3F' stroke-opacity='0.07' stroke-width='0.8'/%3E%3C/svg%3E\")",
       radius:8, btnRadius:8, inputRadius:6, btnCase:'none', btnSpacing:1, shadow:'0 4px 20px rgba(74,110,63,.10)',
       ornament:'🌿', dividerChar:'❀',
       labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:5,
@@ -434,6 +462,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌸', blessings:'🌷', admin:'🍃', seating:'🌿', info:'🪴' },
     },
     'dark-luxury': {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 22l2 6 6 2-6 2-2 6-2-6-6-2 6-2z' fill='%23C9A84C' fill-opacity='0.05'/%3E%3C/svg%3E\")",
       radius:2, btnRadius:2, inputRadius:2, btnCase:'uppercase', btnSpacing:4, btnWeight:300,
       shadow:'0 6px 28px rgba(201,168,76,.22)',
       ornament:'✦', dividerChar:'✦',
@@ -446,6 +475,8 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'✦', blessings:'❖', admin:'◆', seating:'◇', info:'✧' },
     },
     handwritten: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M26 32c-3-2.2-6.5-4.6-6.5-7.6 0-1.8 1.5-3.2 3.2-3.2 1.2 0 2.5.8 3.3 2 .8-1.2 2.1-2 3.3-2 1.7 0 3.2 1.4 3.2 3.2 0 3-3.5 5.4-6.5 7.6z' fill='%23C07090' fill-opacity='0.06'/%3E%3Ccircle cx='10' cy='12' r='1' fill='%23C07090' fill-opacity='0.05'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#FFF0F4','#FCEAF0','#FEEEF2','#FAE6EE','#FFF3F6','#FDECF1'],
       radius:20, btnRadius:24, inputRadius:16, btnCase:'none', btnSpacing:1, btnWeight:400,
       shadow:'0 6px 24px rgba(192,112,144,.15)',
       ornament:'♡', dividerChar:'♡',
@@ -457,35 +488,46 @@ function getGuestStyle(themeKey) {
     },
     // ── 既有 6 主題補上完整風格屬性 ──
     cream: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='36' height='36' viewBox='0 0 36 36' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='18' cy='18' r='1.2' fill='%23B5895F' fill-opacity='0.06'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#FFF8EE','#FBF4E8','#FDF6EC','#FAF2E4','#FFF9F0','#FCF5EA'],
       radius:3, btnRadius:3, inputRadius:2, dividerChar:null, ornament:'✦',
       tabStyle:'underline', blessingRadius:6, blessingRotate:true,
       icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     rose: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M24 30c-3-2.4-7-5-7-8.4 0-2 1.6-3.6 3.5-3.6 1.4 0 2.8.9 3.5 2.2.7-1.3 2.1-2.2 3.5-2.2 1.9 0 3.5 1.6 3.5 3.6 0 3.4-4 6-7 8.4z' fill='%23BF7090' fill-opacity='0.05'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#FDF0F4','#FAE8EE','#FCEDF2','#F8E4EC','#FEF2F6','#FBEAF0'],
       radius:10, btnRadius:10, inputRadius:8, dividerChar:'❤', ornament:'❤',
       labelSpacing:5, tabStyle:'pill', blessingRadius:12, blessingRotate:true,
       shadow:'0 3px 18px rgba(191,112,144,.12)',
       icons:{ rsvp:'💗', blessings:'💞', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     lavender: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M24 16c1.5 3 4 5 4 8s-1.8 5-4 5-4-2-4-5 2.5-5 4-8z' fill='%238B6EC4' fill-opacity='0.05'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#F5F0FC','#EFE8F8','#F3EDFA','#EBE4F6','#F7F2FD','#F1EAF9'],
       radius:8, btnRadius:8, inputRadius:6, dividerChar:'❧', ornament:'❧',
       labelSpacing:5, tabStyle:'pill', blessingRadius:10, blessingRotate:true,
       shadow:'0 3px 18px rgba(139,110,196,.12)',
       icons:{ rsvp:'💜', blessings:'🔮', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     forest: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M26 14v22M26 20l-5-4M26 20l5-4M26 27l-6-4M26 27l6-4M26 34l-5-4M26 34l5-4' stroke='%234A7C59' stroke-opacity='0.06' fill='none' stroke-width='1.3'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#EFF6F0','#E7F2EA','#EDF4EE','#E3EFE6','#F1F7F2','#E9F3EC'],
       radius:6, btnRadius:6, inputRadius:4, dividerChar:'❦', ornament:'❦',
       labelSpacing:5, tabStyle:'underline', blessingRadius:8, blessingRotate:true,
       shadow:'0 3px 16px rgba(74,124,89,.12)',
       icons:{ rsvp:'🌲', blessings:'🍀', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     ocean: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='56' height='28' viewBox='0 0 56 28' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 14 q7 -5 14 0 t14 0 t14 0 t14 0' stroke='%233A60A8' stroke-opacity='0.06' fill='none' stroke-width='1.4'/%3E%3C/svg%3E\")",
+      blessingCardBgs:['#EEF3FA','#E6EDF7','#ECF1F9','#E2EAF5','#F0F5FB','#E8EFF8'],
       radius:6, btnRadius:6, inputRadius:4, dividerChar:'≈', ornament:'⚓',
       labelSpacing:6, tabStyle:'underline', blessingRadius:8, blessingRotate:true,
       shadow:'0 3px 16px rgba(58,96,168,.12)',
       icons:{ rsvp:'🌊', blessings:'🐚', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     dark: {
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='24' cy='24' r='1' fill='%23D4AA70' fill-opacity='0.08'/%3E%3Ccircle cx='8' cy='10' r='0.6' fill='%23D4AA70' fill-opacity='0.06'/%3E%3C/svg%3E\")",
       radius:3, btnRadius:3, inputRadius:2, dividerChar:'·', ornament:'✦',
       labelSpacing:6, tabStyle:'underline', blessingRadius:4, blessingRotate:false,
       blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
@@ -497,13 +539,28 @@ function getGuestStyle(themeKey) {
   return { ...base, ...t, ...(overrides[themeKey] || {}) };
 }
 
+// 主題 → 推薦字體（點選主題時自動帶入；使用者再改字體則尊重其選擇）
+const THEME_FONT_RECO = {
+  cream:        { cjk:'noto-serif', latin:'cormorant' },
+  oriental:     { cjk:'shippori',   latin:'eb-garamond' },
+  rose:         { cjk:'noto-serif', latin:'playfair' },
+  handwritten:  { cjk:'lxgw',       latin:'cormorant' },
+  lavender:     { cjk:'zen-old',    latin:'playfair' },
+  ocean:        { cjk:'noto-serif', latin:'eb-garamond' },
+  forest:       { cjk:'zen-old',    latin:'cormorant' },
+  botanical:    { cjk:'lxgw',       latin:'cormorant' },
+  modern:       { cjk:'noto-sans',  latin:'lato' },
+  'dark-luxury':{ cjk:'shippori',   latin:'playfair' },
+  dark:         { cjk:'noto-serif', latin:'cormorant' },
+};
+
 // 賓客端 SVG icon（現代簡約用，取代 emoji）
 const NAV_ICONS = {
   rsvp:     'M3 5h18v14H3zM3 5l9 7 9-7',                                  // envelope
   blessings:'M12 21s-7-4.5-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.5-9 9-9 9z',  // heart
-  admin:    'M4 4h16v4H4zM4 10h16v4H4zM4 16h16v4H4z',                     // list
-  seating:  'M5 11V7a2 2 0 012-2h10a2 2 0 012 2v4M5 11h14v6H5zM7 17v2M17 17v2', // chair
-  info:     'M12 8v.01M11 12h1v4h1',                                       // info
+  admin:    'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',    // list
+  seating:  'M6 19v-3m12 3v-3M6 16h12M6 16v-5a6 6 0 0112 0v5',            // chair/table
+  info:     'M12 22a10 10 0 100-20 10 10 0 000 20zM12 8h.01M11 12h1v5h1', // info circle
 };
 function NavIcon({ name, color, size=14 }) {
   const d = NAV_ICONS[name];
@@ -519,7 +576,8 @@ function onColorText(hex) {
   if(!hex || hex[0]!=='#') return '#FFFEFA';
   const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
   const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
-  return lum > 0.55 ? '#1A1A1A' : '#FFFEFA';
+  // 閾值 0.62：奶油金 #B5895F(0.57)→白字；暗黑奢 #C9A84C(0.66)/夜幕 #D4AA70(0.69)→黑字
+  return lum > 0.62 ? '#1A1A1A' : '#FFFEFA';
 }
 
 // 自訂 checkbox（取代原生），隨主題 gs 的圓角與主色
@@ -561,6 +619,12 @@ const FONTS_LATIN = {
   'josefin':     { name:'Josefin Sans',       family:"'Josefin Sans',sans-serif",   url:'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400&display=swap' },
   'lato':        { name:'Lato',               family:"'Lato',sans-serif",           url:'https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;1,300&display=swap' },
 };
+
+// ============================================================
+// FREEMIUM LIMITS — 模組層級常數（AccountCenterPage / DashboardPage / WeddingApp / SeatingPage 共用）
+// ============================================================
+const FREE_PROJECT_LIMIT = 2;
+const FREE_TABLE_LIMIT   = 5;
 
 const GROUP_INFO = {
   groom: { label:"新郎方", color:"#3A60A8", soft:"#DCE4F2", subs:["新郎親友","新郎公司同事","新郎親戚長輩"] },
@@ -770,6 +834,13 @@ body { background: ${theme.pageBg} !important; }
   background-color: ${theme.cardBg} !important;
 }
 .wed [style*="color: rgb(255, 254, 250)"]${NOT} { color: ${dk ? '#F0EDE8' : '#FFFEFA'} !important; }
+${dk ? `
+/* 暗黑系：金色主色底的按鈕/標籤上，原淺色(#FFFEFA)文字轉深色，避免亮金底配淺字看不清 */
+.wed [style*="background: rgb(181, 137, 95)"][style*="color: rgb(255, 254, 250)"]${NOT},
+.wed [style*="background-color: rgb(181, 137, 95)"][style*="color: rgb(255, 254, 250)"]${NOT},
+.wed [style*="background: rgb(181, 137, 95)"][style*="color: rgb(255, 254, 250)"]${NOT} *${NOT} {
+  color: #1A1A1A !important;
+}` : ''}
 
 /* === 邊框色 (#E5DDD0) — 只改邊框，與輸入框背景規則完全分離 === */
 .wed [style*="border: 1px solid rgb(229, 221, 208)"]${NOT},
@@ -1801,13 +1872,18 @@ function RSVPPage({data,onSubmit}) {
           </Field>
           <Field label="與新人關係" required>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:7,marginBottom:8}}>
-              {orderedGroupEntries(GI).map(([k,g])=>(
-                <button key={k} type="button" onClick={()=>set('side',k)} style={{
-                  padding:'9px 6px',fontSize:13,borderRadius:Math.min(gs.btnRadius,10),transition:'all .15s',
-                  textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?.5:0,
-                  background:form.side===k?g.color:gs.pageBg,color:form.side===k?'#FFFEFA':gs.subText,
-                  border:`1px solid ${form.side===k?g.color:gs.border}`}}>{g.label}</button>
-              ))}
+              {orderedGroupEntries(GI).map(([k,g])=>{
+                const active = form.side===k;
+                return (
+                  <button key={k} type="button" onClick={()=>set('side',k)} style={{
+                    padding:'9px 6px',fontSize:13,borderRadius:Math.min(gs.btnRadius,10),transition:'all .15s',
+                    textTransform:gs.btnCase,letterSpacing:gs.btnCase==='uppercase'?.5:0,
+                    background:active?gs.primary:gs.pageBg,
+                    color:active?onColorText(gs.primary):gs.subText,
+                    fontWeight:active?600:400,
+                    border:`1px solid ${active?gs.primary:gs.border}`}}>{g.label}</button>
+                );
+              })}
             </div>
             <TSelect value={form.subGroup} onChange={v=>set('subGroup',v)}
               options={[{v:'',l:'— 請選擇細分類 —'},...(GI[form.side]||GI[defaultSide]).subs.map(s=>({v:s,l:s}))]}
@@ -1923,7 +1999,8 @@ function BlessingWallPage({data}) {
   },[blessings,cols]);
 
   return (
-    <div style={{minHeight:'100vh',padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto',backgroundImage:gs.pagePattern||'none'}}>
+    <div style={{minHeight:'100vh',backgroundImage:gs.pagePattern||'none'}}>
+    <div style={{padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto'}}>
       {/* 標題區 */}
       <div style={{textAlign:'center',marginBottom:40}}>
         <div style={{fontFamily:gs.labelFont,fontSize:12,letterSpacing:gs.labelSpacing,
@@ -1991,6 +2068,7 @@ function BlessingWallPage({data}) {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }
@@ -2639,25 +2717,25 @@ function AdminPage({data,onUpdate,weddingId}) {
       <AvoidPairsModal open={showAvoid} onClose={()=>setShowAvoid(false)} data={data} onUpdate={onUpdate} />
       <SameTablePairsModal open={showSame} onClose={()=>setShowSame(false)} data={data} onUpdate={onUpdate} />
 
-      {/* 祝福查看 Modal — 卡片式設計 */}
+      {/* 祝福查看 Modal — 卡片式設計（data-tp 排除主題覆寫：固定米底深字，任何主題下對比清晰）*/}
       {blessingView && (
         <Modal open={!!blessingView} onClose={()=>setBlessingView(null)} title="" width={460}>
-          <div style={{margin:'-8px -4px 0',padding:'28px 28px 32px',
+          <div data-tp="1" style={{margin:'-8px -4px 0',padding:'28px 28px 32px',
             background:'linear-gradient(160deg,#FDF8F0 0%,#FAF0E8 100%)',borderRadius:6,position:'relative'}}>
-            <div style={{position:'absolute',top:18,right:22,fontSize:48,opacity:.12}}>💌</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:4,color:'#B5895F',marginBottom:6}}>BLESSING FROM</div>
-            <div style={{fontSize:20,fontWeight:600,color:'#3A332B',marginBottom:4}}>
+            <div data-tp="1" style={{position:'absolute',top:18,right:22,fontSize:48,opacity:.12}}>💌</div>
+            <div data-tp="1" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:4,color:'#B5895F',marginBottom:6}}>BLESSING FROM</div>
+            <div data-tp="1" style={{fontSize:20,fontWeight:600,color:'#3A332B',marginBottom:4}}>
               {blessingView.name}
-              {blessingView.nickname && <span style={{fontSize:14,color:'#9A8F82',marginLeft:8,fontWeight:400}}>「{blessingView.nickname}」</span>}
+              {blessingView.nickname && <span data-tp="1" style={{fontSize:14,color:'#9A8F82',marginLeft:8,fontWeight:400}}>「{blessingView.nickname}」</span>}
             </div>
-            <div style={{fontSize:11,color:'#9A8F82',marginBottom:20}}>
+            <div data-tp="1" style={{fontSize:11,color:'#9A8F82',marginBottom:20}}>
               {(GI[blessingView.side]||{}).label || ''}{blessingView.subGroup ? ` · ${blessingView.subGroup}` : ''}
             </div>
-            <div style={{borderTop:'1px dashed #D5C5A8',paddingTop:18,fontSize:15,lineHeight:2,color:'#3A332B',whiteSpace:'pre-line',fontFamily:'"Noto Serif TC", serif',letterSpacing:.5}}>
+            <div data-tp="1" style={{borderTop:'1px dashed #D5C5A8',paddingTop:18,fontSize:15,lineHeight:2,color:'#3A332B',whiteSpace:'pre-line',fontFamily:'"Noto Serif TC", serif',letterSpacing:.5}}>
               "{blessingView.blessing}"
             </div>
             {blessingView.submittedAt && (
-              <div style={{marginTop:20,textAlign:'right',fontSize:11,color:'#9A8F82'}}>
+              <div data-tp="1" style={{marginTop:20,textAlign:'right',fontSize:11,color:'#9A8F82'}}>
                 {new Date(blessingView.submittedAt).toLocaleString('zh-TW')}
               </div>
             )}
@@ -3237,7 +3315,6 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
     window.addEventListener('pointercancel',up);
   };
 
-  const FREE_TABLE_LIMIT = 5;
   const addTable=()=>{
     // 免費版桌數限制
     if (!isPro && data.tables.length >= FREE_TABLE_LIMIT) {
@@ -4798,11 +4875,11 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
         <StorageMeter data={data} photoMap={photoMap} />
       </div>
 
-      {/* 賓客邀請連結 — 放在 tabs 上方，隨時可見 */}
+      {/* 賓客邀請連結 — 用 #EFE3D0 (soft) 與 #6B6259 (subText)，兩者都在主題替換清單內，任何主題下成對轉換、對比正常 */}
       {weddingId && (
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8,
           padding:'10px 16px',marginBottom:16,
-          background:'#F4EDE3',borderRadius:3,border:'1px solid #E5DDD0'}}>
+          background:'#EFE3D0',borderRadius:3,border:'1px solid #E5DDD0'}}>
           <div style={{fontSize:12,color:'#6B6259',display:'flex',alignItems:'center',gap:6}}>
             <span style={{color:'#B5895F'}}>🔗</span>
             <span>賓客邀請連結 — 分享給賓客填寫出席回覆 · 觀看祝福牆</span>
@@ -5089,7 +5166,11 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
             {Object.entries(THEMES).map(([key,th])=>{
               const active = (draft.theme||'cream')===key;
               return (
-                <button key={key} data-tp="1" type="button" onClick={()=>setD('theme',key)}
+                <button key={key} data-tp="1" type="button" onClick={()=>{
+                  const reco = THEME_FONT_RECO[key];
+                  // 點主題 → 自動帶推薦字體（直接覆蓋為推薦組合；使用者之後改字體即尊重其選擇）
+                  setDraft(p=>({...p, theme:key, ...(reco?{fontCJK:reco.cjk, fontLatin:reco.latin}:{})}));
+                }}
                   style={{padding:'16px',borderRadius:3,border:`2px solid ${active?th.primary:th.border}`,
                     background:th.pageBg,textAlign:'left',cursor:'pointer',transition:'all .15s',
                     boxShadow:active?`0 0 0 2px ${th.primary}40`:'none'}}>
@@ -5603,7 +5684,7 @@ function WizardPreviewOverlay({ form, onClose }) {
         padding:'10px 20px',background:'rgba(30,24,18,.88)',backdropFilter:'blur(10px)',flexShrink:0,
         boxShadow:'0 2px 12px rgba(0,0,0,.3)'}}>
         <div style={{fontFamily:FONT_STACK,fontSize:12,letterSpacing:2,color:'#D9CABC'}}>
-          主題預覽效果（尚未儲存）
+          主題預覽效果 — 目前預覽的主題：{theme.name}（尚未儲存）
         </div>
         <button onClick={onClose} data-tp="1" style={{display:'flex',alignItems:'center',gap:6,
           fontSize:12,color:'#D9CABC',background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.2)',
@@ -5886,7 +5967,10 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
             <Field label="主題配色">
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
                 {Object.entries(THEMES).map(([k, t]) => (
-                  <button key={k} onClick={() => set('theme', k)}
+                  <button key={k} onClick={() => {
+                    const reco = THEME_FONT_RECO[k];
+                    setForm(f=>({...f, theme:k, ...(reco?{fontCJK:reco.cjk, fontLatin:reco.latin}:{})}));
+                  }}
                     style={{position:'relative',padding:'10px 6px',borderRadius:3,fontSize:11,cursor:'pointer',
                       background: form.theme===k ? t.primary : t.cardBg,
                       color: form.theme===k ? '#FFFEFA' : t.text,
@@ -6240,9 +6324,8 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
 
 
 function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteWedding, onLogout, activeTab, onTabChange, accountProps }) {
-  const FREE_LIMIT = 2;
   const isPro = weddings.some(w => w.plan === 'pro');
-  const atLimit = !isPro && weddings.length >= FREE_LIMIT;
+  const atLimit = !isPro && weddings.length >= FREE_PROJECT_LIMIT;
 
   const handleDelete = async (e, w) => {
     e.stopPropagation();
@@ -6317,7 +6400,7 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
             <div style={{textAlign:'right'}}>
               <div style={{padding:'8px 14px',background:'#F5F0E8',border:'1px solid #E5DDD0',
                 borderRadius:3,fontSize:12,color:'#9A8F82',cursor:'default'}}>
-                🔒 免費版限 {FREE_LIMIT} 個專案
+                🔒 免費版限 {FREE_PROJECT_LIMIT} 個專案
               </div>
               <div style={{fontSize:11,color:'#B5895F',marginTop:4,cursor:'pointer',textDecoration:'underline'}}
                 onClick={()=>uiProUpgrade('您已達免費版上限（2 個婚禮專案）')}>
@@ -6333,7 +6416,7 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
         {!isPro && (
           <div style={{padding:'10px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',
             borderRadius:3,fontSize:12,color:'#7A5C00',marginBottom:20,lineHeight:1.7}}>
-            💡 <strong>免費版限制：</strong>最多 {FREE_LIMIT} 個婚禮專案・排位最多 5 桌
+            💡 <strong>免費版限制：</strong>最多 {FREE_PROJECT_LIMIT} 個婚禮專案・排位最多 {FREE_TABLE_LIMIT} 桌
             <span style={{color:'#B5895F',marginLeft:8,cursor:'pointer',textDecoration:'underline'}}
               onClick={()=>uiProUpgrade()}>
               了解 Pro 方案 →
@@ -6409,7 +6492,13 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
 // (3) 強制重設為奶油主題 → 避免從深色主題婚禮返回時被殘留的主題 CSS 染色
 // ============================================================
 function AppShell({ children }) {
-  React.useEffect(() => { applyTheme(null); }, []);
+  // 同步清除主題：渲染前就執行（不等 useEffect），避免登入頁/Dashboard 閃現殘留主題
+  const cleared = React.useRef(false);
+  if (!cleared.current && typeof document !== 'undefined') {
+    cleared.current = true;
+    try { applyTheme(null); document.body.style.background = '#F9F5EF'; } catch {}
+  }
+  React.useEffect(() => { applyTheme(null); document.body.style.background = '#F9F5EF'; }, []);
   return (
     <div className="wed" style={{ minHeight:'100vh', background:'#F9F5EF' }}>
       <ConfirmDialogHost />
@@ -7149,7 +7238,6 @@ export default function WeddingApp() {
   }
 
   // 婚禮創建向導
-  const FREE_PROJECT_LIMIT = 2;
   const currentPlan = weddings.find(w=>w.weddingId===weddingId)?.plan || 'free';
   const isPro = weddings.some(w=>w.plan==='pro') || currentPlan==='pro';
   const atProjectLimit = !isPro && weddings.length >= FREE_PROJECT_LIMIT;
@@ -7270,7 +7358,9 @@ export default function WeddingApp() {
                 background:pt.primary,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',
                 fontSize:17,flexShrink:0,boxShadow:`0 2px 8px ${pt.primary}66`}}>👁</div>
               <div data-tp="1">
-                <div data-tp="1" style={{fontSize:14,fontWeight:600,color:pt.text,letterSpacing:.5}}>外觀預覽模式</div>
+                <div data-tp="1" style={{fontSize:14,fontWeight:600,color:pt.text,letterSpacing:.5}}>
+                  外觀預覽模式 — 目前預覽的主題：{pt.name}
+                </div>
                 <div data-tp="1" style={{fontSize:11,color:pt.subText,marginTop:1}}>目前顯示的是預覽效果，尚未儲存套用</div>
               </div>
             </div>
