@@ -1,7 +1,19 @@
 // ============================================================
-// WEDDING SAAS  v6.6.2  （商業版／多租戶）
+// WEDDING SAAS  v6.6.3  （商業版／多租戶）
 // 最後更新：2026-06-11
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.6.3  2026-06-11  ★ Patch：賓客 tab 置中 + 6 主題花紋再優化
+//          1. 賓客頁 NavBar tab（邀請函/祝福牆）改絕對定位置中（left:50% translate），
+//             不再因 space-between 被推向右側；logo 維持左側。
+//          2. 6 個主題背景花紋重做（更具質感、各自獨特、零重複）：
+//             • 典雅東方：中式祥雲紋（雲頭曲線）
+//             • 玫瑰金粉：盛開玫瑰螺旋（同心花瓣）
+//             • 手寫溫柔：手繪愛心圈 + 散點
+//             • 薰衣草紫：完整薰衣草枝（花穗 + 葉）
+//             • 夢幻暗黑奢：金色菱格紋（連續鑽石格網）← 依指定改菱格
+//             • 夜幕暗黑：星座連線（星點 + 細連線）
+//             11 主題花紋經雜湊比對確認零重複。
 //
 // v6.6.2  2026-06-11  ★ Patch：祝福浮窗主題化 + 背景花紋質感升級
 //          1. 暗黑系祝福浮窗關閉鈕看不見：Modal 新增 closeColor prop，
@@ -440,7 +452,7 @@ function getGuestStyle(themeKey) {
   };
   const overrides = {
     modern: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%238B6EC4' fill-opacity='0.06'%3E%3Ccircle cx='24' cy='14' r='2'/%3E%3Ccircle cx='21' cy='20' r='2'/%3E%3Ccircle cx='27' cy='20' r='2'/%3E%3Ccircle cx='24' cy='26' r='2'/%3E%3C/g%3E%3Cpath d='M24 28v10' stroke='%238B6EC4' stroke-opacity='0.07' stroke-width='1'/%3E%3Cg fill='%238B6EC4' fill-opacity='0.05'%3E%3Ccircle cx='54' cy='48' r='1.8'/%3E%3Ccircle cx='51' cy='53' r='1.8'/%3E%3Ccircle cx='57' cy='53' r='1.8'/%3E%3Ccircle cx='54' cy='58' r='1.8'/%3E%3C/g%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='76' height='76' viewBox='0 0 76 76' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%238B6EC4' fill-opacity='0.06'%3E%3Cellipse cx='26' cy='16' rx='2.2' ry='3'/%3E%3Cellipse cx='22' cy='22' rx='2.2' ry='3'/%3E%3Cellipse cx='30' cy='22' rx='2.2' ry='3'/%3E%3Cellipse cx='26' cy='28' rx='2.2' ry='3'/%3E%3C/g%3E%3Cpath d='M26 31c0 8 0 14 0 18M26 38c-4-2-7-3-9-2M26 42c4-2 7-3 9-2' stroke='%238B6EC4' stroke-opacity='0.06' stroke-width='1' fill='none'/%3E%3C/svg%3E\")",
       blessingCardBgs:['#F7F7F7','#F2F2F2','#FAFAFA','#F0F0F0','#F5F5F5','#EFEFEF'],
       radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none',
       ornament:null, dividerChar:null, useIcon:true,
@@ -451,7 +463,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'', blessings:'', admin:'', seating:'', info:'' },  // 無 emoji，改用 SVG icon
     },
     oriental: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='36' y='44' font-size='26' text-anchor='middle' fill='%238B1A1A' fill-opacity='0.045' font-family='serif'%3E%E5%9B%8D%3C/text%3E%3C/svg%3E\")",  // 囍字喜慶花紋
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='96' height='96' viewBox='0 0 96 96' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%238B1A1A' stroke-opacity='0.06' stroke-width='1.2'%3E%3Cpath d='M20 40 q0 -10 10 -10 q3 -8 12 -6 q8 -4 12 4 q10 0 8 10 q4 6 -4 8 l-40 0 q-8 -2 2 -8z'/%3E%3Cpath d='M60 78 q0 -8 8 -8 q2 -6 10 -5 q6 -3 10 3 q8 0 6 8 l-36 0 q-6 -2 2 -6z'/%3E%3C/g%3E%3C/svg%3E\")",
       blessingCardBgs:['#FBEFE0','#F8E8D4','#FAEDDC','#F6E4CC','#FCF1E4','#F9EAD8'],
       radius:16, btnRadius:16, inputRadius:12, btnCase:'none', btnSpacing:4, btnWeight:600,
       shadow:'inset 0 0 0 1px rgba(139,26,26,.12),0 4px 16px rgba(139,26,26,.10)',
@@ -476,7 +488,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌸', blessings:'🌷', admin:'🍃', seating:'🌿', info:'🪴' },
     },
     'dark-luxury': {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23C9A84C' stroke-opacity='0.07' fill='none' stroke-width='0.8'%3E%3Cpath d='M30 6 L54 30 L30 54 L6 30 Z'/%3E%3C/g%3E%3Ccircle cx='30' cy='30' r='1.4' fill='%23C9A84C' fill-opacity='0.10'/%3E%3Ccircle cx='30' cy='6' r='0.9' fill='%23C9A84C' fill-opacity='0.06'/%3E%3Ccircle cx='30' cy='54' r='0.9' fill='%23C9A84C' fill-opacity='0.06'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23C9A84C' stroke-opacity='0.08' fill='none' stroke-width='0.9'%3E%3Cpath d='M24 0 L48 24 L24 48 L0 24 Z'/%3E%3Cpath d='M24 12 L36 24 L24 36 L12 24 Z'/%3E%3C/g%3E%3Ccircle cx='24' cy='24' r='1' fill='%23C9A84C' fill-opacity='0.12'/%3E%3C/svg%3E\")",
       radius:2, btnRadius:2, inputRadius:2, btnCase:'uppercase', btnSpacing:4, btnWeight:300,
       shadow:'0 6px 28px rgba(201,168,76,.22)',
       ornament:'✦', dividerChar:'✦',
@@ -509,7 +521,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     rose: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23BF7090' stroke-opacity='0.07'%3E%3Cpath d='M20 20c-4-3-4-8 0-11 4 3 4 8 0 11z' stroke-width='1'/%3E%3Cpath d='M60 60c-4-3-4-8 0-11 4 3 4 8 0 11z' stroke-width='1'/%3E%3C/g%3E%3Ccircle cx='60' cy='20' r='1.5' fill='%23BF7090' fill-opacity='0.06'/%3E%3Ccircle cx='20' cy='60' r='1.5' fill='%23BF7090' fill-opacity='0.06'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='84' height='84' viewBox='0 0 84 84' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23BF7090' stroke-opacity='0.07' stroke-width='1'%3E%3Ccircle cx='28' cy='28' r='3'/%3E%3Ccircle cx='28' cy='28' r='7'/%3E%3Ccircle cx='28' cy='28' r='11'/%3E%3Cpath d='M28 17 a11 11 0 0 1 11 11'/%3E%3C/g%3E%3Ccircle cx='66' cy='64' r='1.6' fill='%23BF7090' fill-opacity='0.06'/%3E%3C/svg%3E\")",
       blessingCardBgs:['#FDF0F4','#FAE8EE','#FCEDF2','#F8E4EC','#FEF2F6','#FBEAF0'],
       radius:10, btnRadius:10, inputRadius:8, dividerChar:'❤', ornament:'❤',
       labelSpacing:5, tabStyle:'pill', blessingRadius:12, blessingRotate:true,
@@ -541,7 +553,7 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌊', blessings:'🐚', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     dark: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23D4AA70'%3E%3Ccircle cx='15' cy='20' r='1.2' fill-opacity='0.12'/%3E%3Ccircle cx='70' cy='35' r='0.8' fill-opacity='0.09'/%3E%3Ccircle cx='45' cy='70' r='1' fill-opacity='0.10'/%3E%3Ccircle cx='85' cy='80' r='0.7' fill-opacity='0.07'/%3E%3Ccircle cx='30' cy='55' r='0.6' fill-opacity='0.06'/%3E%3Cpath d='M60 60l1 3 3 1-3 1-1 3-1-3-3-1 3-1z' fill-opacity='0.10'/%3E%3C/g%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='110' height='110' viewBox='0 0 110 110' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23D4AA70'%3E%3Ccircle cx='18' cy='22' r='1.3' fill-opacity='0.14'/%3E%3Ccircle cx='48' cy='40' r='1' fill-opacity='0.11'/%3E%3Ccircle cx='80' cy='28' r='1.1' fill-opacity='0.12'/%3E%3Ccircle cx='62' cy='72' r='0.9' fill-opacity='0.10'/%3E%3Ccircle cx='92' cy='88' r='1.2' fill-opacity='0.11'/%3E%3Ccircle cx='26' cy='86' r='0.8' fill-opacity='0.08'/%3E%3C/g%3E%3Cg stroke='%23D4AA70' stroke-opacity='0.05' stroke-width='0.6'%3E%3Cpath d='M18 22 L48 40 L80 28'/%3E%3Cpath d='M48 40 L62 72 L92 88'/%3E%3C/g%3E%3C/svg%3E\")",
       radius:3, btnRadius:3, inputRadius:2, dividerChar:'·', ornament:'✦',
       labelSpacing:6, tabStyle:'underline', blessingRadius:4, blessingRotate:false,
       blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
@@ -5358,7 +5370,9 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
       <div className="wed-nav-logo" style={{flexShrink:0}}>{logoContent}</div>
 
       {!authed && (
-        <div className="wed-nav-menu" style={{display:'flex',gap:gs.tabStyle==='pill'?6:4,alignItems:'center',overflowX:'auto'}}>
+        <div className="wed-nav-menu" style={{display:'flex',gap:gs.tabStyle==='pill'?6:4,alignItems:'center',
+          overflowX:'auto',position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
+          maxWidth:'calc(100% - 240px)'}}>
           {publicTabs.map(renderTab)}
         </div>
       )}
