@@ -1,7 +1,24 @@
 // ============================================================
-// WEDDING SAAS  v6.6.4  （商業版／多租戶）
+// WEDDING SAAS  v6.6.5  （商業版／多租戶）
 // 最後更新：2026-06-11
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.6.5  2026-06-11  ★ Minor：11 主題背景花紋全數定案
+//          經多輪預覽 + 整頁模擬 + Shape Divider 風格探索，最終定案：
+//          • 典雅東方 → 遠山層疊（底部三層山巒，水墨意境，1200×200，repeat-x+bottom）
+//          • 玫瑰金粉 → 10 顆隨機泡泡（7px~70px 大小混合散落，1000×780）
+//          • 手寫溫柔 → 信紙橫線（100×32，筆記本質感）
+//          • 薰衣草紫 → 雙枝薰衣草穗傾斜錯排（-18°/+24°，150×150）
+//          • 森林深綠 → 雙松枝傾斜錯排（-14°/+20°，160×160）
+//          • 自然植物 → 雙葉子傾斜錯排（-22°/+30°，150×150）
+//          • 現代簡約 → 極淡縱向漸層（白→近白，無 SVG，no-repeat）
+//          • 夢幻暗黑奢 → 純菱格 52px（金線鑽石格）
+//          • 夜幕暗黑 → 深空漸層+細星點+雙層山稜剪影（800×430）
+//          • 典雅奶油 / 海洋湛藍 → 沿用既有（細點 / 波浪）
+//          新增 pagePatternRepeat / pagePatternPos 屬性：
+//          東方山巒用 repeat-x + bottom（水平鋪滿、貼齊底部）；
+//          現代漸層用 no-repeat。3 處 pagePattern 使用點同步更新。
+//          11 主題花紋經雜湊比對確認零重複。
 //
 // v6.6.4  2026-06-11  ★ Patch：6 個定案花紋正式寫入
 //          花紋選定（經三輪預覽 + 整頁模擬確認）：
@@ -464,7 +481,9 @@ function getGuestStyle(themeKey) {
   };
   const overrides = {
     modern: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='76' height='76' viewBox='0 0 76 76' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%238B6EC4' fill-opacity='0.06'%3E%3Cellipse cx='26' cy='16' rx='2.2' ry='3'/%3E%3Cellipse cx='22' cy='22' rx='2.2' ry='3'/%3E%3Cellipse cx='30' cy='22' rx='2.2' ry='3'/%3E%3Cellipse cx='26' cy='28' rx='2.2' ry='3'/%3E%3C/g%3E%3Cpath d='M26 31c0 8 0 14 0 18M26 38c-4-2-7-3-9-2M26 42c4-2 7-3 9-2' stroke='%238B6EC4' stroke-opacity='0.06' stroke-width='1' fill='none'/%3E%3C/svg%3E\")",
+      pagePatternRepeat:'no-repeat',
+      pagePatternSize:'auto',
+      pagePattern:"linear-gradient(180deg,#FFFFFF 0%,#F9F9F9 100%)",
       blessingCardBgs:['#F7F7F7','#F2F2F2','#FAFAFA','#F0F0F0','#F5F5F5','#EFEFEF'],
       radius:0, btnRadius:0, inputRadius:0, btnCase:'uppercase', btnSpacing:3, btnWeight:400, shadow:'none',
       ornament:null, dividerChar:null, useIcon:true,
@@ -475,8 +494,10 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'', blessings:'', admin:'', seating:'', info:'' },  // 無 emoji，改用 SVG icon
     },
     oriental: {
-      pagePatternSize:'400px 400px',
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='400' height='400' viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20fill='none'%20stroke='%238B1A1A'%20stroke-opacity='0.045'%20stroke-width='1.2'%3E%3Ccircle%20cx='400'%20cy='0'%20r='120'/%3E%3Ccircle%20cx='400'%20cy='0'%20r='165'/%3E%3Ccircle%20cx='400'%20cy='0'%20r='210'/%3E%3Ccircle%20cx='0'%20cy='400'%20r='120'/%3E%3Ccircle%20cx='0'%20cy='400'%20r='165'/%3E%3Ccircle%20cx='0'%20cy='400'%20r='210'/%3E%3C/g%3E%3C/svg%3E\")",
+      pagePatternPos:'bottom',
+      pagePatternRepeat:'repeat-x',
+      pagePatternSize:'1200px 200px',
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='1200' height='200' viewBox='0 0 1200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath%20d='M0,200%20L0,120%20C150,60%20280,140%20420,90%20C560,40%20700,110%20850,70%20C1000,35%201100,90%201200,60%20L1200,200%20Z'%20fill='%23B5895F'%20fill-opacity='0.05'/%3E%3Cpath%20d='M0,200%20L0,160%20C180,110%20350,170%20520,130%20C690,95%20850,150%201010,115%20C1100,95%201160,125%201200,110%20L1200,200%20Z'%20fill='%238B1A1A'%20fill-opacity='0.045'/%3E%3Cpath%20d='M0,200%20L0,185%20C220,150%20430,190%20640,165%20C850,140%201020,180%201200,155%20L1200,200%20Z'%20fill='%238B1A1A'%20fill-opacity='0.06'/%3E%3C/svg%3E\")",
       blessingCardBgs:['#FBEFE0','#F8E8D4','#FAEDDC','#F6E4CC','#FCF1E4','#F9EAD8'],
       radius:16, btnRadius:16, inputRadius:12, btnCase:'none', btnSpacing:4, btnWeight:600,
       shadow:'inset 0 0 0 1px rgba(139,26,26,.12),0 4px 16px rgba(139,26,26,.10)',
@@ -490,7 +511,8 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🏮', blessings:'🧧', admin:'📜', seating:'🪑', info:'⚙️' },
     },
     botanical: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 16c6 5 8 12 0 24-8-12-6-19 0-24z' fill='%234A6E3F' fill-opacity='0.05'/%3E%3Cpath d='M28 18v20' stroke='%234A6E3F' stroke-opacity='0.07' stroke-width='0.8'/%3E%3C/svg%3E\")",
+      pagePatternSize:'auto',
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='150' height='150' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20transform='rotate(-22%2040%2038)'%3E%3Cpath%20d='M40%2022c6%205%208%2012%200%2024-8-12-6-19%200-24z'%20fill='%234A6E3F'%20fill-opacity='0.05'/%3E%3Cpath%20d='M40%2025v18'%20stroke='%234A6E3F'%20stroke-opacity='0.06'%20stroke-width='0.8'/%3E%3C/g%3E%3Cg%20transform='rotate(30%20110%20108)'%3E%3Cpath%20d='M110%2092c5%204%207%2010%200%2020-7-10-5-16%200-20z'%20fill='%234A6E3F'%20fill-opacity='0.045'/%3E%3Cpath%20d='M110%2095v14'%20stroke='%234A6E3F'%20stroke-opacity='0.055'%20stroke-width='0.8'/%3E%3C/g%3E%3C/svg%3E\")",
       radius:8, btnRadius:8, inputRadius:6, btnCase:'none', btnSpacing:1, shadow:'0 4px 20px rgba(74,110,63,.10)',
       ornament:'🌿', dividerChar:'❀',
       labelFont:"'Cormorant Garamond',serif", labelCase:'uppercase', labelSpacing:5,
@@ -536,8 +558,8 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     rose: {
-      pagePatternSize:'1200px 800px',
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='1200' height='800' viewBox='0 0 1200 800' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%3E%3Ccircle%20cx='180'%20cy='96'%20r='30'%20fill='%23C9907F'%20fill-opacity='0.07'/%3E%3Ccircle%20cx='984'%20cy='192'%20r='38'%20fill='%23BF7090'%20fill-opacity='0.06'/%3E%3Ccircle%20cx='696'%20cy='64'%20r='20'%20fill='%23C9907F'%20fill-opacity='0.05'/%3E%3Ccircle%20cx='336'%20cy='384'%20r='26'%20fill='%23BF7090'%20fill-opacity='0.05'/%3E%3Ccircle%20cx='1056'%20cy='512'%20r='32'%20fill='%23C9907F'%20fill-opacity='0.06'/%3E%3Ccircle%20cx='144'%20cy='672'%20r='28'%20fill='%23BF7090'%20fill-opacity='0.06'/%3E%3Ccircle%20cx='780'%20cy='744'%20r='36'%20fill='%23C9907F'%20fill-opacity='0.05'/%3E%3C/g%3E%3C/svg%3E\")",
+      pagePatternSize:'1000px 780px',
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='1000' height='780' viewBox='0 0 1000 780' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%3E%3Ccircle%20cx='130'%20cy='110'%20r='52'%20fill='%23C9907F'%20fill-opacity='0.05'/%3E%3Ccircle%20cx='800'%20cy='90'%20r='14'%20fill='%23BF7090'%20fill-opacity='0.07'/%3E%3Ccircle%20cx='560'%20cy='250'%20r='30'%20fill='%23C9907F'%20fill-opacity='0.04'/%3E%3Ccircle%20cx='240'%20cy='420'%20r='9'%20fill='%23BF7090'%20fill-opacity='0.08'/%3E%3Ccircle%20cx='880'%20cy='460'%20r='70'%20fill='%23BF7090'%20fill-opacity='0.03'/%3E%3Ccircle%20cx='420'%20cy='580'%20r='18'%20fill='%23C9907F'%20fill-opacity='0.06'/%3E%3Ccircle%20cx='60'%20cy='640'%20r='24'%20fill='%23BF7090'%20fill-opacity='0.05'/%3E%3Ccircle%20cx='650'%20cy='700'%20r='7'%20fill='%23C9907F'%20fill-opacity='0.09'/%3E%3Ccircle%20cx='350'%20cy='80'%20r='12'%20fill='%23BF7090'%20fill-opacity='0.06'/%3E%3Ccircle%20cx='720'%20cy='540'%20r='38'%20fill='%23C9907F'%20fill-opacity='0.04'/%3E%3C/g%3E%3C/svg%3E\")",
       blessingCardBgs:['#FDF0F4','#FAE8EE','#FCEDF2','#F8E4EC','#FEF2F6','#FBEAF0'],
       radius:10, btnRadius:10, inputRadius:8, dividerChar:'❤', ornament:'❤',
       labelSpacing:5, tabStyle:'pill', blessingRadius:12, blessingRotate:true,
@@ -546,7 +568,7 @@ function getGuestStyle(themeKey) {
     },
     lavender: {
       pagePatternSize:'auto',
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='70' height='70' viewBox='0 0 70 70' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20fill='%238B6EC4'%20fill-opacity='0.055'%3E%3Cellipse%20cx='35'%20cy='22'%20rx='2'%20ry='3.2'%20transform='rotate(-15%2035%2022)'/%3E%3Cellipse%20cx='31'%20cy='28'%20rx='2'%20ry='3.2'%20transform='rotate(-15%2031%2028)'/%3E%3Cellipse%20cx='38'%20cy='29'%20rx='2'%20ry='3.2'%20transform='rotate(-15%2038%2029)'/%3E%3Cellipse%20cx='34'%20cy='35'%20rx='2'%20ry='3.2'%20transform='rotate(-15%2034%2035)'/%3E%3C/g%3E%3Cpath%20d='M34%2038q1%207%203%2012'%20stroke='%238B6EC4'%20stroke-opacity='0.06'%20stroke-width='1'%20fill='none'/%3E%3C/svg%3E\")",
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='150' height='150' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20transform='rotate(-18%2038%2038)'%3E%3Cg%20fill='%238B6EC4'%20fill-opacity='0.055'%3E%3Cellipse%20cx='38'%20cy='24'%20rx='2'%20ry='3.2'/%3E%3Cellipse%20cx='34'%20cy='30'%20rx='2'%20ry='3.2'/%3E%3Cellipse%20cx='41'%20cy='31'%20rx='2'%20ry='3.2'/%3E%3Cellipse%20cx='37'%20cy='37'%20rx='2'%20ry='3.2'/%3E%3C/g%3E%3Cpath%20d='M37%2040q1%207%203%2012'%20stroke='%238B6EC4'%20stroke-opacity='0.06'%20stroke-width='1'%20fill='none'/%3E%3C/g%3E%3Cg%20transform='rotate(24%20112%20105)'%3E%3Cg%20fill='%238B6EC4'%20fill-opacity='0.05'%3E%3Cellipse%20cx='112'%20cy='92'%20rx='1.8'%20ry='3'/%3E%3Cellipse%20cx='108'%20cy='98'%20rx='1.8'%20ry='3'/%3E%3Cellipse%20cx='115'%20cy='99'%20rx='1.8'%20ry='3'/%3E%3Cellipse%20cx='111'%20cy='105'%20rx='1.8'%20ry='3'/%3E%3C/g%3E%3Cpath%20d='M111%20108q1%206%203%2010'%20stroke='%238B6EC4'%20stroke-opacity='0.055'%20stroke-width='1'%20fill='none'/%3E%3C/g%3E%3C/svg%3E\")",
       blessingCardBgs:['#F5F0FC','#EFE8F8','#F3EDFA','#EBE4F6','#F7F2FD','#F1EAF9'],
       radius:8, btnRadius:8, inputRadius:6, dividerChar:'❧', ornament:'❧',
       labelSpacing:5, tabStyle:'pill', blessingRadius:10, blessingRotate:true,
@@ -554,7 +576,8 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'💜', blessings:'🔮', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     forest: {
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M26 14v22M26 20l-5-4M26 20l5-4M26 27l-6-4M26 27l6-4M26 34l-5-4M26 34l5-4' stroke='%234A7C59' stroke-opacity='0.06' fill='none' stroke-width='1.3'/%3E%3C/svg%3E\")",
+      pagePatternSize:'auto',
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='160' height='160' viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20transform='rotate(-14%2042%2040)'%20stroke='%234A7C59'%20stroke-opacity='0.06'%20fill='none'%20stroke-width='1.2'%20stroke-linecap='round'%3E%3Cpath%20d='M42%2022v36M42%2030l-6-5M42%2030l6-5M42%2039l-7-5M42%2039l7-5M42%2048l-6-5M42%2048l6-5'/%3E%3C/g%3E%3Cg%20transform='rotate(20%20118%20112)'%20stroke='%234A7C59'%20stroke-opacity='0.05'%20fill='none'%20stroke-width='1.1'%20stroke-linecap='round'%3E%3Cpath%20d='M118%2096v30M118%20103l-5-4M118%20103l5-4M118%20111l-6-4M118%20111l6-4M118%20119l-5-4M118%20119l5-4'/%3E%3C/g%3E%3C/svg%3E\")",
       blessingCardBgs:['#EFF6F0','#E7F2EA','#EDF4EE','#E3EFE6','#F1F7F2','#E9F3EC'],
       radius:6, btnRadius:6, inputRadius:4, dividerChar:'❦', ornament:'❦',
       labelSpacing:5, tabStyle:'underline', blessingRadius:8, blessingRotate:true,
@@ -570,8 +593,8 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌊', blessings:'🐚', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     dark: {
-      pagePatternSize:'auto',
-      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath%20d='M0%2040%20L40%200'%20stroke='%23D4AA70'%20stroke-opacity='0.05'%20stroke-width='0.7'/%3E%3C/svg%3E\")",
+      pagePatternSize:'800px 430px',
+      pagePattern:"url(\"data:image/svg+xml,%3Csvg width='800' height='430' viewBox='0 0 800 430' xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20fill='%23D4AA70'%3E%3Ccircle%20cx='110'%20cy='60'%20r='1.3'%20fill-opacity='0.10'/%3E%3Ccircle%20cx='300'%20cy='38'%20r='0.9'%20fill-opacity='0.07'/%3E%3Ccircle%20cx='520'%20cy='72'%20r='1.1'%20fill-opacity='0.08'/%3E%3Ccircle%20cx='660'%20cy='30'%20r='0.8'%20fill-opacity='0.06'/%3E%3Ccircle%20cx='730'%20cy='110'%20r='1'%20fill-opacity='0.07'/%3E%3Ccircle%20cx='200'%20cy='130'%20r='0.7'%20fill-opacity='0.05'/%3E%3Ccircle%20cx='420'%20cy='150'%20r='0.8'%20fill-opacity='0.045'/%3E%3C/g%3E%3Cpath%20d='M0,430%20L0,300%20L120,260%20L227,310%20L347,250%20L467,305%20L587,265%20L693,315%20L800,290%20L800,430%20Z'%20fill='%230F0F16'%20fill-opacity='0.5'/%3E%3Cpath%20d='M0,430%20L0,340%20L160,305%20L307,345%20L453,300%20L600,343%20L733,315%20L800,335%20L800,430%20Z'%20fill='%23D4AA70'%20fill-opacity='0.035'/%3E%3C/svg%3E\")",
       radius:3, btnRadius:3, inputRadius:2, dividerChar:'·', ornament:'✦',
       labelSpacing:6, tabStyle:'underline', blessingRadius:4, blessingRotate:false,
       blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
@@ -1860,7 +1883,7 @@ function RSVPPage({data,onSubmit}) {
   }
 
   return (
-    <div style={{backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto'}}>
+    <div style={{backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternRepeat||'repeat',backgroundPosition:gs.pagePatternPos||'0 0'}}>
       {/* Hero */}
       <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
         <PhotoCarousel photos={data.photos} speed={data.config.carouselSpeed||4500} />
@@ -2046,7 +2069,7 @@ function BlessingWallPage({data}) {
   },[blessings,cols]);
 
   return (
-    <div style={{minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto'}}>
+    <div style={{minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternRepeat||'repeat',backgroundPosition:gs.pagePatternPos||'0 0'}}>
     <div style={{padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto'}}>
       {/* 標題區 */}
       <div style={{textAlign:'center',marginBottom:40}}>
@@ -5756,7 +5779,7 @@ function WizardPreviewOverlay({ form, onClose }) {
       </div>
 
       {/* 頁面內容 */}
-      <div style={{flex:1,overflowY:'auto',background:theme.pageBg,backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto'}}>
+      <div style={{flex:1,overflowY:'auto',background:theme.pageBg,backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternRepeat||'repeat',backgroundPosition:gs.pagePatternPos||'0 0'}}>
 
         {/* ── NavBar（含 tab 樣式預覽）── */}
         <div style={{background:gs.navBg,backgroundImage:gs.navPattern||'none',
