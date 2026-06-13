@@ -1,7 +1,19 @@
 // ============================================================
-// WEDDING SAAS  v6.6.6  （商業版／多租戶）
-// 最後更新：2026-06-12
+// WEDDING SAAS  v6.6.7  （商業版／多租戶）
+// 最後更新：2026-06-13
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.6.7  2026-06-13  ★ Patch：夜幕暗黑拱窗月光修復（改 overlay 元件）
+//          【Bug】v6.6.6 夜幕拱窗月光完全不顯示：pagePattern 用了
+//          radial-gradient + url() 多圖層，但 backgroundSize 'auto, 720px 400px'
+//          的雙值語法與單值 repeat/position 衝突，瀏覽器判定整個背景無效。
+//          【修復】拆成獨立 NightArch overlay 元件：
+//          • 月光光暈 = div + radial-gradient；拱窗 = SVG 線框
+//          • 放在 Hero（58vh 滿版婚紗照）之後的內容區頂部，
+//            避免被滿版照片遮住，拱窗月光出現在 THE CEREMONY 標題上方
+//          • pointer-events:none、zIndex:0，不影響操作與內容層級
+//          • RSVPPage 與 BlessingWall 皆套用（cfg.theme==='dark' 時渲染）
+//          dark 主題的 pagePattern/Size/Mode 一併清空（改用 overlay）。
 //
 // v6.6.6  2026-06-12  ★ Patch：典雅東方 / 夜幕暗黑 背景最終定稿
 //          • 典雅東方 → 中式符號散排（240px tile）：
@@ -601,9 +613,6 @@ function getGuestStyle(themeKey) {
       icons:{ rsvp:'🌊', blessings:'🐚', admin:'📋', seating:'🪑', info:'⚙️' },
     },
     dark: {
-      pagePatternSize:'auto, 720px 400px',
-      pagePatternMode:'top-scene',
-      pagePattern:"radial-gradient(ellipse 320px 380px at 50% 0%, rgba(212,170,112,.11) 0%, transparent 70%), url(\"data:image/svg+xml,%3Csvg width='720' height='400' viewBox='0 0 720 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath%20d='M150,400%20L150,250%20A210%20210%200%200%201%20570,250%20L570,400'%20fill='none'%20stroke='%23D4AA70'%20stroke-opacity='0.14'%20stroke-width='2'/%3E%3Cpath%20d='M360,68%20L360,400%20M232,140%20L232,400%20M488,140%20L488,400'%20stroke='%23D4AA70'%20stroke-opacity='0.07'%20stroke-width='1.6'/%3E%3C/svg%3E\")",
       radius:3, btnRadius:3, inputRadius:2, dividerChar:'·', ornament:'✦',
       labelSpacing:6, tabStyle:'underline', blessingRadius:4, blessingRotate:false,
       blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
@@ -644,6 +653,24 @@ function NavIcon({ name, color, size=14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
     stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
     style={{flexShrink:0,verticalAlign:'middle'}}><path d={d}/></svg>;
+}
+
+// 夜幕暗黑 M5：拱窗月光 — 拱窗線框 + 月光光暈（獨立 overlay，避免 background 多圖層衝突）
+function NightArch({ top=0 }) {
+  return (
+    <div data-tp="1" aria-hidden="true" style={{position:'absolute',top:top,left:0,right:0,height:520,
+      pointerEvents:'none',overflow:'hidden',zIndex:0}}>
+      {/* 月光光暈 */}
+      <div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50%)',width:460,height:480,
+        background:'radial-gradient(ellipse 50% 58% at 50% 0%, rgba(212,170,112,.12) 0%, transparent 70%)'}} />
+      {/* 拱窗線框 */}
+      <svg style={{position:'absolute',top:30,left:'50%',transform:'translateX(-50%)',width:240,height:130}}
+        viewBox="0 0 240 130" fill="none">
+        <path d="M26,130 L26,92 A94 94 0 0 1 214,92 L214,130" stroke="#D4AA70" strokeOpacity="0.16" strokeWidth="1.5"/>
+        <path d="M120,12 L120,130 M64,44 L64,130 M176,44 L176,130" stroke="#D4AA70" strokeOpacity="0.09" strokeWidth="1"/>
+      </svg>
+    </div>
+  );
 }
 
 // 判斷色彩亮度 → 決定按鈕選中時文字用深色或淺色
@@ -1892,7 +1919,7 @@ function RSVPPage({data,onSubmit}) {
   }
 
   return (
-    <div style={{minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+    <div style={{position:'relative',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
       {/* Hero */}
       <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
         <PhotoCarousel photos={data.photos} speed={data.config.carouselSpeed||4500} />
@@ -1908,8 +1935,10 @@ function RSVPPage({data,onSubmit}) {
         </div>
       </div>
 
-      {/* Info bar */}
-      <div style={{maxWidth:540,margin:'0 auto',padding:'48px 20px 24px',textAlign:'center'}}>
+      {/* Info bar（dark 主題的拱窗月光放在此內容區頂部，不會被 Hero 滿版照片遮住）*/}
+      <div style={{position:'relative'}}>
+      {cfg.theme==='dark' && <NightArch top={0} />}
+      <div style={{maxWidth:540,margin:'0 auto',padding:'48px 20px 24px',textAlign:'center',position:'relative',zIndex:1}}>
         <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
           color:gs.primary,textTransform:gs.labelCase,marginBottom:12}}>THE CEREMONY</div>
         <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:20,letterSpacing:1,
@@ -1920,6 +1949,7 @@ function RSVPPage({data,onSubmit}) {
           border:`1px solid ${gs.borderSoft}`,borderRadius:gs.btnRadius,
           fontSize:12,color:gs.primary,letterSpacing:2}}>{cfg.weddingTime}</div>
         {cfg.transportInfo && <div style={{marginTop:12,fontSize:11,color:gs.mutedText}}>{cfg.transportInfo}</div>}
+      </div>
       </div>
 
       {/* Form */}
@@ -2078,8 +2108,9 @@ function BlessingWallPage({data}) {
   },[blessings,cols]);
 
   return (
-    <div style={{minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
-    <div style={{padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto'}}>
+    <div style={{position:'relative',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+      {cfg.theme==='dark' && <NightArch />}
+    <div style={{padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto',position:'relative',zIndex:1}}>
       {/* 標題區 */}
       <div style={{textAlign:'center',marginBottom:40}}>
         <div style={{fontFamily:gs.labelFont,fontSize:12,letterSpacing:gs.labelSpacing,
