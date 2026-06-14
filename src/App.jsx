@@ -1,14 +1,17 @@
 // ============================================================
-// WEDDING SAAS  v6.8.2  （商業版／多租戶）
+// WEDDING SAAS  v6.8.3  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
-//          【Bug】Google OAuth 登入完成後，user.email 在第一個 render 尚未填入，
-//                 isPlatformAdmin() 判斷回 false → 一般使用者被導到 #/dev 無權限頁
-//          【修復】#/dev 路由：!user.email || loadingWeddings 時先顯示 Spinner，等資料就緒再判斷
-//                  登入導向：!loadingWeddings && user.email 確認後才執行 isPlatformAdmin 判斷
+// v6.8.3  2026-06-14  ★ Patch：修正新用戶建立婚禮被 Firestore 規則擋住 + 錯誤訊息中文化
+//          【Bug】v6.8.0 的新 users 規則把 write 統一加上 proGrant 限制，
+//                 導致「第一次建立 user 文件」(create) 也被擋住 → 「建立失敗：Missing or insufficient permissions」
+//          【修復 1】firestore.rules：users 的 create 與 update 分開寫
+//                    create: 本人可建（第一次登入）；update: 禁止竄改 proGrant
+//          【修復 2】新增 firestoreErrMsg() 中文化函式，建立婚禮/複製專案的 catch 改用此函式
+//                    「Missing or insufficient permissions」→ 顯示中文說明與解法
 //
+// v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
 // v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正（登入後直接跳 #/dev）
 // v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
 //          【新增】#/dev 開發者後台，僅 PLATFORM_ADMIN_EMAILS 白名單帳號可進
@@ -781,6 +784,28 @@ const PLATFORM_ADMIN_EMAILS = [
 ];
 const isPlatformAdmin = (u) =>
   !!u && !!u.email && PLATFORM_ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(String(u.email).toLowerCase());
+
+// ── Firestore 錯誤訊息中文化（v6.8.2）────────────────────────
+const firestoreErrMsg = (e) => {
+  const msg = (e.message || '').toLowerCase();
+  const code = e.code || '';
+  if (code === 'permission-denied' || msg.includes('missing or insufficient permissions')) {
+    return '權限不足，無法完成這個操作。\n\n可能原因：\n• 登入狀態已過期，請重新整理頁面後再試\n• 若問題持續，請嘗試登出後重新登入';
+  }
+  if (code === 'unavailable' || msg.includes('unavailable')) {
+    return '目前網路連線不穩定，請確認網路後再試一次。';
+  }
+  if (code === 'not-found' || msg.includes('not found')) {
+    return '找不到指定的資料，可能已被刪除或尚未建立。';
+  }
+  if (code === 'already-exists') {
+    return '資料已存在，請重新整理頁面後再試。';
+  }
+  if (code === 'resource-exhausted') {
+    return '目前請求量過多，請稍後再試。';
+  }
+  return '操作失敗，請重新整理頁面後再試。\n若問題持續請聯絡客服。\n\n（錯誤代碼：' + (code || msg.slice(0,60) || '未知') + '）';
+};
 
 
 const GROUP_INFO = {
@@ -6099,7 +6124,7 @@ function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
 
       onComplete(weddingId);
     } catch (e) {
-      uiAlert('建立失敗：' + e.message);
+      uiAlert('建立婚禮失敗\n\n' + firestoreErrMsg(e));
     } finally { setSaving(false); }
   };
 
@@ -7635,7 +7660,7 @@ export default function WeddingApp() {
       await loadUserWeddings(fb, user.uid);
       uiAlert('✓ 已建立副本！可在「我的婚禮」中查看並編輯。');
     } catch (e) {
-      uiAlert('複製失敗：' + e.message);
+      uiAlert('複製失敗\n\n' + firestoreErrMsg(e));
     }
   };
 
