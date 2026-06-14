@@ -1,14 +1,16 @@
 // ============================================================
-// WEDDING SAAS  v6.8.5  （商業版／多租戶）
+// WEDDING SAAS  v6.8.6  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.8.5  2026-06-14  ★ Patch：修正未登入直接輸入 #/setup 可進建立向導 + 管理員 setup 迴圈
-//          【Bug1】直接輸入 #/setup 網址（未登入）會略過登入攔截、直接顯示建立婚禮向導
-//          【修復1】setup 路由條件改為「必須 isLoggedIn」才進入；未登入由前置攔截導回登入頁
-//          【Bug2】管理員無婚禮時，fallback 會把管理員導回 #/setup，但 setup 又排除管理員 → Spinner 迴圈
-//          【修復2】!weddingId 的 fallback 導向加入 isPlatformAdmin → #/dev 例外
+// v6.8.6  2026-06-14  ★ Patch：後台新人姓名顯示 + 夜幕暗黑感謝頁文字可見性
+//          【修復1】DevConsole load()：婚禮新人姓名(config)存在子文件 data/main，
+//                   原本只讀 weddings 主文件 → 顯示「? & ?」。改為並行補讀各婚禮 main 文件取得 config
+//          【修復2】賓客端感謝頁文字寫死淺灰(#6B6259/#9A8F82)、標題未設色，
+//                   在夜幕暗黑等深色主題上看不見。改用主題色 gs.text/subText/mutedText、
+//                   額外資訊框背景改 gs.pageBg + 邊框
 //
+// v6.8.5  2026-06-14  ★ Patch：修正未登入直接輸入 #/setup 可進建立向導 + 管理員 setup 迴圈
 // v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護（防止刪自己）
 // v6.8.3  2026-06-14  ★ Patch：修正新用戶建立婚禮被規則擋 + 錯誤訊息中文化
 // v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
@@ -1960,10 +1962,10 @@ function RSVPPage({data,onSubmit}) {
             onClick={()=>setEnlargedImg(cfg.thankYouImgDataUrl)}
             style={{width:'min(460px, 90vw)',height:'auto',objectFit:'contain',borderRadius:4,marginBottom:16,cursor:'zoom-in'}} />}
           <div style={{fontSize:44,marginBottom:14}}>💐</div>
-          <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:2,marginBottom:10}}>{cfg.thankYouTitle||'感謝您的回覆'}</div>
-          {thankLines.map((l,i)=><div key={i} style={{color:'#6B6259',lineHeight:1.9,fontSize:15}}>{l}</div>)}
-          {cfg.thankYouExtra && <div style={{marginTop:16,padding:'12px 16px',background:'#F9F5EF',borderRadius:2,fontSize:13,color:'#6B6259',textAlign:'center',lineHeight:1.8}}>{cfg.thankYouExtra}</div>}
-          {cfg.transportInfo && <div style={{marginTop:12,fontSize:12,color:'#9A8F82'}}>{cfg.transportInfo}</div>}
+          <div style={{fontFamily:FONT_STACK,fontSize:26,letterSpacing:2,marginBottom:10,color:gs.text}}>{cfg.thankYouTitle||'感謝您的回覆'}</div>
+          {thankLines.map((l,i)=><div key={i} style={{color:gs.subText,lineHeight:1.9,fontSize:15}}>{l}</div>)}
+          {cfg.thankYouExtra && <div style={{marginTop:16,padding:'12px 16px',background:gs.pageBg,border:`1px solid ${gs.border}`,borderRadius:2,fontSize:13,color:gs.subText,textAlign:'center',lineHeight:1.8}}>{cfg.thankYouExtra}</div>}
+          {cfg.transportInfo && <div style={{marginTop:12,fontSize:12,color:gs.mutedText}}>{cfg.transportInfo}</div>}
           <div style={{marginTop:24,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',alignItems:'center'}}>
             <Btn v="ghost" size="sm" onClick={()=>{setSubmitted(false);setForm({name:'',nickname:'',side:'shared',subGroup:'',attending:'yes',count:1,vegCount:0,special:'',needInvitation:false,address:'',blessing:'',publicBlessing:true});}}>再填一筆</Btn>
             <button
@@ -6801,12 +6803,17 @@ function DevConsolePage({ user, fbRef, onBack }) {
         fb.db.collection('users').get(),
         fb.db.collection('weddings').get(),
       ]);
-      // 婚禮依 ownerId 分組
+      // 婚禮依 ownerId 分組；config（新人姓名）存在子文件 data/main，需各自補讀（並行）
+      const weds = await Promise.all(wedSnap.docs.map(async d => {
+        const base = { weddingId: d.id, ...d.data() };
+        try {
+          const main = await mainDocRef(fb.db, d.id).get();
+          if (main.exists && main.data() && main.data().config) base.config = main.data().config;
+        } catch (_) {}
+        return base;
+      }));
       const byOwner = {};
-      wedSnap.forEach(d => {
-        const w = { weddingId: d.id, ...d.data() };
-        (byOwner[w.ownerId] = byOwner[w.ownerId] || []).push(w);
-      });
+      weds.forEach(w => { (byOwner[w.ownerId] = byOwner[w.ownerId] || []).push(w); });
       const list = [];
       usersSnap.forEach(d => {
         const u = d.data() || {};
