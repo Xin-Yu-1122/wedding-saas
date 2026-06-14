@@ -1,7 +1,28 @@
 // ============================================================
-// WEDDING SAAS  v6.6.7  （商業版／多租戶）
-// 最後更新：2026-06-13
+// WEDDING SAAS  v6.7.0  （商業版／多租戶）
+// 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.7.0  2026-06-14  ★ Minor：免費版重定義 + 過期排位鎖 + 複製專案 + 建立頁返回鈕
+//          【免費版重定義】FREE_TABLE_LIMIT 5→3；新增 FREE_SEAT_LIMIT=32
+//          • 排位：最多 3 桌、已入座最多 32 人（名單不限量、RSVP 照常）
+//            — dropOnSeat / 手機 assignToTable 都擋第 33 人（僅 ≤3 桌時生效）
+//          • 名單匯出、排位匯出（CSV/JPG/PDF/帶位清單）非 Pro 一律禁用 → 🔒 匯出鈕
+//          【過期排位鎖 planLocked】非 Pro 且桌數 > FREE_TABLE_LIMIT（曾為 Pro 已降級）：
+//          • 依「建立順序」前 3 桌可正常編輯，第 4 桌(含)以後鎖定
+//          • 鎖定桌：座位隱藏姓名（顯示🔒）、不可拖移/改派/移除/刪除/開編輯、不可移動桌位
+//          • 名單管理頁完全不受影響（只鎖排位畫布上的名字）；祝福牆完全不變
+//          • RoundTable 新增 planLocked prop；SeatingPage 新增 planLockedIds/isPlanLocked
+//          【複製專案】我的婚禮卡片新增「⧉ 複製」：複製 設定/主題/桌位排版(tables/zones/markers/mainTableId)
+//          • 清空 名單/avoidPairs/samePairs/versions/photos；副本 plan='free'、未發布、擁有者為自己
+//          • 算入免費版專案數上限（達上限擋下並提示升級）
+//          【建立頁返回鈕】WeddingSetupWizard 新增 onCancel：「← 返回我的婚禮」
+//          • 僅在 weddings.length>0 時顯示（全新使用者無可返回的專案頁）
+//          • 已填資料時放棄前先確認
+//          【未動】祝福牆、雙鎖(posLocked/seatLocked)、optimistic locking(lastSyncedRef)、
+//                  主題系統、data-tp 排位隔離、既有匯出的智慧裁切邏輯（僅外層加權限閘門）
+//          【註】免費 vs 過期 以 tables.length 與 FREE_TABLE_LIMIT 區分（訂閱資料模型尚未建立，
+//                待金流階段以 subscriptions.status 取代此推導）
 //
 // v6.6.7  2026-06-13  ★ Patch：夜幕暗黑拱窗月光修復（改 overlay 元件）
 //          【Bug】v6.6.6 夜幕拱窗月光完全不顯示：pagePattern 用了
@@ -727,7 +748,8 @@ const FONTS_LATIN = {
 // FREEMIUM LIMITS — 模組層級常數（AccountCenterPage / DashboardPage / WeddingApp / SeatingPage 共用）
 // ============================================================
 const FREE_PROJECT_LIMIT = 2;
-const FREE_TABLE_LIMIT   = 5;
+const FREE_TABLE_LIMIT   = 3;   // v6.7.0：免費版排位桌數上限 5→3
+const FREE_SEAT_LIMIT    = 32;  // v6.7.0：免費版排位「已入座人數」上限（主桌一桌即 32 人）
 
 const GROUP_INFO = {
   groom: { label:"新郎方", color:"#3A60A8", soft:"#DCE4F2", subs:["新郎親友","新郎公司同事","新郎親戚長輩"] },
@@ -2532,7 +2554,7 @@ function SameTablePairsModal({open,onClose,data,onUpdate}) {
 // ============================================================
 // ADMIN PAGE
 // ============================================================
-function AdminPage({data,onUpdate,weddingId}) {
+function AdminPage({data,onUpdate,weddingId,isPro}) {
   const GI = getGroupInfo(data.config);
   const [search,setSearch] = useState('');
   const [filterSide,setFilterSide] = useState('all');
@@ -2676,12 +2698,14 @@ function AdminPage({data,onUpdate,weddingId}) {
           <Btn v="ghost" size="sm" onClick={()=>setShowSame(true)}>
             同桌管理 {sameUnmetCount>0&&<span style={{background:'#B5895F',color:'#fff',borderRadius:'50%',padding:'0 5px',fontSize:10,marginLeft:3}}>{sameUnmetCount}</span>}
           </Btn>
-          <Dropdown label="匯出" items={[
-            {label:'匯出 CSV (完整名單)', action: exportCSV},
-            {label:'匯出索取紙本喜帖名單', action: exportInviteList},
-            {label:'匯出素食名單', action: exportVegList},
-            {label:'匯出特殊需求名單', action: exportSpecialList}
-          ]} />
+          {isPro
+            ? <Dropdown label="匯出" items={[
+                {label:'匯出 CSV (完整名單)', action: exportCSV},
+                {label:'匯出索取紙本喜帖名單', action: exportInviteList},
+                {label:'匯出素食名單', action: exportVegList},
+                {label:'匯出特殊需求名單', action: exportSpecialList}
+              ]} />
+            : <Btn v="ghost" size="sm" onClick={()=>uiProUpgrade('名單匯出為 Pro 方案專屬功能')} title="升級 Pro 解鎖匯出">🔒 匯出</Btn>}
           <Btn size="sm" onClick={()=>setShowAdd(true)}>＋ 新增賓客</Btn>
         </div>
       </div>
@@ -2873,7 +2897,7 @@ function AdminPage({data,onUpdate,weddingId}) {
 // ============================================================
 // SEATING COMPONENTS
 // ============================================================
-function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDropSeat,onStartSeatDrag,onRemoveSeat,onClickGuest,posLocked,seatLocked,onUnlockPos,onUnlockSeat,groupInfo,tapPending,onTapPlace}) {
+function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDropSeat,onStartSeatDrag,onRemoveSeat,onClickGuest,posLocked,seatLocked,planLocked,onUnlockPos,onUnlockSeat,groupInfo,tapPending,onTapPlace}) {
   const GI = groupInfo || GROUP_INFO;
   const cap = table.capacity||10;
   const [hov,setHov] = useState(false);   // v5.3：hover 才浮出解鎖鈕
@@ -2885,7 +2909,7 @@ function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDro
     return s;
   },[conflicts]);
   const sz = (SEAT_OUTER+SEAT_SIZE)*2;
-  const anyLock = posLocked || seatLocked;
+  const anyLock = posLocked || seatLocked || planLocked;
   const badge = {display:'inline-flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:10,
     fontSize:11,lineHeight:1,background:'rgba(249,245,239,.96)',border:'1px solid #D4B894',color:'#7A6E5E',
     boxShadow:'0 1px 4px rgba(0,0,0,.12)',userSelect:'none'};
@@ -2908,12 +2932,15 @@ function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDro
               {hov && <button onClick={e=>{e.stopPropagation();onUnlockSeat(table.id);}} onPointerDown={e=>e.stopPropagation()} title="解除座位鎖" style={unlockBtn}>✕</button>}
             </span>
           )}
+          {planLocked && (
+            <span style={{...badge,background:'rgba(192,64,64,.95)',border:'1px solid #C04040',color:'#fff'}} title="方案到期，此桌已鎖定，續訂 Pro 後可編輯">🔒 已鎖定</span>
+          )}
         </div>
       )}
       {/* Circle */}
       <div data-tp="1" data-table={table.id}
         onPointerDown={e=>{
-          if(posLocked||tapPending) return;   // v5.3：只有位置鎖擋拖曳
+          if(posLocked||tapPending||planLocked) return;   // v5.3：只有位置鎖擋拖曳；v6.7：方案到期鎖也擋
           try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
           onDragStart(e,table.id);
         }}
@@ -2946,7 +2973,8 @@ function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDro
         const conflict=g&&conflictIds.has(g.id);
         const isFirst=g&&(((g.startSeat||0)%cap)===i);
         // 既有的人在座位鎖時凍結（不能拖/移除）；空位永遠可被放入（HTML5 onDrop 不擋）
-        const frozen = g && seatLocked;
+        // v6.7：方案到期鎖（planLocked）一併凍結，且名字隱藏
+        const frozen = g && (seatLocked || planLocked);
         return (
           <div key={i} className="wed-seat"
             data-seat={`${table.id}|${i}`}
@@ -2973,12 +3001,12 @@ function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDro
                   if(frozen){ return; }            // 座位鎖：既有的人不能拖
                   if(isFirst && onStartSeatDrag) onStartSeatDrag(e,{type:'seat',guestId:g.id},displayName(g,2,3),g);
                 }}
-                title={g.name+(g.count>1?` (${g.count}人)`:'')+(frozen?'（座位已鎖定）':' — 拖曳可改派、點擊看資料')}
+                title={planLocked?'方案到期，此桌已鎖定（續訂 Pro 後可編輯）':g.name+(g.count>1?` (${g.count}人)`:'')+(frozen?'（座位已鎖定）':' — 拖曳可改派、點擊看資料')}
                 style={{width:'100%',height:'100%',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
                   fontSize:10,fontWeight:700,color:'#FFFEFA',whiteSpace:'nowrap',overflow:'hidden',
                   border:'none',cursor:frozen?'default':'grab',
-                  letterSpacing:0,background:info.color,touchAction:'none'}}>
-                {displayName(g,2,3)}
+                  letterSpacing:0,background:planLocked?'#B0A89C':info.color,touchAction:'none'}}>
+                {planLocked ? '🔒' : displayName(g,2,3)}
               </button>
             ):(i+1)}
             {/* 移除 × — 獨立小鈕，hover 才出現，與拖曳/點擊分離；座位鎖時不顯示 */}
@@ -3004,6 +3032,17 @@ function RoundTable({table,guests,isMain,onDragStart,onClickEdit,conflicts,onDro
 // ============================================================
 function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
   const GI = getGroupInfo(data.config);
+  // ── v6.7.0 方案權限 ──────────────────────────────────────────────
+  // 「方案到期鎖」：非 Pro 且桌數已超過免費上限（代表曾為 Pro、現已降級）
+  //   → 依「建立順序」前 FREE_TABLE_LIMIT 桌可正常編輯，其餘鎖定（隱藏姓名、不可動/刪/移）
+  const planLockedIds = useMemo(()=>{
+    if (isPro || data.tables.length <= FREE_TABLE_LIMIT) return new Set();
+    return new Set(data.tables.slice(FREE_TABLE_LIMIT).map(t=>t.id));
+  },[isPro, data.tables]);
+  const isPlanLocked = (tableId)=> planLockedIds.has(tableId);
+  // 免費版「已入座人數」上限：僅在未超過免費桌數時生效（到期降級的大型專案改由 planLock 控管）
+  const freeSeatCapOn = !isPro && data.tables.length <= FREE_TABLE_LIMIT;
+  const seatedTotal = useMemo(()=> data.guests.filter(g=>g.tableId&&g.attending).reduce((s,g)=>s+(g.count||1),0), [data.guests]);
   // v5.3 畫布尺寸（場地規模）
   const canvasW = (data.config && data.config.canvasW) || DEFAULT_CANVAS_W;
   const canvasH = (data.config && data.config.canvasH) || DEFAULT_CANVAS_H;
@@ -3063,6 +3102,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
     if(tapSelected.length === 0) return;
     const t = data.tables.find(x => x.id === tableId); 
     if(!t) return;   // v5.3：座位鎖允許往空位加新人，故不擋
+    if(isPlanLocked(tableId)){ uiProUpgrade('此桌因方案到期已鎖定，續訂 Pro 後可編輯'); return; }   // v6.7
     
     // 蒐集選中宾客及總人數
     let totalPeople = 0, guestIds = [];
@@ -3073,6 +3113,10 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
       totalPeople += g.count || 1;
     }
     if(totalPeople === 0) return;
+    // v6.7：免費版排位人數上限
+    if(freeSeatCapOn && seatedTotal + totalPeople > FREE_SEAT_LIMIT){
+      uiProUpgrade(`免費版排位上限 ${FREE_SEAT_LIMIT} 人，升級 Pro 可無限排位`); return;
+    }
     
     // 驗證：座位足夠？
     const cap = t.capacity || 8;
@@ -3219,6 +3263,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
   // Drag table — v5.1.9：拖曳期間「直接改 DOM 位置」不觸發 React 重繪（手機才不會掉幀/吞觸控），
   //                放開手指才寫入一次 state＋Firestore。搭配 setPointerCapture 鎖定觸控。
   const startDragTable=(e,id)=>{
+    if(isPlanLocked(id)) return;   // v6.7：方案到期鎖定的桌子不可移動
     if(isMobile && tapSelected.length > 0) return;  // 手機有選中賓客待放入時才不啟動拖曳（v5.2 tapSelected 改陣列，空陣列 [] 是 truthy，必須檢查 length）
     e.preventDefault();
     const wrapper = e.currentTarget && e.currentTarget.parentElement; // 外層定位 div（left:table.x）
@@ -3383,6 +3428,13 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
     let p; try{p=JSON.parse(payloadStr);}catch{return;}
     const table=data.tables.find(t=>t.id===tableId); if(!table) return;
     const guest=data.guests.find(g=>g.id===p.guestId); if(!guest) return;
+    // v6.7：方案到期鎖 — 不可放入鎖定桌、不可移動鎖定桌上的人
+    if(isPlanLocked(tableId)){ uiProUpgrade('此桌因方案到期已鎖定，續訂 Pro 後可編輯'); return; }
+    if(p.type==='seat' && guest.tableId && isPlanLocked(guest.tableId)){ uiProUpgrade('此桌因方案到期已鎖定'); return; }
+    // v6.7：免費版排位人數上限（僅對「新入座」的人計算；同桌內挪動不增加總數）
+    if(freeSeatCapOn && p.type!=='seat' && guest.tableId!==tableId && seatedTotal + (guest.count||1) > FREE_SEAT_LIMIT){
+      uiProUpgrade(`免費版排位上限 ${FREE_SEAT_LIMIT} 人，升級 Pro 可無限排位`); return;
+    }
     // v5.3：移動「既有已排的人」時，若其原本所在的桌座位已鎖，則禁止（空位加新人不受限）
     if(p.type==='seat' && guest.tableId && isSeatLocked(guest.tableId)){ uiAlert('該桌座位已鎖定，無法移動已排好的賓客'); return; }
     const cnt=guest.count||1;
@@ -3404,6 +3456,8 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
 
   const removeFromTable=id=>{
     const g=data.guests.find(x=>x.id===id);
+    // v6.7：方案到期鎖時不可移除
+    if(g && g.tableId && isPlanLocked(g.tableId)){ uiProUpgrade('此桌因方案到期已鎖定'); return; }
     // v5.3：座位鎖時，既有的人不可被移除
     if(g && g.tableId && isSeatLocked(g.tableId)){ uiAlert('該桌座位已鎖定，無法移除已排好的賓客'); return; }
     onUpdate({...data,guests:data.guests.map(x=>x.id===id?{...x,tableId:null,startSeat:null}:x)});
@@ -3677,7 +3731,9 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
           </select>
           <Btn v="ghost" size="sm" onClick={saveVersion}>💾 存版本</Btn>
           <Btn v="ghost" size="sm" onClick={()=>setShowVersions(true)}>版本紀錄 ({(data.versions||[]).length})</Btn>
-          <Dropdown label="匯出" icon="⬇" items={exportItems} />
+          {isPro
+            ? <Dropdown label="匯出" icon="⬇" items={exportItems} />
+            : <Btn v="ghost" size="sm" onClick={()=>uiProUpgrade('排位匯出為 Pro 方案專屬功能')} title="升級 Pro 解鎖匯出">🔒 匯出</Btn>}
         </div>
 
         {/* Canvas */}
@@ -3739,10 +3795,10 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
             })}
             {data.tables.map(t=>(
               <RoundTable key={t.id} table={t} guests={data.guests} isMain={mainTableId===t.id}
-                posLocked={!!t.posLocked} seatLocked={!!t.seatLocked}
+                posLocked={!!t.posLocked} seatLocked={!!t.seatLocked} planLocked={isPlanLocked(t.id)}
                 groupInfo={GI}
                 onDragStart={startDragTable}
-                onClickEdit={id=>{ if(dragMovedRef.current) return; setTableEdit(data.tables.find(x=>x.id===id)); }}
+                onClickEdit={id=>{ if(dragMovedRef.current) return; if(isPlanLocked(id)){ uiProUpgrade('此桌因方案到期已鎖定，續訂 Pro 後可編輯'); return; } setTableEdit(data.tables.find(x=>x.id===id)); }}
                 onUnlockPos={id=>onUpdate({...data,tables:data.tables.map(x=>x.id===id?{...x,posLocked:false}:x)})}
                 onUnlockSeat={id=>onUpdate({...data,tables:data.tables.map(x=>x.id===id?{...x,seatLocked:false}:x)})}
                 conflicts={allConflicts.get(t.id)||[]}
@@ -5928,7 +5984,7 @@ function WizardPreviewOverlay({ form, onClose }) {
   );
 }
 
-function WeddingSetupWizard({ user, fbRef, onComplete }) {
+function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -6015,6 +6071,20 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
   return (
     <div style={{minHeight:'100vh',background:'#F9F5EF',padding:20,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div className="wfadein" style={{...S.card,padding:'36px 32px',maxWidth:560,width:'100%'}}>
+        {/* v6.7.0：返回／放棄建立（僅在已有專案時顯示，全新使用者沒有可返回的專案頁） */}
+        {onCancel && (
+          <div style={{marginBottom:14}}>
+            <button onClick={async()=>{
+                const dirty = form.groomName.trim()||form.brideName.trim()||form.venue.trim();
+                if(dirty && !(await uiConfirm({title:'放棄建立？',message:'尚未建立的資料將不會保存。',confirmText:'放棄並返回',cancelText:'繼續編輯'}))) return;
+                onCancel();
+              }}
+              style={{background:'none',border:'none',padding:0,cursor:'pointer',fontFamily:FONT_STACK,
+                fontSize:13,color:'#9A8F82',letterSpacing:.5}}>
+              ← 返回我的婚禮
+            </button>
+          </div>
+        )}
         {/* 步驟指示器 */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:0,marginBottom:28}}>
           {stepTitles.map((t, i) => (
@@ -6041,8 +6111,8 @@ function WeddingSetupWizard({ user, fbRef, onComplete }) {
             <div style={{padding:'10px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',
               borderRadius:3,fontSize:12,color:'#7A5C00',marginBottom:16,lineHeight:1.8}}>
               📋 <strong>免費版使用限制：</strong><br/>
-              • 最多建立 <strong>2 個</strong>婚禮專案<br/>
-              • 排位桌數上限 <strong>5 桌</strong>（升級 Pro 可無限新增）
+              • 最多建立 <strong>{FREE_PROJECT_LIMIT} 個</strong>婚禮專案<br/>
+              • 排位上限 <strong>{FREE_TABLE_LIMIT} 桌 · {FREE_SEAT_LIMIT} 人</strong>，名單與排位匯出為 Pro 功能（升級 Pro 解除所有限制）
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
               <Field label="新郎姓名" required>
@@ -6335,7 +6405,8 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
                   ) : (
                     <>
                       <div>• 最多 {FREE_PROJECT_LIMIT} 個婚禮專案</div>
-                      <div>• 排位最多 {FREE_TABLE_LIMIT} 桌</div>
+                      <div>• 排位 {FREE_TABLE_LIMIT} 桌 · {FREE_SEAT_LIMIT} 人</div>
+                      <div>• 名單／排位匯出為 Pro 功能</div>
                     </>
                   )}
                 </div>
@@ -6448,9 +6519,14 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
 }
 
 
-function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteWedding, onLogout, activeTab, onTabChange, accountProps }) {
+function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteWedding, onDuplicateWedding, onLogout, activeTab, onTabChange, accountProps }) {
   const isPro = weddings.some(w => w.plan === 'pro');
   const atLimit = !isPro && weddings.length >= FREE_PROJECT_LIMIT;
+
+  const handleDuplicate = (e, w) => {
+    e.stopPropagation();
+    if (onDuplicateWedding) onDuplicateWedding(w);
+  };
 
   const handleDelete = async (e, w) => {
     e.stopPropagation();
@@ -6541,7 +6617,7 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
         {!isPro && (
           <div style={{padding:'10px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',
             borderRadius:3,fontSize:12,color:'#7A5C00',marginBottom:20,lineHeight:1.7}}>
-            💡 <strong>免費版限制：</strong>最多 {FREE_PROJECT_LIMIT} 個婚禮專案・排位最多 {FREE_TABLE_LIMIT} 桌
+            💡 <strong>免費版限制：</strong>最多 {FREE_PROJECT_LIMIT} 個婚禮專案・排位 {FREE_TABLE_LIMIT} 桌 {FREE_SEAT_LIMIT} 人・匯出為 Pro 功能
             <span style={{color:'#B5895F',marginLeft:8,cursor:'pointer',textDecoration:'underline'}}
               onClick={()=>uiProUpgrade()}>
               了解 Pro 方案 →
@@ -6590,6 +6666,12 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
                     background:'#F9F5EF',color:'#6B6259',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}
                     title="複製賓客邀請連結">
                     🔗 邀請連結
+                  </button>
+                  <button onClick={e=>handleDuplicate(e,w)}
+                    style={{padding:'5px 10px',borderRadius:2,border:'1px solid #E5DDD0',
+                      background:'#F9F5EF',color:'#6B6259',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}
+                    title="複製此專案（設定／主題／桌位排版）">
+                    ⧉ 複製
                   </button>
                   <button onClick={e=>handleDelete(e,w)}
                     style={{padding:'5px 10px',borderRadius:2,border:'1px solid #EECDD6',
@@ -7220,6 +7302,69 @@ export default function WeddingApp() {
     }
   };
 
+  const handleDuplicateWedding = async (srcW) => {
+    if (!fbRef.current || !srcW) return;
+    const fb = fbRef.current;
+    // 複製算入免費版專案數上限
+    const isProNow = weddings.some(w => w.plan === 'pro');
+    if (!isProNow && weddings.length >= FREE_PROJECT_LIMIT) {
+      uiProUpgrade(`您已達免費版上限（${FREE_PROJECT_LIMIT} 個婚禮專案），無法再複製`);
+      return;
+    }
+    const ok = await uiConfirm({
+      title: '複製婚禮專案',
+      message: '將以此專案的「婚禮設定、佈景主題、桌位排版」建立一個新副本。\n\n賓客名單、RSVP 回覆、祝福牆留言與照片不會一併複製（新副本為空白名單）。\n\n確定要複製嗎？',
+      confirmText: '建立副本',
+      cancelText: '取消',
+    });
+    if (!ok) return;
+    try {
+      const now = Date.now();
+      const newId = uid() + uid();
+      // 讀來源主文件
+      const srcSnap = await mainDocRef(fb.db, srcW.weddingId).get();
+      const sd = srcSnap.exists ? srcSnap.data() : {};
+      const srcConfig = sd.config || srcW.config || {};
+      // 婚禮主文件（副本一律從免費版開始、擁有者為自己）
+      await weddingDoc(fb.db, newId).set({
+        ownerId: user.uid,
+        ownerEmail: user.email || '',
+        createdAt: now,
+        plan: 'free',
+        weddingId: newId,
+      });
+      // main data：複製 設定/主題/桌位排版；清空名單、配對、版本、照片
+      const dupData = {
+        ...emptyData(),
+        config:  { ...srcConfig },
+        tables:  Array.isArray(sd.tables)  ? sd.tables.map(t => ({ ...t }))  : [],
+        zones:   Array.isArray(sd.zones)   ? sd.zones.map(z => ({ ...z }))   : [],
+        markers: Array.isArray(sd.markers) ? sd.markers.map(m => ({ ...m })) : emptyData().markers,
+        guests: [],
+        avoidPairs: [],
+        samePairs: [],
+        versions: [],
+        photos: [{ id: 'default', enabled: true, order: 0, focalY: 50 }],
+        mainTableId: sd.mainTableId != null ? sd.mainTableId : null,
+        lastUpdate: now,
+      };
+      await mainDocRef(fb.db, newId).set(dupData);
+      await photosColRef(fb.db, newId).doc('default').set({ dataUrl: DEFAULT_PHOTO_B64 }).catch(() => {});
+      // 更新 user.weddingIds
+      const userRef = fb.db.collection('users').doc(user.uid);
+      const userSnap = await userRef.get();
+      const existing = userSnap.exists ? (userSnap.data().weddingIds || []) : [];
+      await userRef.set({
+        uid: user.uid, email: user.email || '', displayName: user.displayName || '',
+        weddingIds: [...existing, newId], updatedAt: now,
+      }, { merge: true });
+      await loadUserWeddings(fb, user.uid);
+      uiAlert('✓ 已建立副本！可在「我的婚禮」中查看並編輯。');
+    } catch (e) {
+      uiAlert('複製失敗：' + e.message);
+    }
+  };
+
   // ── 帳戶中心 handlers ──
   const acctChangePassword = async () => {
     if (!fbRef.current || !user?.email) return;
@@ -7375,6 +7520,7 @@ export default function WeddingApp() {
     }
     return (
       <AppShell><WeddingSetupWizard user={user} fbRef={fbRef}
+        onCancel={weddings.length>0 ? ()=>navigate('#/dashboard') : null}
         onComplete={(newId)=>{
           // 立刻在本地加入這筆婚禮，避免 loadUserWeddings 期間 weddings.length===0 再次觸發向導
           setWeddings(prev => prev.length===0 ? [{weddingId:newId, config:{}}] : prev);
@@ -7414,6 +7560,7 @@ export default function WeddingApp() {
         onSelectWedding={wid=>navigate(`#/w/${wid}`)}
         onCreateNew={()=>{ if(atProjectLimit){ uiProUpgrade(`您已達免費版上限（${FREE_PROJECT_LIMIT} 個婚禮專案）`); return; } navigate('#/setup'); }}
         onDeleteWedding={handleDeleteWedding}
+        onDuplicateWedding={handleDuplicateWedding}
         onLogout={handleFirebaseLogout} /></AppShell>
     );
   }
@@ -7519,7 +7666,7 @@ export default function WeddingApp() {
 
       {activePage==='rsvp'    && <RSVPPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} />}
-      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} />}
+      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} />}
       {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} />}
       {activePage==='info'    && isAuthedAdmin && canInfo && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} />}
       {activePage==='info'    && isAuthedAdmin && !canInfo && (
