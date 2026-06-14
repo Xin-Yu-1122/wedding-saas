@@ -1,7 +1,12 @@
 // ============================================================
-// WEDDING SAAS  v6.8.0  （商業版／多租戶）
+// WEDDING SAAS  v6.8.1  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正
+//          【Bug】管理員登入後被「無婚禮→跳建立向導」邏輯攔截，無法直接進後台
+//          【修復】登入導向邏輯：isPlatformAdmin → 直接 navigate('#/dev')
+//                  setup 向導觸發條件加 !isPlatformAdmin(user) 排除管理員
 //
 // v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
 //          【新增】#/dev 開發者後台，僅 PLATFORM_ADMIN_EMAILS 白名單帳號可進
@@ -7763,7 +7768,9 @@ export default function WeddingApp() {
   // 已登入、在 #/login → 依婚禮數量導向
   if(isLoggedIn && (parsed.section==='login'||parsed.section==='')){
     if(!loadingWeddings){
-      if(weddings.length===0) navigate('#/setup');
+      // v6.8.0：管理員帳號直接跳後台，不走婚禮向導
+      if(isPlatformAdmin(user)) navigate('#/dev');
+      else if(weddings.length===0) navigate('#/setup');
       else if(weddings.length===1) navigate(`#/w/${weddings[0].weddingId}`);
       else navigate('#/dashboard');
     }
@@ -7794,7 +7801,7 @@ export default function WeddingApp() {
   const isPro = weddings.some(w=>w.plan==='pro') || currentPlan==='pro';
   const atProjectLimit = !isPro && weddings.length >= FREE_PROJECT_LIMIT;
 
-  if(parsed.section==='setup' || (isLoggedIn && !loadingWeddings && weddings.length===0 && parsed.section!=='w')){
+  if(parsed.section==='setup' || (isLoggedIn && !loadingWeddings && weddings.length===0 && parsed.section!=='w' && !isPlatformAdmin(user))){
     // 已達免費版上限且非 Pro → 擋住，不讓進向導
     if(atProjectLimit){
       navigate('#/dashboard');
