@@ -1,7 +1,20 @@
 // ============================================================
-// WEDDING SAAS  v6.7.0  （商業版／多租戶）
+// WEDDING SAAS  v6.8.0  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
+//          【新增】#/dev 開發者後台，僅 PLATFORM_ADMIN_EMAILS 白名單帳號可進
+//          • 總覽所有使用者帳號（查 users + weddings 分組）、搜尋、統計
+//          • 手動開通 / 移除 Pro（帳號級 users/{uid}.proGrant + 同步該帳號所有婚禮 plan）
+//          • 刪除帳號的 Firestore 資料（婚禮 + user 文件）
+//          • 付款紀錄區塊 placeholder（待金流）；「刪除登入帳號」停用（需 Cloud Functions 階段 B）
+//          • Dashboard 頂部對管理員顯示「🛠 開發者後台」入口
+//          • createWedding：帳號已手動開通 Pro 時，新建婚禮直接繼承 plan='pro'
+//          【需配合】firestore.rules 需允許 admin 跨帳號讀寫 users/weddings，
+//                    並鎖死 plan/proGrant 不讓擁有者自行竄改（附於交付說明）
+//          【前端 gate 僅為隱藏，真正安全在 Firestore 規則】
+//          【未動】既有功能（名單/排位/祝福牆/雙鎖/樂觀鎖/主題/匯出邏輯）
 //
 // v6.7.0  2026-06-14  ★ Minor：免費版重定義 + 過期排位鎖 + 複製專案 + 建立頁返回鈕
 //          【免費版重定義】FREE_TABLE_LIMIT 5→3；新增 FREE_SEAT_LIMIT=32
@@ -750,6 +763,18 @@ const FONTS_LATIN = {
 const FREE_PROJECT_LIMIT = 2;
 const FREE_TABLE_LIMIT   = 3;   // v6.7.0：免費版排位桌數上限 5→3
 const FREE_SEAT_LIMIT    = 32;  // v6.7.0：免費版排位「已入座人數」上限（主桌一桌即 32 人）
+
+// ============================================================
+// v6.8.0 開發者後台（DEV CONSOLE）— 平台管理員白名單
+// ⚠️ 請把你的「登入 email」填到下面陣列（可多個），並同步寫進 firestore.rules 的 isAdmin()。
+//    前端 gate 只是「看不到」，真正的安全在 Firestore 規則。
+// ============================================================
+const PLATFORM_ADMIN_EMAILS = [
+  'CHANGE_ME@example.com',   // ← 改成你的管理員 email
+];
+const isPlatformAdmin = (u) =>
+  !!u && !!u.email && PLATFORM_ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(String(u.email).toLowerCase());
+
 
 const GROUP_INFO = {
   groom: { label:"新郎方", color:"#3A60A8", soft:"#DCE4F2", subs:["新郎親友","新郎公司同事","新郎親戚長輩"] },
@@ -6052,6 +6077,11 @@ function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
       const userRef = fb.db.collection('users').doc(user.uid);
       const userSnap = await userRef.get();
       const existingWeddings = userSnap.exists ? (userSnap.data().weddingIds || []) : [];
+      // v6.8.0：若帳號已是手動開通 Pro，新建婚禮直接繼承 Pro
+      const ownerProActive = userSnap.exists && userSnap.data().proGrant && userSnap.data().proGrant.active;
+      if (ownerProActive) {
+        await weddingDoc(fb.db, weddingId).update({ plan: 'pro' }).catch(()=>{});
+      }
       await userRef.set({
         uid: user.uid,
         email: user.email || '',
@@ -6570,6 +6600,9 @@ function DashboardPage({ user, weddings, onSelectWedding, onCreateNew, onDeleteW
       </div>
       <div style={{display:'flex',alignItems:'center',gap:14}}>
         <span style={{fontSize:12,color:'#9A8F82'}}>{user.email}</span>
+        {isPlatformAdmin(user) && (
+          <Btn v="ghost" size="sm" onClick={()=>{ window.location.hash = '#/dev'; }}>🛠 開發者後台</Btn>
+        )}
         <Btn v="ghost" size="sm" onClick={onLogout}>登出</Btn>
       </div>
     </nav>
@@ -6710,6 +6743,240 @@ function AppShell({ children }) {
     <div className="wed" style={{ minHeight:'100vh', background:'#F9F5EF' }}>
       <ConfirmDialogHost />
       {children}
+    </div>
+  );
+}
+
+// ============================================================
+// DEV CONSOLE — 開發者後台（v6.8.0）
+// 只有 PLATFORM_ADMIN_EMAILS 內的帳號可進入（前端 gate + Firestore 規則雙重把關）。
+// 功能：總覽所有使用者帳號、手動開通/移除 Pro、刪除帳號資料、查看付款紀錄(待金流)。
+// 註：刪除「真正的 Firebase 登入帳號」需 Cloud Functions + Admin SDK（階段 B），此處只刪 Firestore 資料。
+// ============================================================
+function DevConsolePage({ user, fbRef, onBack }) {
+  const [loading, setLoading]   = React.useState(true);
+  const [accounts, setAccounts] = React.useState([]);   // [{uid,email,displayName,weddingIds,proGrant,updatedAt,weddings:[...]}]
+  const [search, setSearch]     = React.useState('');
+  const [busy, setBusy]         = React.useState('');    // 正在處理的 uid
+  const [payView, setPayView]   = React.useState(null);  // 查看付款紀錄的帳號
+
+  const load = React.useCallback(async () => {
+    if (!fbRef.current) return;
+    setLoading(true);
+    try {
+      const fb = fbRef.current;
+      const [usersSnap, wedSnap] = await Promise.all([
+        fb.db.collection('users').get(),
+        fb.db.collection('weddings').get(),
+      ]);
+      // 婚禮依 ownerId 分組
+      const byOwner = {};
+      wedSnap.forEach(d => {
+        const w = { weddingId: d.id, ...d.data() };
+        (byOwner[w.ownerId] = byOwner[w.ownerId] || []).push(w);
+      });
+      const list = [];
+      usersSnap.forEach(d => {
+        const u = d.data() || {};
+        list.push({
+          uid: d.id,
+          email: u.email || '(無 email)',
+          displayName: u.displayName || '',
+          weddingIds: u.weddingIds || [],
+          proGrant: u.proGrant || null,
+          updatedAt: u.updatedAt || 0,
+          weddings: byOwner[d.id] || [],
+        });
+      });
+      list.sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
+      setAccounts(list);
+    } catch (e) {
+      uiAlert('載入失敗：' + e.message + '\n\n（若為權限錯誤，請確認 firestore.rules 已允許 admin 跨帳號讀取 users / weddings）');
+    } finally { setLoading(false); }
+  }, [fbRef]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const isAccPro = (a) => !!(a.proGrant && a.proGrant.active) || a.weddings.some(w => w.plan === 'pro');
+
+  const grantPro = async (a, active) => {
+    if (!fbRef.current) return;
+    const verb = active ? '開通' : '移除';
+    if (!await uiConfirm({
+      title: `${verb} Pro`,
+      message: `確定要為帳號「${a.email}」${verb} Pro 嗎？\n\n此帳號目前有 ${a.weddings.length} 個婚禮專案，將一併${active?'升級為':'降回'}${active?'Pro':'免費版'}。`,
+      confirmText: verb, cancelText: '取消',
+    })) return;
+    setBusy(a.uid);
+    try {
+      const fb = fbRef.current;
+      // 帳號級旗標（未來金流 webhook 也寫同一處）
+      await fb.db.collection('users').doc(a.uid).set({
+        proGrant: { active, source: 'manual', grantedBy: user.email || user.uid, grantedAt: Date.now() }
+      }, { merge: true });
+      // 同步該帳號所有婚禮的 plan（讓既有 isPro 邏輯立即生效）
+      await Promise.all(a.weddingIds.map(wid =>
+        weddingDoc(fb.db, wid).update({ plan: active ? 'pro' : 'free' }).catch(()=>{})
+      ));
+      await load();
+      uiAlert(`✓ 已${verb} Pro：${a.email}`);
+    } catch (e) {
+      uiAlert(`${verb}失敗：` + e.message);
+    } finally { setBusy(''); }
+  };
+
+  const deleteData = async (a) => {
+    if (!fbRef.current) return;
+    if (!await uiConfirm({
+      title: '刪除帳號資料',
+      message: `將永久刪除「${a.email}」的 ${a.weddings.length} 個婚禮專案與使用者資料（無法復原）。\n\n⚠️ 此操作不會刪除其 Firebase 登入帳號（需 Cloud Functions，階段 B）。\n\n確定繼續？`,
+      confirmText: '永久刪除', cancelText: '取消', danger: true,
+    })) return;
+    setBusy(a.uid);
+    try {
+      const fb = fbRef.current;
+      await Promise.all(a.weddingIds.map(wid => weddingDoc(fb.db, wid).delete().catch(()=>{})));
+      await fb.db.collection('users').doc(a.uid).delete().catch(()=>{});
+      await load();
+      uiAlert(`✓ 已刪除「${a.email}」的所有 Firestore 資料`);
+    } catch (e) {
+      uiAlert('刪除失敗：' + e.message);
+    } finally { setBusy(''); }
+  };
+
+  const filtered = accounts.filter(a => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return a.email.toLowerCase().includes(q) || a.displayName.toLowerCase().includes(q)
+      || a.weddings.some(w => `${w.config?.groomName||''}${w.config?.brideName||''}`.toLowerCase().includes(q));
+  });
+
+  const totalAcc = accounts.length;
+  const proAcc = accounts.filter(isAccPro).length;
+  const totalWed = accounts.reduce((s,a)=>s+a.weddings.length,0);
+
+  const cellSt = { padding:'10px 10px', fontSize:13, color:'#3A332B', verticalAlign:'top', borderBottom:'1px solid #F0EBE3' };
+
+  return (
+    <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
+      <nav style={{background:'#2B2620',padding:'14px 24px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,letterSpacing:3,color:'#E0C9A6'}}>DEV CONSOLE</span>
+          <span style={{fontSize:11,color:'#9A8F82',letterSpacing:1}}>開發者後台</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:12,color:'#C9BBA8'}}>{user.email}</span>
+          <Btn v="ghost" size="sm" onClick={onBack}>← 返回</Btn>
+        </div>
+      </nav>
+
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 20px'}}>
+        {/* 統計 */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}}>
+          {[['使用者帳號',totalAcc],['Pro 帳號',proAcc],['婚禮專案總數',totalWed]].map(([l,v])=>(
+            <div key={l} style={{...S.card,padding:'14px 18px'}}>
+              <div style={{fontSize:12,color:'#9A8F82'}}>{l}</div>
+              <div style={{fontFamily:FONT_STACK,fontSize:24,marginTop:2}}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:14,flexWrap:'wrap'}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜尋 email / 姓名 / 新人姓名"
+            style={{flex:1,minWidth:220,padding:'9px 12px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA'}} />
+          <Btn v="ghost" size="sm" onClick={load} disabled={loading}>🔄 重新整理</Btn>
+        </div>
+
+        {/* 付款紀錄尚未串接提示 */}
+        <div style={{padding:'9px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',borderRadius:3,
+          fontSize:12,color:'#7A5C00',marginBottom:16,lineHeight:1.7}}>
+          💳 付款紀錄與「刪除登入帳號」需金流階段的 Cloud Functions 完成後才會啟用；目前可手動開通/移除 Pro 與刪除 Firestore 資料。
+        </div>
+
+        {loading ? (
+          <div style={{textAlign:'center',padding:40}}><Spinner size={28}/></div>
+        ) : filtered.length === 0 ? (
+          <div style={{...S.card,padding:'40px 24px',textAlign:'center',color:'#9A8F82'}}>沒有符合的帳號</div>
+        ) : (
+          <div style={{...S.card,padding:0,overflow:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',minWidth:760}}>
+              <thead>
+                <tr style={{background:'#F7F1E8',textAlign:'left'}}>
+                  {['帳號','婚禮專案','方案','操作'].map(h=>(
+                    <th key={h} style={{padding:'11px 10px',fontSize:12,fontWeight:500,color:'#6B6259',letterSpacing:.3}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(a => {
+                  const pro = isAccPro(a);
+                  const working = busy === a.uid;
+                  return (
+                    <tr key={a.uid}>
+                      <td style={cellSt}>
+                        <div style={{fontWeight:600}}>{a.email}</div>
+                        {a.displayName && <div style={{fontSize:11,color:'#9A8F82'}}>{a.displayName}</div>}
+                        {a.proGrant && a.proGrant.active && (
+                          <div style={{fontSize:10,color:'#B5895F',marginTop:2}}>
+                            手動開通 · {a.proGrant.grantedBy||''}
+                          </div>
+                        )}
+                      </td>
+                      <td style={cellSt}>
+                        {a.weddings.length === 0 ? <span style={{color:'#9A8F82'}}>—</span> :
+                          a.weddings.map(w=>(
+                            <div key={w.weddingId} style={{fontSize:12,marginBottom:2}}>
+                              {(w.config?.groomName||'?')+' & '+(w.config?.brideName||'?')}
+                              <span style={{color:'#9A8F82',marginLeft:6,fontSize:10}}>{w.plan==='pro'?'Pro':'Free'}</span>
+                            </div>
+                          ))}
+                      </td>
+                      <td style={cellSt}>
+                        <Tag small color={pro?'#B5895F':'#9A8F82'} soft={pro?'#EFE3D0':'#F0EBE3'}>{pro?'✦ Pro':'Free'}</Tag>
+                      </td>
+                      <td style={{...cellSt,whiteSpace:'nowrap'}}>
+                        {working ? <Spinner size={16}/> : (
+                          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                            {pro
+                              ? <Btn v="ghost" size="sm" onClick={()=>grantPro(a,false)}>移除 Pro</Btn>
+                              : <Btn size="sm" onClick={()=>grantPro(a,true)}>開通 Pro</Btn>}
+                            <Btn v="ghost" size="sm" onClick={()=>setPayView(a)}>付款紀錄</Btn>
+                            <button onClick={()=>deleteData(a)} title="刪除此帳號的所有 Firestore 資料"
+                              style={{padding:'5px 10px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}>
+                              刪除資料
+                            </button>
+                            <button disabled title="刪除 Firebase 登入帳號需 Cloud Functions（階段 B）"
+                              style={{padding:'5px 10px',borderRadius:2,border:'1px solid #E5DDD0',background:'#F4F0EA',color:'#B8AE9F',fontSize:11,cursor:'not-allowed',fontFamily:FONT_STACK}}>
+                              刪除帳號 🔒
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {payView && (
+        <Modal open onClose={()=>setPayView(null)} title={`付款紀錄 — ${payView.email}`}>
+          <div style={{padding:'8px 2px',fontSize:13,color:'#6B6259',lineHeight:1.8}}>
+            <div style={{padding:'20px',textAlign:'center',background:'#F9F5EF',borderRadius:4,border:'1px dashed #E5DDD0'}}>
+              💳 尚未串接金流<br/>
+              <span style={{fontSize:12,color:'#9A8F82'}}>綠界定期定額串接後，這裡會顯示此帳號的訂閱狀態與發票/扣款紀錄。</span>
+            </div>
+            {payView.proGrant && payView.proGrant.active && (
+              <div style={{marginTop:12,fontSize:12,color:'#7A6E5E'}}>
+                目前為「手動開通」Pro（非付費）：開通者 {payView.proGrant.grantedBy||'—'}，
+                時間 {payView.proGrant.grantedAt?new Date(payView.proGrant.grantedAt).toLocaleString('zh-TW'):'—'}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -7505,6 +7772,21 @@ export default function WeddingApp() {
         <Spinner size={30}/>
       </div>
     );
+  }
+
+  // v6.8.0 開發者後台 — 只有平台管理員可進入
+  if(parsed.section==='dev'){
+    if(!isLoggedIn) return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
+    if(!isPlatformAdmin(user)){
+      return <AppShell><div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{...S.card,padding:32,maxWidth:360,textAlign:'center'}}>
+          <div style={{fontSize:28,marginBottom:10}}>🔒</div>
+          <div style={{fontSize:16,letterSpacing:1,marginBottom:8}}>無權限</div>
+          <div style={{fontSize:13,color:'#9A8F82',marginBottom:16}}>此頁面僅供平台管理員使用。</div>
+          <Btn onClick={()=>navigate('#/dashboard')} style={{width:'100%',justifyContent:'center'}}>返回</Btn>
+        </div></div></AppShell>;
+    }
+    return <AppShell><DevConsolePage user={user} fbRef={fbRef} onBack={()=>navigate('#/dashboard')} /></AppShell>;
   }
 
   // 婚禮創建向導
