@@ -1,13 +1,15 @@
 // ============================================================
-// WEDDING SAAS  v6.8.1  （商業版／多租戶）
+// WEDDING SAAS  v6.8.2  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正
-//          【Bug】管理員登入後被「無婚禮→跳建立向導」邏輯攔截，無法直接進後台
-//          【修復】登入導向邏輯：isPlatformAdmin → 直接 navigate('#/dev')
-//                  setup 向導觸發條件加 !isPlatformAdmin(user) 排除管理員
+// v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
+//          【Bug】Google OAuth 登入完成後，user.email 在第一個 render 尚未填入，
+//                 isPlatformAdmin() 判斷回 false → 一般使用者被導到 #/dev 無權限頁
+//          【修復】#/dev 路由：!user.email || loadingWeddings 時先顯示 Spinner，等資料就緒再判斷
+//                  登入導向：!loadingWeddings && user.email 確認後才執行 isPlatformAdmin 判斷
 //
+// v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正（登入後直接跳 #/dev）
 // v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
 //          【新增】#/dev 開發者後台，僅 PLATFORM_ADMIN_EMAILS 白名單帳號可進
 //          • 總覽所有使用者帳號（查 users + weddings 分組）、搜尋、統計
@@ -7767,7 +7769,7 @@ export default function WeddingApp() {
 
   // 已登入、在 #/login → 依婚禮數量導向
   if(isLoggedIn && (parsed.section==='login'||parsed.section==='')){
-    if(!loadingWeddings){
+    if(!loadingWeddings && user.email){
       // v6.8.0：管理員帳號直接跳後台，不走婚禮向導
       if(isPlatformAdmin(user)) navigate('#/dev');
       else if(weddings.length===0) navigate('#/setup');
@@ -7784,6 +7786,15 @@ export default function WeddingApp() {
   // v6.8.0 開發者後台 — 只有平台管理員可進入
   if(parsed.section==='dev'){
     if(!isLoggedIn) return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
+    // v6.8.1：Google 登入後 email 可能在第一個 render 尚未填入、或婚禮還在讀取中
+    // → 先顯示 Spinner，避免誤判為「無權限」
+    if(!user.email || loadingWeddings){
+      return (
+        <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
+          <Spinner size={30}/>
+        </div>
+      );
+    }
     if(!isPlatformAdmin(user)){
       return <AppShell><div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
         <div style={{...S.card,padding:32,maxWidth:360,textAlign:'center'}}>
