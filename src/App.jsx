@@ -770,7 +770,7 @@ const FREE_SEAT_LIMIT    = 32;  // v6.7.0：免費版排位「已入座人數」
 //    前端 gate 只是「看不到」，真正的安全在 Firestore 規則。
 // ============================================================
 const PLATFORM_ADMIN_EMAILS = [
-  'CHANGE_ME@example.com',   // ← 改成你的管理員 email
+  'tp6vupu04ian@gmail.com',
 ];
 const isPlatformAdmin = (u) =>
   !!u && !!u.email && PLATFORM_ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(String(u.email).toLowerCase());
