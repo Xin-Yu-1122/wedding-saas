@@ -1,16 +1,16 @@
 // ============================================================
-// WEDDING SAAS  v6.8.3  （商業版／多租戶）
+// WEDDING SAAS  v6.8.4  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.8.3  2026-06-14  ★ Patch：修正新用戶建立婚禮被 Firestore 規則擋住 + 錯誤訊息中文化
-//          【Bug】v6.8.0 的新 users 規則把 write 統一加上 proGrant 限制，
-//                 導致「第一次建立 user 文件」(create) 也被擋住 → 「建立失敗：Missing or insufficient permissions」
-//          【修復 1】firestore.rules：users 的 create 與 update 分開寫
-//                    create: 本人可建（第一次登入）；update: 禁止竄改 proGrant
-//          【修復 2】新增 firestoreErrMsg() 中文化函式，建立婚禮/複製專案的 catch 改用此函式
-//                    「Missing or insufficient permissions」→ 顯示中文說明與解法
+// v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護
+//          【Bug】後台點「刪除資料」可以刪掉自己的帳號，導致被當新用戶跳建立向導
+//          【修復】deleteData：偵測 a.uid === user.uid 時擋住並顯示中文說明
+//                  grantPro：同樣防止對自己操作（避免狀態混亂）
+//                  「刪除資料」按鈕：自己的帳號列顯示「自己 🔒」並 disabled
+//                  deleteData/grantPro 的錯誤訊息改用 firestoreErrMsg() 中文化
 //
+// v6.8.3  2026-06-14  ★ Patch：修正新用戶建立婚禮被規則擋 + 錯誤訊息中文化
 // v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
 // v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正（登入後直接跳 #/dev）
 // v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
@@ -6834,6 +6834,10 @@ function DevConsolePage({ user, fbRef, onBack }) {
   const grantPro = async (a, active) => {
     if (!fbRef.current) return;
     const verb = active ? '開通' : '移除';
+    if (a.uid === user.uid) {
+      uiAlert(`無法透過後台對自己的帳號${verb} Pro。\n\n請直接在 Firebase Console → Firestore → users/${a.uid} 手動修改 proGrant 欄位。`);
+      return;
+    }
     if (!await uiConfirm({
       title: `${verb} Pro`,
       message: `確定要為帳號「${a.email}」${verb} Pro 嗎？\n\n此帳號目前有 ${a.weddings.length} 個婚禮專案，將一併${active?'升級為':'降回'}${active?'Pro':'免費版'}。`,
@@ -6859,6 +6863,11 @@ function DevConsolePage({ user, fbRef, onBack }) {
 
   const deleteData = async (a) => {
     if (!fbRef.current) return;
+    // v6.8.4：防止管理員刪除自己的帳號資料
+    if (a.uid === user.uid) {
+      uiAlert('無法刪除目前登入的管理員帳號。\n\n如需刪除自己的資料，請先用另一個管理員帳號登入後操作。');
+      return;
+    }
     if (!await uiConfirm({
       title: '刪除帳號資料',
       message: `將永久刪除「${a.email}」的 ${a.weddings.length} 個婚禮專案與使用者資料（無法復原）。\n\n⚠️ 此操作不會刪除其 Firebase 登入帳號（需 Cloud Functions，階段 B）。\n\n確定繼續？`,
@@ -6872,7 +6881,7 @@ function DevConsolePage({ user, fbRef, onBack }) {
       await load();
       uiAlert(`✓ 已刪除「${a.email}」的所有 Firestore 資料`);
     } catch (e) {
-      uiAlert('刪除失敗：' + e.message);
+      uiAlert('刪除失敗\n\n' + firestoreErrMsg(e));
     } finally { setBusy(''); }
   };
 
@@ -6973,9 +6982,16 @@ function DevConsolePage({ user, fbRef, onBack }) {
                               ? <Btn v="ghost" size="sm" onClick={()=>grantPro(a,false)}>移除 Pro</Btn>
                               : <Btn size="sm" onClick={()=>grantPro(a,true)}>開通 Pro</Btn>}
                             <Btn v="ghost" size="sm" onClick={()=>setPayView(a)}>付款紀錄</Btn>
-                            <button onClick={()=>deleteData(a)} title="刪除此帳號的所有 Firestore 資料"
-                              style={{padding:'5px 10px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}>
-                              刪除資料
+                            <button onClick={()=>deleteData(a)}
+                              disabled={a.uid === user.uid}
+                              title={a.uid === user.uid ? '無法刪除目前登入的管理員帳號' : '刪除此帳號的所有 Firestore 資料'}
+                              style={{padding:'5px 10px',borderRadius:2,
+                                border: a.uid === user.uid ? '1px solid #E5DDD0' : '1px solid #EECDD6',
+                                background: a.uid === user.uid ? '#F4F0EA' : '#FDF5F7',
+                                color: a.uid === user.uid ? '#B8AE9F' : '#C04060',
+                                fontSize:11, cursor: a.uid === user.uid ? 'not-allowed' : 'pointer',
+                                fontFamily:FONT_STACK}}>
+                              {a.uid === user.uid ? '自己 🔒' : '刪除資料'}
                             </button>
                             <button disabled title="刪除 Firebase 登入帳號需 Cloud Functions（階段 B）"
                               style={{padding:'5px 10px',borderRadius:2,border:'1px solid #E5DDD0',background:'#F4F0EA',color:'#B8AE9F',fontSize:11,cursor:'not-allowed',fontFamily:FONT_STACK}}>
