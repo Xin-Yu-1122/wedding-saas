@@ -1,15 +1,15 @@
 // ============================================================
-// WEDDING SAAS  v6.8.4  （商業版／多租戶）
+// WEDDING SAAS  v6.8.5  （商業版／多租戶）
 // 最後更新：2026-06-14
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護
-//          【Bug】後台點「刪除資料」可以刪掉自己的帳號，導致被當新用戶跳建立向導
-//          【修復】deleteData：偵測 a.uid === user.uid 時擋住並顯示中文說明
-//                  grantPro：同樣防止對自己操作（避免狀態混亂）
-//                  「刪除資料」按鈕：自己的帳號列顯示「自己 🔒」並 disabled
-//                  deleteData/grantPro 的錯誤訊息改用 firestoreErrMsg() 中文化
+// v6.8.5  2026-06-14  ★ Patch：修正未登入直接輸入 #/setup 可進建立向導 + 管理員 setup 迴圈
+//          【Bug1】直接輸入 #/setup 網址（未登入）會略過登入攔截、直接顯示建立婚禮向導
+//          【修復1】setup 路由條件改為「必須 isLoggedIn」才進入；未登入由前置攔截導回登入頁
+//          【Bug2】管理員無婚禮時，fallback 會把管理員導回 #/setup，但 setup 又排除管理員 → Spinner 迴圈
+//          【修復2】!weddingId 的 fallback 導向加入 isPlatformAdmin → #/dev 例外
 //
+// v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護（防止刪自己）
 // v6.8.3  2026-06-14  ★ Patch：修正新用戶建立婚禮被規則擋 + 錯誤訊息中文化
 // v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
 // v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正（登入後直接跳 #/dev）
@@ -7853,7 +7853,7 @@ export default function WeddingApp() {
   const isPro = weddings.some(w=>w.plan==='pro') || currentPlan==='pro';
   const atProjectLimit = !isPro && weddings.length >= FREE_PROJECT_LIMIT;
 
-  if(parsed.section==='setup' || (isLoggedIn && !loadingWeddings && weddings.length===0 && parsed.section!=='w' && !isPlatformAdmin(user))){
+  if(isLoggedIn && (parsed.section==='setup' || (!loadingWeddings && weddings.length===0 && parsed.section!=='w' && !isPlatformAdmin(user)))){
     // 已達免費版上限且非 Pro → 擋住，不讓進向導
     if(atProjectLimit){
       navigate('#/dashboard');
@@ -7927,7 +7927,8 @@ export default function WeddingApp() {
   // 尚未指定婚禮
   if(!weddingId){
     if(isLoggedIn && !loadingWeddings){
-      navigate(weddings.length===0?'#/setup':(weddings.length===1?`#/w/${weddings[0].weddingId}`:'#/dashboard'));
+      if(isPlatformAdmin(user)) navigate('#/dev');
+      else navigate(weddings.length===0?'#/setup':(weddings.length===1?`#/w/${weddings[0].weddingId}`:'#/dashboard'));
     }
     return (
       <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
