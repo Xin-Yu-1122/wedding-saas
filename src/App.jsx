@@ -1,19 +1,19 @@
 // ============================================================
-// WEDDING SAAS  v6.9.0  （商業版／多租戶）
+// WEDDING SAAS  v6.10.0  （商業版／多租戶）
 // 最後更新：2026-06-15
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.9.0  2026-06-15  ★ Minor：方案與定價管理（金流階段 A — 後台動態定價）
-//          【新增1】config/pricing 設定文件 + pricingDocRef 路徑 helper + DEFAULT_PLANS 預設方案
-//                   方案欄位：id/name/originalPrice(原價劃線)/price(實收)/period(週期)/
-//                   bonusMonths(加送月)/badge(行銷標籤)/enabled(上架)/sortOrder/note
-//          【新增2】開發者後台新增「方案與定價」分頁：可新增/刪除/編輯方案、上下架、
-//                   即時前台預覽（含劃線原價）、儲存寫入 config/pricing
-//          【新增3】前台「升級 Pro」浮窗改讀 config/pricing 動態顯示方案（含 ~~原價~~ 特價）
-//                   App 載入時讀 pricing 至 _cachedPlans；後台儲存後即時同步
-//          【新增4】firestore.rules：config 集合 公開讀 + 僅 isAdmin 可寫
-//          【註】金流串接（createSubscription/ecpayWebhook）為階段 B，待 Firebase CLI 安裝後進行
+// v6.10.0 2026-06-15  ★ Minor：優惠碼系統 + 方案定價頁版面優化
+//          【新增1】優惠碼管理（coupons 集合 + couponsColRef）：開發者後台「優惠碼」分頁
+//                   欄位：code/type(百分比|固定)/value/appliesTo(綁定方案,可複選)/
+//                   maxUses(總次數)/usedCount/perUserOnce(每人限一次)/expiresAt(到期日)/enabled/note
+//                   收合卡片式編輯,摘要列顯示折扣與使用量,含已過期/已用完/已停用狀態標示
+//          【新增2】firestore.rules：coupons 集合僅 admin 讀寫(前台套用走後端驗證)
+//          【優化】方案與定價頁改為「收合卡片 + 欄位分組(基本/價格週期/行銷狀態)」,
+//                   摘要列顯示名稱/標籤/上架狀態/價格,點擊展開編輯,改善可讀性
+//          【註】優惠碼實際折抵計算與套用為金流階段 B(Cloud Functions 後端,防止前端竄改)
 //
+// v6.9.0  2026-06-15  ★ Minor：方案與定價管理（金流階段 A — 後台動態定價）
 // v6.8.7  2026-06-15  ★ Patch：收緊匿名登入觸發條件（解決大量匿名帳號灌爆 Auth）
 // v6.8.6  2026-06-14  ★ Patch：後台新人姓名顯示 + 夜幕暗黑感謝頁文字可見性
 // v6.8.5  2026-06-14  ★ Patch：未登入直接輸入 #/setup 攔截 + 管理員 setup 迴圈
@@ -455,6 +455,8 @@ const activityColRef = (db, wid) => weddingDoc(db, wid).collection('activityLog'
 const presenceColRef = (db, wid) => weddingDoc(db, wid).collection('presence');
 // v6.9.0 平台定價設定（全平台共用單一文件）
 const pricingDocRef = (db) => db.collection('config').doc('pricing');
+// v6.10.0 優惠碼集合（每個優惠碼一份文件，doc id = 大寫優惠碼）
+const couponsColRef = (db) => db.collection('coupons');
 // 預設方案（config/pricing 不存在時的 fallback；後台可覆寫）
 const DEFAULT_PLANS = [
   { id:'monthly', name:'月費方案', originalPrice:299, price:199,  period:'month',  bonusMonths:0, badge:'限時優惠', enabled:true, sortOrder:1, note:'每月自動續訂' },
@@ -6836,9 +6838,13 @@ function DevConsolePage({ user, fbRef, onBack }) {
   const [search, setSearch]     = React.useState('');
   const [busy, setBusy]         = React.useState('');    // 正在處理的 uid
   const [payView, setPayView]   = React.useState(null);  // 查看付款紀錄的帳號
-  const [tab, setTab]           = React.useState('accounts');  // v6.9.0 'accounts' | 'pricing'
+  const [tab, setTab]           = React.useState('accounts');  // v6.9.0 'accounts' | 'pricing' | 'coupons'
   const [plans, setPlans]       = React.useState(null);  // 方案陣列（null=載入中）
   const [pricingSaving, setPricingSaving] = React.useState(false);
+  const [expandedPlan, setExpandedPlan] = React.useState(null);  // v6.10.0 展開編輯中的方案 idx
+  const [coupons, setCoupons]   = React.useState(null);  // v6.10.0 優惠碼陣列（null=載入中）
+  const [couponsSaving, setCouponsSaving] = React.useState(false);
+  const [expandedCoupon, setExpandedCoupon] = React.useState(null);
 
   const load = React.useCallback(async () => {
     if (!fbRef.current) return;
@@ -6987,6 +6993,83 @@ function DevConsolePage({ user, fbRef, onBack }) {
     setPlans(ps => ps.filter((_,i)=>i!==idx));
   };
 
+  // ── v6.10.0 優惠碼管理 ──
+  const loadCoupons = React.useCallback(async () => {
+    if (!fbRef.current) return;
+    try {
+      const snap = await couponsColRef(fbRef.current.db).get();
+      const list = [];
+      snap.forEach(d => list.push({ _docId: d.id, ...d.data() }));
+      list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      setCoupons(list);
+    } catch (e) {
+      uiAlert('載入優惠碼失敗\n\n' + firestoreErrMsg(e));
+      setCoupons([]);
+    }
+  }, [fbRef]);
+
+  React.useEffect(() => { if (tab === 'coupons' && coupons === null) loadCoupons(); }, [tab, coupons, loadCoupons]);
+  // 進入優惠碼分頁時，若方案清單尚未載入，一併載入（綁定方案需要）
+  React.useEffect(() => { if (tab === 'coupons' && plans === null) loadPricing(); }, [tab, plans, loadPricing]);
+
+  const updateCoupon = (idx, key, val) => setCoupons(cs => cs.map((c,i)=> i===idx ? {...c,[key]:val} : c));
+  const toggleCouponPlan = (idx, planId) => setCoupons(cs => cs.map((c,i)=>{
+    if (i!==idx) return c;
+    const cur = c.appliesTo || [];
+    return { ...c, appliesTo: cur.includes(planId) ? cur.filter(x=>x!==planId) : [...cur, planId] };
+  }));
+  const addCoupon = () => {
+    setCoupons(cs => [{
+      code:'', type:'percent', value:0, appliesTo:[], maxUses:0, usedCount:0,
+      perUserOnce:true, expiresAt:0, enabled:true, note:'', createdAt:Date.now(), _isNew:true
+    }, ...(cs||[])]);
+    setExpandedCoupon(0);
+  };
+  const removeCoupon = async (idx) => {
+    const c = coupons[idx];
+    if (!await uiConfirm({ title:'刪除優惠碼', message:`確定刪除優惠碼「${c.code||'(未命名)'}」？`, confirmText:'刪除', cancelText:'取消', danger:true })) return;
+    // 已存在於 Firestore 的需實際刪除
+    if (c._docId && fbRef.current) {
+      try { await couponsColRef(fbRef.current.db).doc(c._docId).delete(); } catch(e){ uiAlert('刪除失敗\n\n'+firestoreErrMsg(e)); return; }
+    }
+    setCoupons(cs => cs.filter((_,i)=>i!==idx));
+    setExpandedCoupon(null);
+  };
+  const saveCoupons = async () => {
+    if (!fbRef.current || !coupons) return;
+    // 驗證
+    const codes = [];
+    for (const c of coupons) {
+      const code = (c.code||'').trim().toUpperCase();
+      if (!code) { uiAlert('每個優惠碼都需要填寫「優惠碼」'); return; }
+      if (!/^[A-Z0-9_-]+$/.test(code)) { uiAlert(`優惠碼「${code}」只能用英數字、- 與 _`); return; }
+      if (codes.includes(code)) { uiAlert(`優惠碼「${code}」重複`); return; }
+      codes.push(code);
+      if (c.type==='percent' && (c.value<=0 || c.value>=100)) { uiAlert(`「${code}」百分比折扣需介於 1–99（代表折抵的百分比）`); return; }
+      if (c.type==='fixed' && c.value<=0) { uiAlert(`「${code}」固定折抵金額需大於 0`); return; }
+      if (!c.appliesTo || c.appliesTo.length===0) { uiAlert(`「${code}」至少要選一個適用方案`); return; }
+    }
+    setCouponsSaving(true);
+    try {
+      const db = fbRef.current.db;
+      await Promise.all(coupons.map(c => {
+        const code = c.code.trim().toUpperCase();
+        const { _docId, _isNew, ...rest } = c;
+        const payload = { ...rest, code, updatedAt: Date.now() };
+        // doc id 用優惠碼本身（大寫）；若改了 code 需刪舊建新
+        if (_docId && _docId !== code) {
+          return couponsColRef(db).doc(_docId).delete()
+            .then(()=>couponsColRef(db).doc(code).set(payload, { merge:true }));
+        }
+        return couponsColRef(db).doc(code).set(payload, { merge:true });
+      }));
+      uiAlert('✓ 優惠碼已儲存');
+      setCoupons(null);  // 重新載入取得正確 _docId
+    } catch (e) {
+      uiAlert('儲存失敗\n\n' + firestoreErrMsg(e));
+    } finally { setCouponsSaving(false); }
+  };
+
   const filtered = accounts.filter(a => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -7016,7 +7099,7 @@ function DevConsolePage({ user, fbRef, onBack }) {
       <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 20px'}}>
         {/* v6.9.0 分頁切換 */}
         <div style={{display:'flex',gap:4,marginBottom:20,borderBottom:'1px solid #E5DDD0'}}>
-          {[['accounts','帳號管理'],['pricing','方案與定價']].map(([k,l])=>(
+          {[['accounts','帳號管理'],['pricing','方案與定價'],['coupons','優惠碼']].map(([k,l])=>(
             <button key={k} onClick={()=>setTab(k)}
               style={{padding:'9px 18px',border:'none',background:'none',cursor:'pointer',fontFamily:FONT_STACK,
                 fontSize:14,letterSpacing:1,color: tab===k?'#3A332B':'#A89E92',
@@ -7131,72 +7214,250 @@ function DevConsolePage({ user, fbRef, onBack }) {
           <div>
             <div style={{padding:'9px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',borderRadius:3,
               fontSize:12,color:'#7A5C00',marginBottom:16,lineHeight:1.7}}>
-              💡 這裡設定的方案會即時顯示在前台「升級 Pro」浮窗。原價留空（0）則不顯示劃線價。售價為實際收費金額（金流以此為準）。
+              💡 點方案右側「編輯」展開詳細設定。原價留空（0）不顯示劃線價；售價為實際收費金額（金流以此為準）。
             </div>
 
-            <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              {plans.map((p,idx)=>(
-                <div key={idx} style={{...S.card,padding:'16px 18px',opacity:p.enabled===false?.6:1}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {plans.map((p,idx)=>{
+                const open = expandedPlan===idx;
+                const Group = ({title,children})=>(
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:11,color:'#B5895F',letterSpacing:1,marginBottom:8,fontWeight:600}}>{title}</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10}}>{children}</div>
+                  </div>
+                );
+                const F = ({label,k,type='text',ph})=>(
+                  <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                    {label}
+                    <input type={type} value={p[k]??''} placeholder={ph}
+                      onChange={e=>updatePlan(idx,k,type==='number'?(parseInt(e.target.value,10)||0):e.target.value)}
+                      style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
+                  </label>
+                );
+                return (
+                <div key={idx} style={{...S.card,padding:0,overflow:'hidden',opacity:p.enabled===false?.7:1}}>
+                  {/* 摘要列 */}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'14px 18px',
+                    cursor:'pointer',background:open?'#FBF7F0':'transparent'}} onClick={()=>setExpandedPlan(open?null:idx)}>
+                    <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                      <span style={{fontSize:12,color:'#B8AE9F',transform:open?'rotate(90deg)':'none',transition:'transform .15s'}}>▶</span>
                       <span style={{fontFamily:FONT_STACK,fontSize:15,color:'#3A332B'}}>{p.name||'（未命名方案）'}</span>
-                      {p.enabled===false && <span style={{fontSize:11,color:'#B8AE9F',border:'1px solid #E5DDD0',padding:'1px 8px',borderRadius:10}}>已下架</span>}
+                      {p.badge && <span style={{fontSize:10,color:'#B5895F',background:'#F3E9DD',padding:'1px 7px',borderRadius:10}}>{p.badge}</span>}
+                      <span style={{fontSize:11,color: p.enabled===false?'#B8AE9F':'#5B8C5A',border:'1px solid '+(p.enabled===false?'#E5DDD0':'#CFE3CE'),background:p.enabled===false?'transparent':'#F2F8F1',padding:'1px 8px',borderRadius:10}}>
+                        {p.enabled===false?'已下架':'上架中'}</span>
                     </div>
-                    <button onClick={()=>removePlan(idx)}
-                      style={{padding:'4px 10px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}>刪除</button>
+                    <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+                      {p.originalPrice>0 && p.originalPrice>p.price &&
+                        <span style={{fontSize:12,color:'#B8AE9F',textDecoration:'line-through'}}>${p.originalPrice}</span>}
+                      <span style={{fontSize:18,color:'#B5895F',fontWeight:700}}>NT${p.price}</span>
+                      <span style={{fontSize:11,color:'#9A8F82'}}>/{PERIOD_LABELS[p.period]||p.period}{p.bonusMonths>0?`+${p.bonusMonths}月`:''}</span>
+                    </div>
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10}}>
-                    {[
-                      ['方案代碼 (id)','id','text','英數,不可重複'],
-                      ['方案名稱','name','text','例：月費方案'],
-                      ['原價 (劃線,0=不顯示)','originalPrice','number',''],
-                      ['售價 (實收)','price','number',''],
-                      ['加送月數','bonusMonths','number',''],
-                      ['行銷標籤','badge','text','例：最划算'],
-                      ['排序','sortOrder','number',''],
-                      ['說明','note','text','例：每月自動續訂'],
-                    ].map(([label,key,type,ph])=>(
-                      <label key={key} style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
-                        {label}
-                        <input type={type} value={p[key]??''} placeholder={ph}
-                          onChange={e=>updatePlan(idx,key, type==='number'?(parseInt(e.target.value,10)||0):e.target.value)}
-                          style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
-                      </label>
-                    ))}
-                    <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
-                      計費週期
-                      <select value={p.period||'month'} onChange={e=>updatePlan(idx,'period',e.target.value)}
-                        style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
-                        {Object.entries(PERIOD_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
-                      </select>
-                    </label>
-                    <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
-                      上架狀態
-                      <select value={p.enabled===false?'0':'1'} onChange={e=>updatePlan(idx,'enabled',e.target.value==='1')}
-                        style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
-                        <option value="1">上架</option>
-                        <option value="0">下架</option>
-                      </select>
-                    </label>
-                  </div>
-                  {/* 前台預覽 */}
-                  <div style={{marginTop:12,paddingTop:12,borderTop:'1px dashed #EBE3D6',display:'flex',alignItems:'baseline',gap:6,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,color:'#B8AE9F'}}>前台顯示：</span>
-                    {p.badge && <span style={{fontSize:10,color:'#B5895F',background:'#F3E9DD',padding:'1px 7px',borderRadius:10}}>{p.badge}</span>}
-                    {p.originalPrice>0 && p.originalPrice>p.price &&
-                      <span style={{fontSize:12,color:'#B8AE9F',textDecoration:'line-through'}}>NT${p.originalPrice}</span>}
-                    <span style={{fontSize:16,color:'#B5895F',fontWeight:700}}>NT${p.price}</span>
-                    <span style={{fontSize:12,color:'#9A8F82'}}>/{PERIOD_LABELS[p.period]||p.period}{p.bonusMonths>0?`（送${p.bonusMonths}個月）`:''}</span>
-                  </div>
+                  {/* 展開編輯 */}
+                  {open && (
+                    <div style={{padding:'4px 18px 18px',borderTop:'1px solid #F0EBE3'}}>
+                      <Group title="基本資訊">
+                        <F label="方案代碼 (id)" k="id" ph="英數，不可重複" />
+                        <F label="方案名稱" k="name" ph="例：月費方案" />
+                        <F label="排序（小→大）" k="sortOrder" type="number" />
+                      </Group>
+                      <Group title="價格與週期">
+                        <F label="原價（劃線，0=不顯示）" k="originalPrice" type="number" />
+                        <F label="售價（實收）" k="price" type="number" />
+                        <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                          計費週期
+                          <select value={p.period||'month'} onChange={e=>updatePlan(idx,'period',e.target.value)}
+                            style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                            {Object.entries(PERIOD_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                          </select>
+                        </label>
+                        <F label="加送月數" k="bonusMonths" type="number" />
+                      </Group>
+                      <Group title="行銷與狀態">
+                        <F label="行銷標籤" k="badge" ph="例：最划算" />
+                        <F label="說明" k="note" ph="例：每月自動續訂" />
+                        <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                          上架狀態
+                          <select value={p.enabled===false?'0':'1'} onChange={e=>updatePlan(idx,'enabled',e.target.value==='1')}
+                            style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                            <option value="1">上架</option>
+                            <option value="0">下架</option>
+                          </select>
+                        </label>
+                      </Group>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:6}}>
+                        <div style={{display:'flex',alignItems:'baseline',gap:6,flexWrap:'wrap'}}>
+                          <span style={{fontSize:11,color:'#B8AE9F'}}>前台顯示：</span>
+                          {p.badge && <span style={{fontSize:10,color:'#B5895F',background:'#F3E9DD',padding:'1px 7px',borderRadius:10}}>{p.badge}</span>}
+                          {p.originalPrice>0 && p.originalPrice>p.price &&
+                            <span style={{fontSize:12,color:'#B8AE9F',textDecoration:'line-through'}}>NT${p.originalPrice}</span>}
+                          <span style={{fontSize:15,color:'#B5895F',fontWeight:700}}>NT${p.price}</span>
+                          <span style={{fontSize:11,color:'#9A8F82'}}>/{PERIOD_LABELS[p.period]||p.period}{p.bonusMonths>0?`（送${p.bonusMonths}個月）`:''}</span>
+                        </div>
+                        <button onClick={()=>removePlan(idx)}
+                          style={{padding:'5px 12px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}>刪除方案</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{display:'flex',gap:10,marginTop:18,alignItems:'center'}}>
-              <Btn v="ghost" onClick={addPlan}>＋ 新增方案</Btn>
+              <Btn v="ghost" onClick={()=>{ addPlan(); setExpandedPlan(plans.length); }}>＋ 新增方案</Btn>
               <div style={{flex:1}} />
-              <Btn v="ghost" size="sm" onClick={()=>{ setPlans(null); }}>還原</Btn>
+              <Btn v="ghost" size="sm" onClick={()=>{ setPlans(null); setExpandedPlan(null); }}>還原</Btn>
               <Btn onClick={savePricing} disabled={pricingSaving}>{pricingSaving?'儲存中…':'儲存方案'}</Btn>
+            </div>
+          </div>
+          )
+        )}
+
+        {tab==='coupons' && (
+          coupons === null ? (
+            <div style={{textAlign:'center',padding:40}}><Spinner size={28}/></div>
+          ) : (
+          <div>
+            <div style={{padding:'9px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',borderRadius:3,
+              fontSize:12,color:'#7A5C00',marginBottom:16,lineHeight:1.7}}>
+              🎟️ 建立優惠碼提供折扣。百分比折扣填「折抵 %」（例：20 = 打 8 折）；固定折抵填「折抵金額」。每個優惠碼需指定可用方案。實際折抵金額在金流階段於後端計算（防竄改）。
+            </div>
+
+            {(!plans || plans.length===0) && (
+              <div style={{padding:'10px 14px',background:'#FDF5F7',border:'1px solid #EECDD6',borderRadius:3,fontSize:12,color:'#B05070',marginBottom:14}}>
+                ⚠️ 尚未載入方案清單。請先到「方案與定價」分頁確認方案已建立，優惠碼才能綁定方案。
+              </div>
+            )}
+
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {coupons.length===0 && <div style={{...S.card,padding:'34px 20px',textAlign:'center',color:'#9A8F82'}}>尚無優惠碼，點下方「新增優惠碼」建立。</div>}
+              {coupons.map((c,idx)=>{
+                const open = expandedCoupon===idx;
+                const expired = c.expiresAt>0 && c.expiresAt<Date.now();
+                const usedUp = c.maxUses>0 && (c.usedCount||0)>=c.maxUses;
+                const dim = c.enabled===false || expired || usedUp;
+                return (
+                <div key={idx} style={{...S.card,padding:0,overflow:'hidden',opacity:dim?.65:1}}>
+                  {/* 摘要列 */}
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'14px 18px',
+                    cursor:'pointer',background:open?'#FBF7F0':'transparent'}} onClick={()=>setExpandedCoupon(open?null:idx)}>
+                    <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                      <span style={{fontSize:12,color:'#B8AE9F',transform:open?'rotate(90deg)':'none',transition:'transform .15s'}}>▶</span>
+                      <span style={{fontFamily:'monospace',fontSize:15,color:'#3A332B',letterSpacing:1,fontWeight:600}}>{(c.code||'(未命名)').toUpperCase()}</span>
+                      <span style={{fontSize:12,color:'#B5895F',background:'#F3E9DD',padding:'1px 8px',borderRadius:10}}>
+                        {c.type==='percent'?`折 ${c.value}%`:`折 NT$${c.value}`}</span>
+                      {c.enabled===false && <span style={{fontSize:11,color:'#B8AE9F',border:'1px solid #E5DDD0',padding:'1px 8px',borderRadius:10}}>已停用</span>}
+                      {expired && <span style={{fontSize:11,color:'#C04060',border:'1px solid #EECDD6',padding:'1px 8px',borderRadius:10}}>已過期</span>}
+                      {usedUp && <span style={{fontSize:11,color:'#C04060',border:'1px solid #EECDD6',padding:'1px 8px',borderRadius:10}}>已用完</span>}
+                    </div>
+                    <div style={{fontSize:11,color:'#9A8F82'}}>
+                      已用 {c.usedCount||0}{c.maxUses>0?` / ${c.maxUses}`:'（無上限）'}
+                    </div>
+                  </div>
+                  {/* 展開編輯 */}
+                  {open && (
+                    <div style={{padding:'4px 18px 18px',borderTop:'1px solid #F0EBE3'}}>
+                      {/* 基本 */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,color:'#B5895F',letterSpacing:1,marginBottom:8,fontWeight:600}}>優惠碼設定</div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10}}>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            優惠碼（英數/-/_）
+                            <input value={c.code||''} placeholder="例：WEDDING20"
+                              onChange={e=>updateCoupon(idx,'code',e.target.value.toUpperCase())}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:'monospace',fontSize:13,background:'#FFFEFA',color:'#3A332B',letterSpacing:1}} />
+                          </label>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            折扣類型
+                            <select value={c.type||'percent'} onChange={e=>updateCoupon(idx,'type',e.target.value)}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                              <option value="percent">百分比折扣 (%)</option>
+                              <option value="fixed">固定金額折抵 (NT$)</option>
+                            </select>
+                          </label>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            {c.type==='fixed'?'折抵金額 (NT$)':'折抵百分比 (1–99)'}
+                            <input type="number" value={c.value??0}
+                              onChange={e=>updateCoupon(idx,'value',parseInt(e.target.value,10)||0)}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
+                          </label>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            備註
+                            <input value={c.note||''} placeholder="例：開幕優惠"
+                              onChange={e=>updateCoupon(idx,'note',e.target.value)}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
+                          </label>
+                        </div>
+                      </div>
+                      {/* 適用方案 */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,color:'#B5895F',letterSpacing:1,marginBottom:8,fontWeight:600}}>適用方案（可複選，至少一個）</div>
+                        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                          {(plans||[]).map(pl=>{
+                            const on=(c.appliesTo||[]).includes(pl.id);
+                            return (
+                              <button key={pl.id} onClick={()=>toggleCouponPlan(idx,pl.id)}
+                                style={{padding:'6px 12px',borderRadius:16,cursor:'pointer',fontFamily:FONT_STACK,fontSize:12,
+                                  border:'1px solid '+(on?'#B5895F':'#E5DDD0'),background:on?'#F3E9DD':'#FFFEFA',color:on?'#8A5C2E':'#9A8F82'}}>
+                                {on?'✓ ':''}{pl.name}
+                              </button>
+                            );
+                          })}
+                          {(!plans||plans.length===0) && <span style={{fontSize:12,color:'#B8AE9F'}}>（無方案可選）</span>}
+                        </div>
+                      </div>
+                      {/* 限制 */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,color:'#B5895F',letterSpacing:1,marginBottom:8,fontWeight:600}}>使用限制</div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10}}>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            總使用次數（0=無限）
+                            <input type="number" value={c.maxUses??0}
+                              onChange={e=>updateCoupon(idx,'maxUses',parseInt(e.target.value,10)||0)}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
+                          </label>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            每人限用一次
+                            <select value={c.perUserOnce===false?'0':'1'} onChange={e=>updateCoupon(idx,'perUserOnce',e.target.value==='1')}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                              <option value="1">是（每人限一次）</option>
+                              <option value="0">否（同人可多次）</option>
+                            </select>
+                          </label>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            到期日（不填=永久）
+                            <input type="date"
+                              value={c.expiresAt>0 ? new Date(c.expiresAt).toISOString().slice(0,10) : ''}
+                              onChange={e=>updateCoupon(idx,'expiresAt', e.target.value ? new Date(e.target.value+'T23:59:59').getTime() : 0)}
+                              style={{padding:'6px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
+                          </label>
+                          <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                            啟用狀態
+                            <select value={c.enabled===false?'0':'1'} onChange={e=>updateCoupon(idx,'enabled',e.target.value==='1')}
+                              style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                              <option value="1">啟用</option>
+                              <option value="0">停用</option>
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                      <div style={{display:'flex',justifyContent:'flex-end',paddingTop:4}}>
+                        <button onClick={()=>removeCoupon(idx)}
+                          style={{padding:'5px 12px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}>刪除優惠碼</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                );
+              })}
+            </div>
+
+            <div style={{display:'flex',gap:10,marginTop:18,alignItems:'center'}}>
+              <Btn v="ghost" onClick={addCoupon}>＋ 新增優惠碼</Btn>
+              <div style={{flex:1}} />
+              <Btn v="ghost" size="sm" onClick={()=>{ setCoupons(null); setExpandedCoupon(null); }}>還原</Btn>
+              <Btn onClick={saveCoupons} disabled={couponsSaving}>{couponsSaving?'儲存中…':'儲存優惠碼'}</Btn>
             </div>
           </div>
           )
