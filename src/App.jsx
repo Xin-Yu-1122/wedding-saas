@@ -1,19 +1,25 @@
 // ============================================================
-// WEDDING SAAS  v6.8.6  （商業版／多租戶）
-// 最後更新：2026-06-14
+// WEDDING SAAS  v6.9.0  （商業版／多租戶）
+// 最後更新：2026-06-15
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.8.6  2026-06-14  ★ Patch：後台新人姓名顯示 + 夜幕暗黑感謝頁文字可見性
-//          【修復1】DevConsole load()：婚禮新人姓名(config)存在子文件 data/main，
-//                   原本只讀 weddings 主文件 → 顯示「? & ?」。改為並行補讀各婚禮 main 文件取得 config
-//          【修復2】賓客端感謝頁文字寫死淺灰(#6B6259/#9A8F82)、標題未設色，
-//                   在夜幕暗黑等深色主題上看不見。改用主題色 gs.text/subText/mutedText、
-//                   額外資訊框背景改 gs.pageBg + 邊框
+// v6.9.0  2026-06-15  ★ Minor：方案與定價管理（金流階段 A — 後台動態定價）
+//          【新增1】config/pricing 設定文件 + pricingDocRef 路徑 helper + DEFAULT_PLANS 預設方案
+//                   方案欄位：id/name/originalPrice(原價劃線)/price(實收)/period(週期)/
+//                   bonusMonths(加送月)/badge(行銷標籤)/enabled(上架)/sortOrder/note
+//          【新增2】開發者後台新增「方案與定價」分頁：可新增/刪除/編輯方案、上下架、
+//                   即時前台預覽（含劃線原價）、儲存寫入 config/pricing
+//          【新增3】前台「升級 Pro」浮窗改讀 config/pricing 動態顯示方案（含 ~~原價~~ 特價）
+//                   App 載入時讀 pricing 至 _cachedPlans；後台儲存後即時同步
+//          【新增4】firestore.rules：config 集合 公開讀 + 僅 isAdmin 可寫
+//          【註】金流串接（createSubscription/ecpayWebhook）為階段 B，待 Firebase CLI 安裝後進行
 //
-// v6.8.5  2026-06-14  ★ Patch：修正未登入直接輸入 #/setup 可進建立向導 + 管理員 setup 迴圈
+// v6.8.7  2026-06-15  ★ Patch：收緊匿名登入觸發條件（解決大量匿名帳號灌爆 Auth）
+// v6.8.6  2026-06-14  ★ Patch：後台新人姓名顯示 + 夜幕暗黑感謝頁文字可見性
+// v6.8.5  2026-06-14  ★ Patch：未登入直接輸入 #/setup 攔截 + 管理員 setup 迴圈
 // v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護（防止刪自己）
-// v6.8.3  2026-06-14  ★ Patch：修正新用戶建立婚禮被規則擋 + 錯誤訊息中文化
-// v6.8.2  2026-06-14  ★ Patch：修正 Google 登入後非管理員誤顯「無權限」
+// v6.8.3  2026-06-14  ★ Patch：新用戶建立婚禮被規則擋 + 錯誤訊息中文化
+// v6.8.2  2026-06-14  ★ Patch：Google 登入後非管理員誤顯「無權限」
 // v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正（登入後直接跳 #/dev）
 // v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
 //          【新增】#/dev 開發者後台，僅 PLATFORM_ADMIN_EMAILS 白名單帳號可進
@@ -447,6 +453,15 @@ const photosColRef  = (db, wid) => weddingDoc(db, wid).collection('photos');
 const backupsColRef = (db, wid) => weddingDoc(db, wid).collection('backups');
 const activityColRef = (db, wid) => weddingDoc(db, wid).collection('activityLog');
 const presenceColRef = (db, wid) => weddingDoc(db, wid).collection('presence');
+// v6.9.0 平台定價設定（全平台共用單一文件）
+const pricingDocRef = (db) => db.collection('config').doc('pricing');
+// 預設方案（config/pricing 不存在時的 fallback；後台可覆寫）
+const DEFAULT_PLANS = [
+  { id:'monthly', name:'月費方案', originalPrice:299, price:199,  period:'month',  bonusMonths:0, badge:'限時優惠', enabled:true, sortOrder:1, note:'每月自動續訂' },
+  { id:'half',    name:'半年方案', originalPrice:0,   price:1099, period:'6month', bonusMonths:1, badge:'最划算',   enabled:true, sortOrder:2, note:'付 6 個月，多送 1 個月' },
+];
+const PERIOD_LABELS = { month:'月', quarter:'季', '6month':'半年', year:'年' };
+const PERIOD_MONTHS = { month:1, quarter:3, '6month':6, year:12 };
 const inviteDocRef   = (db, token) => db.collection('invites').doc(token);
 
 // ============================================================
@@ -1485,10 +1500,11 @@ function uiPrompt(message, defaultValue) {
 }
 // Pro 升級提示 — 統一使用帶品牌視覺的 pro 模式浮窗
 // hint: 簡短說明當前觸發情境，e.g. '您已達免費版婚禮專案上限（2 個）'
+let _cachedPlans = null;  // v6.9.0 由 App 載入 config/pricing 後填入
 function uiProUpgrade(hint) {
   return new Promise(resolve=>{
     if(!_dialogSetter){ window.alert('Pro 方案付費功能即將開放，敬請期待！'); resolve(); return; }
-    _dialogSetter({ mode:'pro', hint: hint||'', _resolve: resolve });
+    _dialogSetter({ mode:'pro', hint: hint||'', plans:_cachedPlans, _resolve: resolve });
   });
 }
 function ConfirmDialogHost() {
@@ -1525,19 +1541,46 @@ function ConfirmDialogHost() {
             {d.hint}
           </div>
         )}
-        {isProMode && (
-          <div style={{fontSize:13,color:'#3A332B',lineHeight:2,marginBottom:16,
-            padding:'12px 16px',background:'#F9F5EF',borderRadius:3}}>
-            <div>✓ 無限婚禮專案</div>
-            <div>✓ 無限排位桌數</div>
-            <div>✓ 更多進階功能即將開放</div>
-          </div>
-        )}
-        {isProMode && (
-          <div style={{fontSize:12,color:'#9A8F82',textAlign:'center',marginBottom:20,lineHeight:1.6}}>
-            付費功能即將開放，敬請期待！
-          </div>
-        )}
+        {isProMode && (()=>{
+          const plans = (d.plans && d.plans.length ? d.plans : DEFAULT_PLANS)
+            .filter(p=>p.enabled!==false)
+            .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+          return (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:13,color:'#3A332B',lineHeight:1.9,marginBottom:14,
+                padding:'12px 16px',background:'#F9F5EF',borderRadius:3}}>
+                <div>✓ 無限婚禮專案</div>
+                <div>✓ 無限排位桌數</div>
+                <div>✓ 名單與排位匯出</div>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {plans.map(p=>(
+                  <div key={p.id} style={{border:'1px solid #E5DDD0',borderRadius:6,padding:'14px 16px',
+                    display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                    <div style={{textAlign:'left'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                        <span style={{fontSize:14,color:'#3A332B',fontWeight:600}}>{p.name}</span>
+                        {p.badge && <span style={{fontSize:10,color:'#B5895F',background:'#F3E9DD',
+                          padding:'1px 7px',borderRadius:10,letterSpacing:.5}}>{p.badge}</span>}
+                      </div>
+                      <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+                        {p.originalPrice>0 && p.originalPrice>p.price &&
+                          <span style={{fontSize:13,color:'#B8AE9F',textDecoration:'line-through'}}>NT${p.originalPrice}</span>}
+                        <span style={{fontSize:20,color:'#B5895F',fontWeight:700}}>NT${p.price}</span>
+                        <span style={{fontSize:12,color:'#9A8F82'}}>/{PERIOD_LABELS[p.period]||p.period}
+                          {p.bonusMonths>0?`（送${p.bonusMonths}個月）`:''}</span>
+                      </div>
+                      {p.note && <div style={{fontSize:11,color:'#9A8F82',marginTop:3}}>{p.note}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontSize:12,color:'#9A8F82',textAlign:'center',marginTop:14,lineHeight:1.6}}>
+                線上付款功能即將開放，敬請期待！
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 一般 alert / confirm / prompt 模式 */}
         {!isProMode && d.title && <div style={{fontFamily:FONT_STACK,fontSize:17,fontWeight:600,letterSpacing:.5,color:'#3A332B',marginBottom:12}}>{d.title}</div>}
@@ -6793,6 +6836,9 @@ function DevConsolePage({ user, fbRef, onBack }) {
   const [search, setSearch]     = React.useState('');
   const [busy, setBusy]         = React.useState('');    // 正在處理的 uid
   const [payView, setPayView]   = React.useState(null);  // 查看付款紀錄的帳號
+  const [tab, setTab]           = React.useState('accounts');  // v6.9.0 'accounts' | 'pricing'
+  const [plans, setPlans]       = React.useState(null);  // 方案陣列（null=載入中）
+  const [pricingSaving, setPricingSaving] = React.useState(false);
 
   const load = React.useCallback(async () => {
     if (!fbRef.current) return;
@@ -6892,6 +6938,55 @@ function DevConsolePage({ user, fbRef, onBack }) {
     } finally { setBusy(''); }
   };
 
+  // ── v6.9.0 方案與定價管理 ──
+  const loadPricing = React.useCallback(async () => {
+    if (!fbRef.current) return;
+    try {
+      const snap = await pricingDocRef(fbRef.current.db).get();
+      if (snap.exists && snap.data() && Array.isArray(snap.data().plans)) {
+        setPlans(snap.data().plans);
+      } else {
+        setPlans(DEFAULT_PLANS.map(p=>({...p})));  // 尚未設定 → 帶入預設供編輯
+      }
+    } catch (e) {
+      uiAlert('載入定價失敗\n\n' + firestoreErrMsg(e));
+      setPlans(DEFAULT_PLANS.map(p=>({...p})));
+    }
+  }, [fbRef]);
+
+  React.useEffect(() => { if (tab === 'pricing' && plans === null) loadPricing(); }, [tab, plans, loadPricing]);
+
+  const savePricing = async () => {
+    if (!fbRef.current || !plans) return;
+    // 基本驗證
+    for (const p of plans) {
+      if (!p.id || !p.name) { uiAlert('每個方案都需要「方案代碼」與「名稱」'); return; }
+      if (!(p.price >= 0)) { uiAlert(`方案「${p.name}」的售價需為 0 或正整數`); return; }
+    }
+    const ids = plans.map(p=>p.id);
+    if (new Set(ids).size !== ids.length) { uiAlert('方案代碼（id）不可重複'); return; }
+    setPricingSaving(true);
+    try {
+      await pricingDocRef(fbRef.current.db).set({
+        plans, updatedAt: Date.now(), updatedBy: user.email || user.uid,
+      }, { merge: true });
+      _cachedPlans = plans;  // 立即同步前台浮窗快取
+      uiAlert('✓ 方案與定價已儲存');
+    } catch (e) {
+      uiAlert('儲存失敗\n\n' + firestoreErrMsg(e));
+    } finally { setPricingSaving(false); }
+  };
+
+  const updatePlan = (idx, key, val) => setPlans(ps => ps.map((p,i)=> i===idx ? {...p,[key]:val} : p));
+  const addPlan = () => setPlans(ps => [...(ps||[]), {
+    id:'plan'+Date.now().toString(36), name:'新方案', originalPrice:0, price:0,
+    period:'month', bonusMonths:0, badge:'', enabled:true, sortOrder:(ps?.length||0)+1, note:''
+  }]);
+  const removePlan = async (idx) => {
+    if (!await uiConfirm({ title:'刪除方案', message:`確定刪除方案「${plans[idx].name}」？`, confirmText:'刪除', cancelText:'取消', danger:true })) return;
+    setPlans(ps => ps.filter((_,i)=>i!==idx));
+  };
+
   const filtered = accounts.filter(a => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -6919,6 +7014,19 @@ function DevConsolePage({ user, fbRef, onBack }) {
       </nav>
 
       <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 20px'}}>
+        {/* v6.9.0 分頁切換 */}
+        <div style={{display:'flex',gap:4,marginBottom:20,borderBottom:'1px solid #E5DDD0'}}>
+          {[['accounts','帳號管理'],['pricing','方案與定價']].map(([k,l])=>(
+            <button key={k} onClick={()=>setTab(k)}
+              style={{padding:'9px 18px',border:'none',background:'none',cursor:'pointer',fontFamily:FONT_STACK,
+                fontSize:14,letterSpacing:1,color: tab===k?'#3A332B':'#A89E92',
+                borderBottom: tab===k?'2px solid #B5895F':'2px solid transparent',marginBottom:-1,fontWeight:tab===k?600:400}}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {tab==='accounts' && <>
         {/* 統計 */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}}>
           {[['使用者帳號',totalAcc],['Pro 帳號',proAcc],['婚禮專案總數',totalWed]].map(([l,v])=>(
@@ -7013,6 +7121,85 @@ function DevConsolePage({ user, fbRef, onBack }) {
               </tbody>
             </table>
           </div>
+        )}
+        </>}
+
+        {tab==='pricing' && (
+          plans === null ? (
+            <div style={{textAlign:'center',padding:40}}><Spinner size={28}/></div>
+          ) : (
+          <div>
+            <div style={{padding:'9px 14px',background:'#FFF8F0',border:'1px solid #F0DFC0',borderRadius:3,
+              fontSize:12,color:'#7A5C00',marginBottom:16,lineHeight:1.7}}>
+              💡 這裡設定的方案會即時顯示在前台「升級 Pro」浮窗。原價留空（0）則不顯示劃線價。售價為實際收費金額（金流以此為準）。
+            </div>
+
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {plans.map((p,idx)=>(
+                <div key={idx} style={{...S.card,padding:'16px 18px',opacity:p.enabled===false?.6:1}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontFamily:FONT_STACK,fontSize:15,color:'#3A332B'}}>{p.name||'（未命名方案）'}</span>
+                      {p.enabled===false && <span style={{fontSize:11,color:'#B8AE9F',border:'1px solid #E5DDD0',padding:'1px 8px',borderRadius:10}}>已下架</span>}
+                    </div>
+                    <button onClick={()=>removePlan(idx)}
+                      style={{padding:'4px 10px',borderRadius:2,border:'1px solid #EECDD6',background:'#FDF5F7',color:'#C04060',fontSize:11,cursor:'pointer',fontFamily:FONT_STACK}}>刪除</button>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10}}>
+                    {[
+                      ['方案代碼 (id)','id','text','英數,不可重複'],
+                      ['方案名稱','name','text','例：月費方案'],
+                      ['原價 (劃線,0=不顯示)','originalPrice','number',''],
+                      ['售價 (實收)','price','number',''],
+                      ['加送月數','bonusMonths','number',''],
+                      ['行銷標籤','badge','text','例：最划算'],
+                      ['排序','sortOrder','number',''],
+                      ['說明','note','text','例：每月自動續訂'],
+                    ].map(([label,key,type,ph])=>(
+                      <label key={key} style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                        {label}
+                        <input type={type} value={p[key]??''} placeholder={ph}
+                          onChange={e=>updatePlan(idx,key, type==='number'?(parseInt(e.target.value,10)||0):e.target.value)}
+                          style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}} />
+                      </label>
+                    ))}
+                    <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                      計費週期
+                      <select value={p.period||'month'} onChange={e=>updatePlan(idx,'period',e.target.value)}
+                        style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                        {Object.entries(PERIOD_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                      </select>
+                    </label>
+                    <label style={{fontSize:11,color:'#9A8F82',display:'flex',flexDirection:'column',gap:3}}>
+                      上架狀態
+                      <select value={p.enabled===false?'0':'1'} onChange={e=>updatePlan(idx,'enabled',e.target.value==='1')}
+                        style={{padding:'7px 9px',borderRadius:3,border:'1px solid #E5DDD0',fontFamily:FONT_STACK,fontSize:13,background:'#FFFEFA',color:'#3A332B'}}>
+                        <option value="1">上架</option>
+                        <option value="0">下架</option>
+                      </select>
+                    </label>
+                  </div>
+                  {/* 前台預覽 */}
+                  <div style={{marginTop:12,paddingTop:12,borderTop:'1px dashed #EBE3D6',display:'flex',alignItems:'baseline',gap:6,flexWrap:'wrap'}}>
+                    <span style={{fontSize:11,color:'#B8AE9F'}}>前台顯示：</span>
+                    {p.badge && <span style={{fontSize:10,color:'#B5895F',background:'#F3E9DD',padding:'1px 7px',borderRadius:10}}>{p.badge}</span>}
+                    {p.originalPrice>0 && p.originalPrice>p.price &&
+                      <span style={{fontSize:12,color:'#B8AE9F',textDecoration:'line-through'}}>NT${p.originalPrice}</span>}
+                    <span style={{fontSize:16,color:'#B5895F',fontWeight:700}}>NT${p.price}</span>
+                    <span style={{fontSize:12,color:'#9A8F82'}}>/{PERIOD_LABELS[p.period]||p.period}{p.bonusMonths>0?`（送${p.bonusMonths}個月）`:''}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{display:'flex',gap:10,marginTop:18,alignItems:'center'}}>
+              <Btn v="ghost" onClick={addPlan}>＋ 新增方案</Btn>
+              <div style={{flex:1}} />
+              <Btn v="ghost" size="sm" onClick={()=>{ setPlans(null); }}>還原</Btn>
+              <Btn onClick={savePricing} disabled={pricingSaving}>{pricingSaving?'儲存中…':'儲存方案'}</Btn>
+            </div>
+          </div>
+          )
         )}
       </div>
 
@@ -7123,6 +7310,11 @@ export default function WeddingApp() {
         if(!fb) throw lastErr || new Error('Firebase 初始化失敗');
         fbRef.current=fb;
         setFbReady(true); // ← 觸發 data loading effect 重試（解決公開路由 race condition）
+        // v6.9.0：載入平台定價設定（供 Pro 升級浮窗顯示；失敗則用預設方案）
+        pricingDocRef(fb.db).get().then(snap=>{
+          if(snap.exists && snap.data() && Array.isArray(snap.data().plans)) _cachedPlans = snap.data().plans;
+          else _cachedPlans = DEFAULT_PLANS;
+        }).catch(()=>{ _cachedPlans = DEFAULT_PLANS; });
         try {
           await fb.auth.getRedirectResult();
           // 成功的話 onAuthStateChanged 會自動觸發，不需額外處理
@@ -7240,8 +7432,11 @@ export default function WeddingApp() {
     const fb = fbRef.current;
     (async()=>{
       try {
-        // RSVP 公開頁面：未登入者用匿名登入才能讀取
-        if(!fb.auth.currentUser){ await fb.auth.signInAnonymously().catch(()=>{}); }
+        // 僅「賓客公開頁（#/w/*）」且尚無任何登入者時，才用匿名登入讀取
+        // （避免管理者/Google 登入時序中誤建大量匿名帳號）
+        if(parsed.section==='w' && !fb.auth.currentUser){
+          await fb.auth.signInAnonymously().catch(()=>{});
+        }
         if(cancelled) return;
         const ref=mainDocRef(fb.db, weddingId);
         const photosCol = photosColRef(fb.db, weddingId);
@@ -7577,7 +7772,8 @@ export default function WeddingApp() {
   const submitRSVP=useCallback(async guest=>{
     const fb=fbRef.current||await initFirebase();
     fbRef.current=fb;
-    await fb.auth.signInAnonymously().catch(()=>{});
+    // 已登入（含管理者本人預覽送出）沿用現有身分；未登入的賓客才匿名登入
+    if(!fb.auth.currentUser){ await fb.auth.signInAnonymously().catch(()=>{}); }
     const ref=mainDocRef(fb.db, weddingId);
     // 改用 arrayUnion：只 append 賓客，不讀整份 doc，僅需 update 權限
     // （Firestore rules 可設定匿名用戶只能更新 guests + lastUpdate 欄位）
