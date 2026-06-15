@@ -1,26 +1,28 @@
 // ============================================================
-// WEDDING SAAS  v6.10.0  （商業版／多租戶）
+// WEDDING SAAS  v6.11.0  （商業版／多租戶）
 // 最後更新：2026-06-15
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.10.0 2026-06-15  ★ Minor：優惠碼系統 + 方案定價頁版面優化
-//          【新增1】優惠碼管理（coupons 集合 + couponsColRef）：開發者後台「優惠碼」分頁
-//                   欄位：code/type(百分比|固定)/value/appliesTo(綁定方案,可複選)/
-//                   maxUses(總次數)/usedCount/perUserOnce(每人限一次)/expiresAt(到期日)/enabled/note
-//                   收合卡片式編輯,摘要列顯示折扣與使用量,含已過期/已用完/已停用狀態標示
-//          【新增2】firestore.rules：coupons 集合僅 admin 讀寫(前台套用走後端驗證)
-//          【優化】方案與定價頁改為「收合卡片 + 欄位分組(基本/價格週期/行銷狀態)」,
-//                   摘要列顯示名稱/標籤/上架狀態/價格,點擊展開編輯,改善可讀性
-//          【註】優惠碼實際折抵計算與套用為金流階段 B(Cloud Functions 後端,防止前端竄改)
+// v6.11.0 2026-06-15  ★ Minor：前台付款 UI 串接金流（步驟 C）
+//          【新增1】AccountCenterPage「方案與訂閱」tab 完整付款流程：
+//                   動態方案卡片選擇（讀 config/pricing）→ 優惠碼輸入驗證（呼叫 validateCoupon）
+//                   → 金額摘要 → 前往付款按鈕（呼叫 createSubscription → POST 跳轉綠界）
+//          【新增2】Pro 狀態顯示訂閱到期日（讀 users/{uid}.proGrant.expiresAt）
+//          【新增3】帳單歷史（讀 users/{uid}/invoices，顯示方案名/日期/金額/訂單號）
+//          【新增4】initFirebase 加入 functions 初始化（window.firebase.functions()）
+//                   AccountCenterPage 接受 fbRef prop；accountProps 補傳 fbRef
+//          【測試環境】Cloud Functions 使用綠界測試環境（MerchantID:3002607）
+//                    正式上線換 firebase functions:config:set ecpay.*=真實參數
 //
-// v6.9.0  2026-06-15  ★ Minor：方案與定價管理（金流階段 A — 後台動態定價）
-// v6.8.7  2026-06-15  ★ Patch：收緊匿名登入觸發條件（解決大量匿名帳號灌爆 Auth）
+// v6.10.0 2026-06-15  ★ Minor：優惠碼系統 + 方案定價頁版面優化
+// v6.9.0  2026-06-15  ★ Minor：方案與定價管理（金流階段 A）
+// v6.8.7  2026-06-15  ★ Patch：收緊匿名登入觸發條件
 // v6.8.6  2026-06-14  ★ Patch：後台新人姓名顯示 + 夜幕暗黑感謝頁文字可見性
 // v6.8.5  2026-06-14  ★ Patch：未登入直接輸入 #/setup 攔截 + 管理員 setup 迴圈
-// v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護（防止刪自己）
+// v6.8.4  2026-06-14  ★ Patch：開發者後台刪除/開通 Pro 防護
 // v6.8.3  2026-06-14  ★ Patch：新用戶建立婚禮被規則擋 + 錯誤訊息中文化
 // v6.8.2  2026-06-14  ★ Patch：Google 登入後非管理員誤顯「無權限」
-// v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正（登入後直接跳 #/dev）
+// v6.8.1  2026-06-14  ★ Patch：管理員帳號路由修正
 // v6.8.0  2026-06-14  ★ Minor：開發者後台（Dev Console）
 //          【新增】#/dev 開發者後台，僅 PLATFORM_ADMIN_EMAILS 白名單帳號可進
 //          • 總覽所有使用者帳號（查 users + weddings 分組）、搜尋、統計
@@ -1244,7 +1246,8 @@ function initFirebase() {
         const auth = window.firebase.auth();
         const googleProvider = new window.firebase.auth.GoogleAuthProvider();
         googleProvider.setCustomParameters({ prompt: "select_account" });
-        resolve({ auth, googleProvider, db: window.firebase.firestore(), storage: window.firebase.storage() });
+        const functions = window.firebase.functions();
+        resolve({ auth, googleProvider, db: window.firebase.firestore(), storage: window.firebase.storage(), functions });
       })
       .catch(err=>{ window.__wedFB = null; reject(err); });  // 失敗清除快取，下次可重試
   });
@@ -6422,7 +6425,7 @@ function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
 // ============================================================
 // ACCOUNT CENTER — 帳戶中心（方案訂閱 / 安全設定 / 帳戶管理）
 // ============================================================
-function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount }) {
+function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount }) {
   const [tab, setTab] = useState('plan');
   // 區分「自有婚禮」vs「協作婚禮」
   const ownedWeddings = weddings.filter(w => w.ownerId === user?.uid);
@@ -6433,11 +6436,94 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
   const hasGoogle = providers.includes('google.com');
   const hasPassword = providers.includes('password');
 
+  // ── v6.11.0 付款相關 state ──
+  const [planList,    setPlanList]    = useState(_cachedPlans || DEFAULT_PLANS);
+  const [selectedPlan,setSelectedPlan]= useState(null);   // 選中的方案物件
+  const [couponCode,  setCouponCode]  = useState('');
+  const [couponResult,setCouponResult]= useState(null);   // { valid, type, value, ... }
+  const [couponErr,   setCouponErr]   = useState('');
+  const [couponLoading,setCouponLoading]=useState(false);
+  const [paying,      setPaying]      = useState(false);
+  const [proGrant,    setProGrant]    = useState(null);   // users/{uid}.proGrant
+  const [invoices,    setInvoices]    = useState(null);   // 帳單清單
+
+  // 載入 proGrant 與帳單
+  React.useEffect(()=>{
+    if(!fbRef?.current || !user?.uid) return;
+    const db = fbRef.current.db;
+    db.collection('users').doc(user.uid).get().then(snap=>{
+      if(snap.exists) setProGrant(snap.data().proGrant || null);
+    }).catch(()=>{});
+    db.collection('users').doc(user.uid).collection('invoices')
+      .orderBy('paidAt','desc').limit(10).get()
+      .then(snap=>{ const list=[]; snap.forEach(d=>list.push(d.data())); setInvoices(list); })
+      .catch(()=>setInvoices([]));
+    // 載入最新方案
+    pricingDocRef(db).get().then(snap=>{
+      if(snap.exists && snap.data()?.plans) setPlanList(snap.data().plans.filter(p=>p.enabled!==false));
+    }).catch(()=>{});
+  },[fbRef, user?.uid]);
+
+  // 計算折後價
+  const calcFinalPrice = (plan, cr) => {
+    if(!plan) return 0;
+    if(!cr || !cr.valid) return plan.price;
+    if(cr.type==='percent') return Math.round(plan.price*(1-cr.value/100));
+    return Math.max(1, plan.price - cr.value);
+  };
+
+  const handleValidateCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if(!code){ setCouponErr('請輸入優惠碼'); return; }
+    if(!fbRef?.current){ setCouponErr('系統初始化中，請稍後再試'); return; }
+    setCouponLoading(true); setCouponErr(''); setCouponResult(null);
+    try {
+      const fn = fbRef.current.functions.httpsCallable('validateCoupon');
+      const res = await fn({ code, planId: selectedPlan?.id });
+      setCouponResult(res.data);
+    } catch(e) {
+      setCouponErr(e.message || '優惠碼無效');
+    } finally { setCouponLoading(false); }
+  };
+
+  const handlePay = async () => {
+    if(!selectedPlan){ uiAlert('請先選擇方案'); return; }
+    if(!fbRef?.current){ uiAlert('系統初始化中，請稍後再試'); return; }
+    if(!await uiConfirm({
+      title:'確認付款',
+      message:`方案：${selectedPlan.name}\n金額：NT$${calcFinalPrice(selectedPlan, couponResult)}${couponResult?.valid?' （已套用優惠碼）':''}\n\n點擊「前往付款」將跳轉至綠界付款頁面。`,
+      confirmText:'前往付款', cancelText:'取消',
+    })) return;
+    setPaying(true);
+    try {
+      const fn = fbRef.current.functions.httpsCallable('createSubscription');
+      const res = await fn({ planId: selectedPlan.id, couponCode: couponResult?.valid ? couponCode.trim().toUpperCase() : null });
+      const { actionURL, params } = res.data;
+      // 建立並送出表單（跳轉綠界）
+      const form = document.createElement('form');
+      form.method = 'POST'; form.action = actionURL;
+      Object.entries(params).forEach(([k,v])=>{
+        const inp = document.createElement('input');
+        inp.type='hidden'; inp.name=k; inp.value=v;
+        form.appendChild(inp);
+      });
+      document.body.appendChild(form);
+      form.submit();
+    } catch(e) {
+      uiAlert('付款失敗\n\n' + (e.message || '請稍後再試'));
+      setPaying(false);
+    }
+  };
+
   const tabs = [
     { id: 'plan',     label: '方案與訂閱' },
     { id: 'security', label: '安全設定' },
     { id: 'account',  label: '帳戶管理' },
   ];
+
+  const expiresStr = proGrant?.expiresAt
+    ? new Date(proGrant.expiresAt).toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'})
+    : null;
 
   return (
     <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
@@ -6461,7 +6547,6 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
 
       {tab === 'plan' && (
         <div>
-          {/* ── 協作帳號：不顯示升級按鈕，只說明角色 ── */}
           {isPureCollab ? (
             <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
@@ -6478,20 +6563,10 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
               <div style={{padding:'12px 16px',background:'#F9F5EF',borderRadius:3,fontSize:12,color:'#9A8F82',lineHeight:1.8}}>
                 如需自行建立婚禮專案，可使用本帳號新增（免費版最多 {FREE_PROJECT_LIMIT} 個）。
               </div>
-              <div style={{marginTop:18}}>
-                <div style={{fontSize:12,color:'#9A8F82',letterSpacing:.5,marginBottom:8}}>您協作的婚禮</div>
-                {collabWeddings.map(w=>(
-                  <div key={w.weddingId} style={{display:'flex',justifyContent:'space-between',
-                    fontSize:13,color:'#3A332B',padding:'6px 0',borderBottom:'1px solid #F0EBE3'}}>
-                    <span>{w.config?.groomName||''} & {w.config?.brideName||''}</span>
-                    <span style={{color:'#9A8F82'}}>{w.plan==='pro'?'✦ Pro 方案':'免費版'}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           ) : (
-            /* ── 主帳號：顯示自己的方案與升級 ── */
             <>
+              {/* ── 目前方案卡 ── */}
               <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                   <div>
@@ -6508,8 +6583,8 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
                 <div style={{fontSize:13,color:'#6B6259',lineHeight:2}}>
                   {isPro ? (
                     <>
-                      <div>續期日期：—（Stripe 整合後顯示）</div>
-                      <div>方案內容：無限婚禮專案・無限桌數</div>
+                      <div>✓ 無限婚禮專案・無限桌數・匯出功能</div>
+                      {expiresStr && <div style={{color:'#B5895F',marginTop:4}}>訂閱到期：{expiresStr}</div>}
                     </>
                   ) : (
                     <>
@@ -6519,19 +6594,121 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
                     </>
                   )}
                 </div>
-                {!isPro && (
-                  <Btn onClick={()=>uiProUpgrade()} style={{marginTop:16}}>
-                    升級 Pro 方案
-                  </Btn>
-                )}
-                {isPro && (
-                  <Btn v="ghost" onClick={()=>uiAlert('取消訂閱功能將在 Stripe 整合後開放。')} style={{marginTop:16}}>
-                    取消訂閱
-                  </Btn>
+              </div>
+
+              {/* ── 升級區塊（未訂閱才顯示）── */}
+              {!isPro && (
+                <div style={{...S.card,padding:'24px 26px',marginBottom:16}}>
+                  <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:16}}>升級 Pro 方案</div>
+
+                  {/* 方案卡片 */}
+                  <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:18}}>
+                    {planList.filter(p=>p.enabled!==false).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)).map(p=>{
+                      const sel = selectedPlan?.id===p.id;
+                      return (
+                        <div key={p.id} onClick={()=>{ setSelectedPlan(p); setCouponResult(null); setCouponCode(''); setCouponErr(''); }}
+                          style={{border:`2px solid ${sel?'#B5895F':'#E5DDD0'}`,borderRadius:6,padding:'14px 16px',
+                            cursor:'pointer',background:sel?'#FBF7F2':'#FFFEFA',transition:'border .15s'}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8}}>
+                              <div style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${sel?'#B5895F':'#D5C9BE'}`,
+                                background:sel?'#B5895F':'transparent',flexShrink:0}} />
+                              <span style={{fontSize:14,color:'#3A332B',fontWeight:sel?600:400}}>{p.name}</span>
+                              {p.badge && <span style={{fontSize:10,color:'#B5895F',background:'#F3E9DD',padding:'1px 7px',borderRadius:10}}>{p.badge}</span>}
+                            </div>
+                            <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+                              {p.originalPrice>0 && p.originalPrice>p.price &&
+                                <span style={{fontSize:12,color:'#B8AE9F',textDecoration:'line-through'}}>NT${p.originalPrice}</span>}
+                              <span style={{fontSize:18,color:'#B5895F',fontWeight:700}}>NT${p.price}</span>
+                              <span style={{fontSize:11,color:'#9A8F82'}}>/{PERIOD_LABELS[p.period]||p.period}
+                                {p.bonusMonths>0?`（送${p.bonusMonths}個月）`:''}</span>
+                            </div>
+                          </div>
+                          {p.note && <div style={{fontSize:11,color:'#9A8F82',marginTop:6,marginLeft:24}}>{p.note}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 優惠碼 */}
+                  {selectedPlan && (
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:12,color:'#9A8F82',marginBottom:6}}>優惠碼（選填）</div>
+                      <div style={{display:'flex',gap:8}}>
+                        <input value={couponCode} placeholder="例：WEDDING20"
+                          onChange={e=>{ setCouponCode(e.target.value.toUpperCase()); setCouponResult(null); setCouponErr(''); }}
+                          style={{flex:1,padding:'8px 12px',borderRadius:3,border:`1px solid ${couponResult?.valid?'#7BA77B':couponErr?'#C04060':'#E5DDD0'}`,
+                            fontFamily:'monospace',fontSize:13,background:'#FFFEFA',color:'#3A332B',letterSpacing:1}} />
+                        <Btn v="ghost" size="sm" onClick={handleValidateCoupon} disabled={couponLoading}>
+                          {couponLoading?'驗證中…':'套用'}
+                        </Btn>
+                      </div>
+                      {couponResult?.valid && (
+                        <div style={{marginTop:6,fontSize:12,color:'#5B8C5A',display:'flex',alignItems:'center',gap:6}}>
+                          ✓ 優惠碼有效：
+                          {couponResult.type==='percent'?`折抵 ${couponResult.value}%`:`折抵 NT$${couponResult.value}`}
+                          {couponResult.note && ` · ${couponResult.note}`}
+                        </div>
+                      )}
+                      {couponErr && <div style={{marginTop:6,fontSize:12,color:'#C04060'}}>{couponErr}</div>}
+                    </div>
+                  )}
+
+                  {/* 金額摘要 + 付款按鈕 */}
+                  {selectedPlan && (
+                    <div style={{borderTop:'1px solid #F0EBE3',paddingTop:16}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+                        <div style={{fontSize:13,color:'#6B6259'}}>
+                          {selectedPlan.name}
+                          {couponResult?.valid && <span style={{color:'#5B8C5A'}}> · 優惠碼 {couponCode}</span>}
+                        </div>
+                        <div style={{display:'flex',alignItems:'baseline',gap:6}}>
+                          {couponResult?.valid && selectedPlan.price !== calcFinalPrice(selectedPlan, couponResult) &&
+                            <span style={{fontSize:12,color:'#B8AE9F',textDecoration:'line-through'}}>NT${selectedPlan.price}</span>}
+                          <span style={{fontSize:20,color:'#B5895F',fontWeight:700}}>NT${calcFinalPrice(selectedPlan, couponResult)}</span>
+                        </div>
+                      </div>
+                      <Btn onClick={handlePay} disabled={paying} style={{width:'100%',justifyContent:'center'}}>
+                        {paying ? '跳轉中…' : '前往付款 →'}
+                      </Btn>
+                      <div style={{fontSize:11,color:'#9A8F82',textAlign:'center',marginTop:10,lineHeight:1.7}}>
+                        付款由綠界科技（ECPay）安全處理・支援信用卡定期定額
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── 帳單歷史 ── */}
+              <div style={{...S.card,padding:'24px 26px'}}>
+                <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:14}}>帳單歷史</div>
+                {invoices === null ? (
+                  <div style={{textAlign:'center',padding:'20px 0'}}><Spinner size={20}/></div>
+                ) : invoices.length === 0 ? (
+                  <div style={{textAlign:'center',padding:'28px 0',color:'#9A8F82',fontSize:13}}>
+                    <div style={{fontSize:28,marginBottom:8}}>🧾</div>尚無付費記錄
+                  </div>
+                ) : (
+                  <div>
+                    {invoices.map((inv,i)=>(
+                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+                        padding:'10px 0',borderBottom:'1px solid #F0EBE3',fontSize:13}}>
+                        <div>
+                          <div style={{color:'#3A332B'}}>{inv.planName}</div>
+                          <div style={{fontSize:11,color:'#9A8F82',marginTop:2}}>
+                            {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('zh-TW') : ''}
+                            {inv.tradeNo ? ` · ${inv.tradeNo}` : ''}
+                          </div>
+                        </div>
+                        <div style={{color:'#B5895F',fontWeight:600}}>NT${inv.amount}</div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
+
               {collabWeddings.length > 0 && (
-                <div style={{...S.card,padding:'20px 26px',marginBottom:16,background:'#FAFAF7'}}>
+                <div style={{...S.card,padding:'20px 26px',marginTop:16,background:'#FAFAF7'}}>
                   <div style={{fontSize:12,color:'#9A8F82',letterSpacing:.5,marginBottom:10}}>
                     您也在協作的婚禮（費用由主辦方管理）
                   </div>
@@ -6544,13 +6721,6 @@ function AccountCenterPage({ user, weddings, onChangePassword, onLinkGoogle, onL
                   ))}
                 </div>
               )}
-              <div style={{...S.card,padding:'24px 26px'}}>
-                <div style={{fontFamily:FONT_STACK,fontSize:15,letterSpacing:.5,marginBottom:14}}>帳單歷史</div>
-                <div style={{textAlign:'center',padding:'28px 0',color:'#9A8F82',fontSize:13}}>
-                  <div style={{fontSize:28,marginBottom:8}}>🧾</div>
-                  尚無付費記錄
-                </div>
-              </div>
             </>
           )}
         </div>
@@ -8357,6 +8527,7 @@ export default function WeddingApp() {
         activeTab={dashTab}
         onTabChange={(t)=>navigate(t==='account'?'#/dashboard/account':'#/dashboard')}
         accountProps={{
+          fbRef,
           onChangePassword: acctChangePassword,
           onLinkGoogle: acctLinkGoogle,
           onLogoutThisDevice: acctLogoutThisDevice,
