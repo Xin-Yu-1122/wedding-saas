@@ -1,7 +1,12 @@
 // ============================================================
-// WEDDING SAAS  v6.11.0  （商業版／多租戶）
+// WEDDING SAAS  v6.11.1  （商業版／多租戶）
 // 最後更新：2026-06-15
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.11.1 2026-06-15  ★ Patch：加入 firebase-functions-compat.js 載入（修正登入失敗）
+//          【Bug】window.firebase.functions is not a function → Google 登入完全失敗
+//          【修復】initFirebase 的 SDK 載入清單加入 firebase-functions-compat.js；
+//                  SDK 檢查條件同步加入 functions 驗證
 //
 // v6.11.0 2026-06-15  ★ Minor：前台付款 UI 串接金流（步驟 C）
 //          【新增1】AccountCenterPage「方案與訂閱」tab 完整付款流程：
@@ -1233,13 +1238,15 @@ function initFirebase() {
       .then(()=>Promise.all([
         load('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js'),
         load('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js'),
-        load('https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js')
+        load('https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js'),
+        load('https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js'),
       ]))
       .then(()=>{
-        // 保險：確認三個功能都已註冊，否則視為載入失敗（讓呼叫端可重試而非拋出半殘狀態）
+        // 保險：確認四個功能都已註冊，否則視為載入失敗（讓呼叫端可重試而非拋出半殘狀態）
         if (typeof window.firebase?.storage !== 'function' ||
             typeof window.firebase?.firestore !== 'function' ||
-            typeof window.firebase?.auth !== 'function') {
+            typeof window.firebase?.auth !== 'function' ||
+            typeof window.firebase?.functions !== 'function') {
           throw new Error('Firebase SDK 尚未完整載入');
         }
         if(!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
