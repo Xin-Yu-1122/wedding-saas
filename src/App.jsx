@@ -1,14 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.12.2  （商業版／多租戶）
+// WEDDING SAAS  v6.12.3  （商業版／多租戶）
 // 最後更新：2026-06-16
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.12.3 2026-06-16  ★ Patch：付款導回 fragment 遺失 → 改用 query 參數承載
+//          【根因】綠界付款完成是 POST 到 payResult，函式 302 帶 #/pay/result，
+//                  但瀏覽器跟隨「POST 後的 302」時常把 fragment 丟掉，
+//                  SPA 開起來 hash 是空的 → 預設 #/login → 已登入 → 彈到首頁
+//                  （故 v6.12.2 把路由提前也無效，因為根本沒收到 hash）
+//          【修法】payResult 改導向 .../?payresult=1#/pay/result（query 一定留存）
+//                  useHashRoute 偵測 ?payresult=1 → 路由設為 #/pay/result 並清 URL
+//          ※ 後端 index.js 同步更新（PAY_RESULT_HASH_URL 加 query），兩檔都要部署
 //
 // v6.12.2 2026-06-16  ★ Patch：修付款導回被路由彈走（導向首頁而非確認頁）
 //          【根因】#/pay/result 判斷排在路由分派後段，會先被 (1) auth 未就緒的
 //                  LoginPage 彈出、(2) 0 婚禮帳號的「建立婚禮向導」攔截而換掉
 //          【修法】把 #/pay/result 提到分派最前面（先於所有 auth/婚禮判斷）
-//                  不卡登入狀態，PayResultPage 自行等 user.uid 到位再開始輪詢
-//          ※ 後端 index.js 不變（仍 v6.12.1），本輪只需重推 App.jsx
 //
 // v6.12.1 2026-06-16  ★ Patch：付款導回機制改用 Cloud Function 轉址（前端邏輯不變）
 //          【根因】v6.12.0 用 vercel.json rewrite /pay-result，但 (1) 未生效 404、
@@ -5744,8 +5751,19 @@ function PwGate({onAuth,expectedPw}) {
 //           #/w/{weddingId}/admin · /seating · /info · /blessings
 // ============================================================
 function useHashRoute() {
-  const [route, setRoute] = useState(() => window.location.hash || '#/login');
+  // v6.12.3：綠界付款導回時，hash fragment 在 POST→302 轉址中常被瀏覽器丟掉，
+  //          故 payResult 函式改帶 ?payresult=1。這裡優先用 query 判定，再把 URL 清成 hash 路由。
+  const [route, setRoute] = useState(() => {
+    try { if (new URLSearchParams(window.location.search).get('payresult') === '1') return '#/pay/result'; } catch {}
+    return window.location.hash || '#/login';
+  });
   useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('payresult') === '1') {
+        // 清掉 query、補上 hash（replaceState 不觸發導航，route 已初始化為 #/pay/result）
+        window.history.replaceState(null, '', window.location.pathname + '#/pay/result');
+      }
+    } catch {}
     const onHash = () => setRoute(window.location.hash || '#/login');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
