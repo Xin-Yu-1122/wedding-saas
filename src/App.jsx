@@ -6508,11 +6508,20 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
     try {
       const fn = fbRef.current.functions.httpsCallable('createSubscription');
       const res = await fn({ planId: selectedPlan.id, couponCode: couponResult?.valid ? couponCode.trim().toUpperCase() : null });
-      const { formHTML } = res.data;
-      // 後端已組好 HTML form，直接寫入並自動送出，避免前端重組參數的編碼差異
-      document.open();
-      document.write(formHTML);
-      document.close();
+      const { actionURL, params } = res.data;
+      // 建立並送出表單
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = actionURL;
+      form.enctype = 'application/x-www-form-urlencoded';
+      form.acceptCharset = 'UTF-8';
+      Object.entries(params).forEach(([k,v])=>{
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = k; inp.value = String(v);
+        form.appendChild(inp);
+      });
+      document.body.appendChild(form);
+      form.submit();
     } catch(e) {
       const raw = e.message || '請稍後再試';
       const msg = raw.includes(': ') ? raw.split(': ').slice(1).join(': ') : raw;
