@@ -1,14 +1,14 @@
 // ============================================================
-// WEDDING SAAS  v6.11.1  （商業版／多租戶）
-// 最後更新：2026-06-15
+// WEDDING SAAS  v6.11.2  （商業版／多租戶）
+// 最後更新：2026-06-16
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.11.1 2026-06-15  ★ Patch：加入 firebase-functions-compat.js 載入（修正登入失敗）
-//          【Bug】window.firebase.functions is not a function → Google 登入完全失敗
-//          【修復】initFirebase 的 SDK 載入清單加入 firebase-functions-compat.js；
-//                  SDK 檢查條件同步加入 functions 驗證
+// v6.11.2 2026-06-16  ★ Patch：ECPay CheckMacValue Error 修正
+//          【改法】後端直接組 HTML form string 回傳（formHTML），前端用 document.write 送出
+//                  徹底消除前端 JS 重組參數時的任何編碼差異
+//          【同步】TradeDesc/ItemName 改為純 ASCII 排除中文編碼干擾
 //
-// v6.11.0 2026-06-15  ★ Minor：前台付款 UI 串接金流（步驟 C）
+// v6.11.1 2026-06-15  ★ Patch：加入 firebase-functions-compat.js 載入
 //          【新增1】AccountCenterPage「方案與訂閱」tab 完整付款流程：
 //                   動態方案卡片選擇（讀 config/pricing）→ 優惠碼輸入驗證（呼叫 validateCoupon）
 //                   → 金額摘要 → 前往付款按鈕（呼叫 createSubscription → POST 跳轉綠界）
@@ -6489,7 +6489,10 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
       const res = await fn({ code, planId: selectedPlan?.id });
       setCouponResult(res.data);
     } catch(e) {
-      setCouponErr(e.message || '優惠碼無效');
+      // Firebase Functions 錯誤格式：e.message 可能含 "code: " 前綴，取後半段
+      const raw = e.message || '優惠碼無效，請確認後再試';
+      const msg = raw.includes(': ') ? raw.split(': ').slice(1).join(': ') : raw;
+      setCouponErr(msg);
     } finally { setCouponLoading(false); }
   };
 
@@ -6505,19 +6508,15 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
     try {
       const fn = fbRef.current.functions.httpsCallable('createSubscription');
       const res = await fn({ planId: selectedPlan.id, couponCode: couponResult?.valid ? couponCode.trim().toUpperCase() : null });
-      const { actionURL, params } = res.data;
-      // 建立並送出表單（跳轉綠界）
-      const form = document.createElement('form');
-      form.method = 'POST'; form.action = actionURL;
-      Object.entries(params).forEach(([k,v])=>{
-        const inp = document.createElement('input');
-        inp.type='hidden'; inp.name=k; inp.value=v;
-        form.appendChild(inp);
-      });
-      document.body.appendChild(form);
-      form.submit();
+      const { formHTML } = res.data;
+      // 後端已組好 HTML form，直接寫入並自動送出，避免前端重組參數的編碼差異
+      document.open();
+      document.write(formHTML);
+      document.close();
     } catch(e) {
-      uiAlert('付款失敗\n\n' + (e.message || '請稍後再試'));
+      const raw = e.message || '請稍後再試';
+      const msg = raw.includes(': ') ? raw.split(': ').slice(1).join(': ') : raw;
+      uiAlert('付款失敗\n\n' + msg);
       setPaying(false);
     }
   };
