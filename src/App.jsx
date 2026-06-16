@@ -1,12 +1,17 @@
 // ============================================================
-// WEDDING SAAS  v6.11.2  （商業版／多租戶）
+// WEDDING SAAS  v6.11.3  （商業版／多租戶）
 // 最後更新：2026-06-16
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
-// v6.11.2 2026-06-16  ★ Patch：ECPay CheckMacValue Error 修正
-//          【改法】後端直接組 HTML form string 回傳（formHTML），前端用 document.write 送出
-//                  徹底消除前端 JS 重組參數時的任何編碼差異
-//          【同步】TradeDesc/ItemName 改為純 ASCII 排除中文編碼干擾
+// v6.11.3 2026-06-16  ★ Patch：ECPay 金流串接打通（根因：HashIV 設定錯誤）
+//          【根因】後端 ECPAY_TEST.HashIV 寫成 "EkRm7hy59jNs3ypv"（錯誤），
+//                  綠界官方測試 HashIV 應為 "EkRm7iFT261dpevs"
+//          【修復】後端 index.js HashIV 改為正確值
+//          【其他】恢復完整定期定額參數 + TradeDesc/ItemName 正常文字
+//                  前端表單 enctype 設為 application/x-www-form-urlencoded 明確化
+//          【狀態】成功跳轉綠界付款頁，CheckMacValue 通過
+//
+// v6.11.2 2026-06-16  ★ Patch（已被 v6.11.3 取代）：曾嘗試 document.write 方案
 //
 // v6.11.1 2026-06-15  ★ Patch：加入 firebase-functions-compat.js 載入
 //          【新增1】AccountCenterPage「方案與訂閱」tab 完整付款流程：
