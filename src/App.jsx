@@ -1,7 +1,20 @@
 // ============================================================
-// WEDDING SAAS  v6.11.3  （商業版／多租戶）
+// WEDDING SAAS  v6.12.0  （商業版／多租戶）
 // 最後更新：2026-06-16
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.12.0 2026-06-16  ★ Minor：付款完成後段流程補全
+//          【後端 index.js】
+//            - createSubscription：加入 OrderResultURL + ClientBackURL（指向 /pay-result）
+//              ⚠ 兩個欄位在 makeMac 之前進 params，避免 CheckMacValue 再爆
+//            - ecpayWebhook：log 強化（RtnMsg/RtnCode 都記，方便排查）
+//          【前端 App.jsx】
+//            - 新增 PayResultPage：綠界付款完成後導回 /pay-result → #/pay/result
+//              輪詢 users/{uid}.proGrant（每 2s，最多 30s），成功跳帳戶中心並顯示 🎉
+//              三種狀態：polling（確認中）/ success（已開通）/ timeout（超時提示聯絡客服）
+//            - AccountCenterPage proGrant 改為 onSnapshot 即時監聽
+//              webhook 寫入 Firestore 後帳戶中心 UI 立即更新為 Pro，不需重整頁面
+//          【Vercel】需在 vercel.json 加 rewrite：/pay-result → /index.html
 //
 // v6.11.3 2026-06-16  ★ Patch：ECPay 金流串接打通（根因：HashIV 設定錯誤）
 //          【根因】後端 ECPAY_TEST.HashIV 寫成 "EkRm7hy59jNs3ypv"（錯誤），
@@ -6435,6 +6448,97 @@ function JoinInvitePage({ token, onAccept, onDone, onCancel }) {
 
 
 // ============================================================
+// PAY RESULT PAGE — 付款完成落地頁（綠界 OrderResultURL 導回此處）
+// 路由：#/pay/result  ← Vercel rewrite /pay-result → index.html → hash router 接手
+// 流程：輪詢 users/{uid}.proGrant.active（每 2s，最多 30s）→ 成功跳帳戶中心
+// ============================================================
+function PayResultPage({ user, fbRef }) {
+  const [status, setStatus] = React.useState('polling'); // 'polling' | 'success' | 'timeout'
+  const [dots,   setDots]   = React.useState('');
+
+  React.useEffect(()=>{
+    // 動態省略號動畫
+    const dotTimer = setInterval(()=> setDots(d => d.length >= 3 ? '' : d+'.'), 500);
+    return ()=> clearInterval(dotTimer);
+  },[]);
+
+  React.useEffect(()=>{
+    if(!fbRef?.current || !user?.uid) return;
+    const db = fbRef.current.db;
+    let cancelled = false;
+    let tries = 0;
+    const MAX = 15; // 最多 15 次 × 2s = 30 秒
+
+    const poll = async () => {
+      if(cancelled) return;
+      tries++;
+      try {
+        const snap = await db.collection('users').doc(user.uid).get();
+        const pg = snap.exists ? snap.data().proGrant : null;
+        if(pg && pg.active){
+          if(!cancelled){ setStatus('success'); }
+          // 1.5s 後跳帳戶中心
+          setTimeout(()=>{ if(!cancelled) navigate('#/dashboard/account'); }, 1500);
+          return;
+        }
+      } catch(e){}
+      if(tries >= MAX){ if(!cancelled) setStatus('timeout'); return; }
+      setTimeout(poll, 2000);
+    };
+    poll();
+    return ()=>{ cancelled = true; };
+  },[fbRef, user?.uid]);
+
+  const S2 = {
+    wrap:   { minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F9F5EF' },
+    card:   { background:'#FFFEFA', borderRadius:8, padding:'48px 40px', maxWidth:420, width:'100%',
+              boxShadow:'0 2px 24px rgba(0,0,0,.07)', textAlign:'center', border:'1px solid #EDE8E0' },
+    icon:   { fontSize:52, marginBottom:20 },
+    title:  { fontFamily:FONT_STACK, fontSize:22, letterSpacing:1, color:'#3A332B', marginBottom:10 },
+    sub:    { fontSize:13, color:'#9A8F82', lineHeight:1.8, marginBottom:28 },
+    badge:  { display:'inline-block', background:'#EFE3D0', color:'#B5895F', borderRadius:20,
+              padding:'4px 16px', fontSize:12, fontWeight:600, letterSpacing:1 },
+  };
+
+  if(status === 'success') return (
+    <div style={S2.wrap}>
+      <div style={S2.card}>
+        <div style={S2.icon}>🎉</div>
+        <div style={S2.title}>Pro 已成功開通！</div>
+        <div style={S2.sub}>感謝您的訂閱<br/>正在為您跳轉帳戶中心…</div>
+        <div style={S2.badge}>✦ Pro 方案</div>
+      </div>
+    </div>
+  );
+
+  if(status === 'timeout') return (
+    <div style={S2.wrap}>
+      <div style={S2.card}>
+        <div style={S2.icon}>⏳</div>
+        <div style={S2.title}>確認中，請稍候</div>
+        <div style={S2.sub}>付款已完成，系統正在處理開通<br/>請稍後至帳戶中心確認方案狀態。</div>
+        <Btn onClick={()=>navigate('#/dashboard/account')} style={{width:'100%',justifyContent:'center',marginBottom:10}}>
+          前往帳戶中心
+        </Btn>
+        <div style={{fontSize:11,color:'#B8AE9F'}}>若 5 分鐘後仍未開通，請聯絡客服並提供訂單編號。</div>
+      </div>
+    </div>
+  );
+
+  // polling 狀態
+  return (
+    <div style={S2.wrap}>
+      <div style={S2.card}>
+        <div style={S2.icon}>💳</div>
+        <div style={S2.title}>確認付款中{dots}</div>
+        <div style={S2.sub}>正在確認您的付款結果<br/>請勿關閉此頁面</div>
+        <Spinner size={24}/>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // ACCOUNT CENTER — 帳戶中心（方案訂閱 / 安全設定 / 帳戶管理）
 // ============================================================
 function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoogle, onLogoutThisDevice, onDeleteAccount }) {
@@ -6459,21 +6563,24 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
   const [proGrant,    setProGrant]    = useState(null);   // users/{uid}.proGrant
   const [invoices,    setInvoices]    = useState(null);   // 帳單清單
 
-  // 載入 proGrant 與帳單
+  // 載入 proGrant（onSnapshot 即時監聽，webhook 開通後自動更新 UI）+ 帳單 + 方案
   React.useEffect(()=>{
     if(!fbRef?.current || !user?.uid) return;
     const db = fbRef.current.db;
-    db.collection('users').doc(user.uid).get().then(snap=>{
+    // proGrant 用 onSnapshot，付款成功 → webhook 寫 Firestore → 前端即時反映
+    const unsub = db.collection('users').doc(user.uid).onSnapshot(snap=>{
       if(snap.exists) setProGrant(snap.data().proGrant || null);
-    }).catch(()=>{});
+    }, ()=>{});
+    // 帳單：付款結果頁回來後重讀（非即時）
     db.collection('users').doc(user.uid).collection('invoices')
       .orderBy('paidAt','desc').limit(10).get()
       .then(snap=>{ const list=[]; snap.forEach(d=>list.push(d.data())); setInvoices(list); })
       .catch(()=>setInvoices([]));
-    // 載入最新方案
+    // 方案列表
     pricingDocRef(db).get().then(snap=>{
       if(snap.exists && snap.data()?.plans) setPlanList(snap.data().plans.filter(p=>p.enabled!==false));
     }).catch(()=>{});
+    return () => unsub();
   },[fbRef, user?.uid]);
 
   // 計算折後價
@@ -8538,6 +8645,17 @@ export default function WeddingApp() {
     return <AppShell><JoinInvitePage token={token} onAccept={acceptInvite}
       onDone={(wid)=>{ navigate(`#/w/${wid}`); }}
       onCancel={()=>navigate('#/dashboard')} /></AppShell>;
+  }
+
+  // 付款完成落地頁（綠界 OrderResultURL → Vercel rewrite /pay-result → hash router）
+  if(parsed.section==='pay' && parsed.weddingId==='result'){
+    if(!isLoggedIn) return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
+    return (
+      <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
+        <ConfirmDialogHost />
+        <PayResultPage user={user} fbRef={fbRef} />
+      </div>
+    );
   }
 
   if(parsed.section==='dashboard'){
