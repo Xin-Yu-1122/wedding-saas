@@ -1,14 +1,19 @@
 // ============================================================
-// WEDDING SAAS  v6.12.1  （商業版／多租戶）
+// WEDDING SAAS  v6.12.2  （商業版／多租戶）
 // 最後更新：2026-06-16
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.12.2 2026-06-16  ★ Patch：修付款導回被路由彈走（導向首頁而非確認頁）
+//          【根因】#/pay/result 判斷排在路由分派後段，會先被 (1) auth 未就緒的
+//                  LoginPage 彈出、(2) 0 婚禮帳號的「建立婚禮向導」攔截而換掉
+//          【修法】把 #/pay/result 提到分派最前面（先於所有 auth/婚禮判斷）
+//                  不卡登入狀態，PayResultPage 自行等 user.uid 到位再開始輪詢
+//          ※ 後端 index.js 不變（仍 v6.12.1），本輪只需重推 App.jsx
 //
 // v6.12.1 2026-06-16  ★ Patch：付款導回機制改用 Cloud Function 轉址（前端邏輯不變）
 //          【根因】v6.12.0 用 vercel.json rewrite /pay-result，但 (1) 未生效 404、
 //                  (2) 該路徑無 # → hash router 接不到、(3) 綠界 OrderResultURL 是 POST
 //          【修法】後端新增 payResult 函式 302 導向 .../#/pay/result（帶 #）
-//                  PayResultPage 與 #/pay/result 路由維持不變，正常接手輪詢
-//                  ⚠ vercel.json 的 /pay-result rewrite 已不需要，可移除
 //
 // v6.12.0 2026-06-16  ★ Minor：付款完成後段流程補全
 //          【前端 App.jsx】
@@ -8564,6 +8569,17 @@ export default function WeddingApp() {
   const isAdminRoute = parsed.section==='w' && ['admin','seating','info'].includes(parsed.page);
   const isPublicRoute = parsed.section==='w'; // 所有 #/w/* 路由都允許未登入
 
+  // v6.12.2：付款完成落地頁 — 最高優先，先於任何 auth/婚禮判斷，避免被彈走
+  // 綠界 → payResult 函式 302 → #/pay/result。PayResultPage 自行等 user.uid 到位再輪詢
+  if(parsed.section==='pay' && parsed.weddingId==='result'){
+    return (
+      <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
+        <ConfirmDialogHost />
+        <PayResultPage user={user} fbRef={fbRef} />
+      </div>
+    );
+  }
+
   // 公開婚禮路由（#/w/{id} 及其子頁面）：賓客無需登入即可訪問 RSVP / 祝福牆
   // 後台頁面（admin/seating/info）：需登入
   if(!isLoggedIn && !isPublicRoute && parsed.section!=='join'){
@@ -8646,17 +8662,6 @@ export default function WeddingApp() {
     return <AppShell><JoinInvitePage token={token} onAccept={acceptInvite}
       onDone={(wid)=>{ navigate(`#/w/${wid}`); }}
       onCancel={()=>navigate('#/dashboard')} /></AppShell>;
-  }
-
-  // 付款完成落地頁（綠界 OrderResultURL → Vercel rewrite /pay-result → hash router）
-  if(parsed.section==='pay' && parsed.weddingId==='result'){
-    if(!isLoggedIn) return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
-    return (
-      <div style={{minHeight:'100vh',background:'#F9F5EF'}}>
-        <ConfirmDialogHost />
-        <PayResultPage user={user} fbRef={fbRef} />
-      </div>
-    );
   }
 
   if(parsed.section==='dashboard'){
