@@ -1,20 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.12.0  （商業版／多租戶）
+// WEDDING SAAS  v6.12.1  （商業版／多租戶）
 // 最後更新：2026-06-16
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
 //
+// v6.12.1 2026-06-16  ★ Patch：付款導回機制改用 Cloud Function 轉址（前端邏輯不變）
+//          【根因】v6.12.0 用 vercel.json rewrite /pay-result，但 (1) 未生效 404、
+//                  (2) 該路徑無 # → hash router 接不到、(3) 綠界 OrderResultURL 是 POST
+//          【修法】後端新增 payResult 函式 302 導向 .../#/pay/result（帶 #）
+//                  PayResultPage 與 #/pay/result 路由維持不變，正常接手輪詢
+//                  ⚠ vercel.json 的 /pay-result rewrite 已不需要，可移除
+//
 // v6.12.0 2026-06-16  ★ Minor：付款完成後段流程補全
-//          【後端 index.js】
-//            - createSubscription：加入 OrderResultURL + ClientBackURL（指向 /pay-result）
-//              ⚠ 兩個欄位在 makeMac 之前進 params，避免 CheckMacValue 再爆
-//            - ecpayWebhook：log 強化（RtnMsg/RtnCode 都記，方便排查）
 //          【前端 App.jsx】
-//            - 新增 PayResultPage：綠界付款完成後導回 /pay-result → #/pay/result
-//              輪詢 users/{uid}.proGrant（每 2s，最多 30s），成功跳帳戶中心並顯示 🎉
-//              三種狀態：polling（確認中）/ success（已開通）/ timeout（超時提示聯絡客服）
+//            - 新增 PayResultPage：輪詢 users/{uid}.proGrant（每 2s，最多 30s）
+//              三種狀態：polling（確認中）/ success（已開通）/ timeout（超時提示）
 //            - AccountCenterPage proGrant 改為 onSnapshot 即時監聽
-//              webhook 寫入 Firestore 後帳戶中心 UI 立即更新為 Pro，不需重整頁面
-//          【Vercel】需在 vercel.json 加 rewrite：/pay-result → /index.html
+//          【後端 index.js】createSubscription 加導回 URL；ecpayWebhook log 強化
 //
 // v6.11.3 2026-06-16  ★ Patch：ECPay 金流串接打通（根因：HashIV 設定錯誤）
 //          【根因】後端 ECPAY_TEST.HashIV 寫成 "EkRm7hy59jNs3ypv"（錯誤），
