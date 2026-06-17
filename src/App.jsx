@@ -1,7 +1,13 @@
 // ============================================================
-// WEDDING SAAS  v6.13.0  （商業版／多租戶）
+// WEDDING SAAS  v6.13.1  （商業版／多租戶）
 // 最後更新：2026-06-17
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.13.1 2026-06-17  ★ Patch：小修補
+//          1. 帳單改 onSnapshot（短暫離線不再顯示空白，自動重連補上）
+//          2. 優惠碼「套用」按鈕改主色實心（原 ghost 太淡，容易被忽略）
+//          3. 主題選擇器卡片新增 SVG pattern 色帶（11 套主題各有對應幾何紋樣）
+//          ※ 後端 index.js 同步更新：webhook 開通時清除殘留 grantedBy
 //
 // v6.13.0 2026-06-17  ★ Minor：訂閱生命週期補完（取消訂閱／續扣延長到期日／到期自動降級）
 //          1. 取消訂閱：帳戶中心 Pro 卡新增「取消訂閱」→ 後端 cancelSubscription
@@ -570,17 +576,28 @@ const DEFAULT_CONFIG = {
 // THEMES
 // ============================================================
 const THEMES = {
-  cream:    { name:"典雅奶油", pageBg:"#F9F5EF", cardBg:"#FFFEFA", primary:"#B5895F", primaryHover:"#9F754C", soft:"#EFE3D0", border:"#E5DDD0", borderSoft:"#E5D5BD", text:"#3A332B", subText:"#6B6259", mutedText:"#9A8F82", heroOverlayTop:"rgba(58,51,43,.08)", heroOverlayMid:"rgba(58,51,43,.42)", heroOverlayBot:"rgba(58,51,43,.72)", modalOverlay:"rgba(58,51,43,.45)", dark:false },
-  oriental:    { name:"典雅東方",   pageBg:"#FAF4EB", cardBg:"#FFF9F0", primary:"#8B1A1A", primaryHover:"#6E1414", soft:"#F5E4CC", border:"#D4B896", borderSoft:"#DCC4A0", text:"#2C1A0E", subText:"#7A5C3C", mutedText:"#A87C54", heroOverlayTop:"rgba(44,26,14,.06)", heroOverlayMid:"rgba(44,26,14,.42)", heroOverlayBot:"rgba(44,26,14,.72)", modalOverlay:"rgba(44,26,14,.55)", dark:false },
-  rose:     { name:"玫瑰金粉", pageBg:"#FDF6F8", cardBg:"#FFFBFC", primary:"#BF7090", primaryHover:"#A85A7C", soft:"#F5DCE2", border:"#EECDD6", borderSoft:"#F0D4DC", text:"#3A2B2E", subText:"#7B5A62", mutedText:"#A08090", heroOverlayTop:"rgba(60,30,40,.10)", heroOverlayMid:"rgba(60,30,40,.45)", heroOverlayBot:"rgba(60,30,40,.75)", modalOverlay:"rgba(60,30,40,.50)", dark:false },
-  handwritten: { name:"手寫溫柔",   pageBg:"#FFF5F7", cardBg:"#FFFCFD", primary:"#C07090", primaryHover:"#A85A7A", soft:"#FAE0E8", border:"#F0C8D5", borderSoft:"#EDD0DA", text:"#3A2030", subText:"#7A5060", mutedText:"#B090A0", heroOverlayTop:"rgba(60,32,48,.06)", heroOverlayMid:"rgba(60,32,48,.40)", heroOverlayBot:"rgba(60,32,48,.70)", modalOverlay:"rgba(60,32,48,.55)", dark:false },
-  lavender: { name:"薰衣草紫", pageBg:"#F8F6FD", cardBg:"#FDFBFF", primary:"#8B6EC4", primaryHover:"#7158AD", soft:"#EAE4F6", border:"#D8CEF0", borderSoft:"#DED4F0", text:"#2E2A3A", subText:"#6B6380", mutedText:"#9A94B0", heroOverlayTop:"rgba(40,35,60,.10)", heroOverlayMid:"rgba(40,35,60,.45)", heroOverlayBot:"rgba(40,35,60,.75)", modalOverlay:"rgba(40,35,60,.50)", dark:false },
-  ocean:    { name:"海洋湛藍", pageBg:"#F4F7FC", cardBg:"#F9FBFE", primary:"#3A60A8", primaryHover:"#284680", soft:"#DCE4F2", border:"#C8D5EB", borderSoft:"#D5DDED", text:"#1A2640", subText:"#3A4F6A", mutedText:"#7A90B0", heroOverlayTop:"rgba(20,35,70,.10)", heroOverlayMid:"rgba(20,35,70,.45)", heroOverlayBot:"rgba(20,35,70,.75)", modalOverlay:"rgba(20,35,70,.50)", dark:false },
-  forest:   { name:"森林深綠", pageBg:"#F5F8F5", cardBg:"#FAFCFA", primary:"#4A7C59", primaryHover:"#36633F", soft:"#D8EDE0", border:"#C5DDD0", borderSoft:"#D0DDCC", text:"#1E3028", subText:"#4A6255", mutedText:"#7A9A88", heroOverlayTop:"rgba(20,45,28,.10)", heroOverlayMid:"rgba(20,45,28,.45)", heroOverlayBot:"rgba(20,45,28,.75)", modalOverlay:"rgba(20,45,28,.50)", dark:false },
-  botanical:   { name:"自然植物",   pageBg:"#F4F7F0", cardBg:"#FAFCF7", primary:"#4A6E3F", primaryHover:"#3A5A30", soft:"#D4E8CA", border:"#C0D4B4", borderSoft:"#CCD8C0", text:"#1E2E1A", subText:"#4A6040", mutedText:"#7A9070", heroOverlayTop:"rgba(30,46,26,.08)", heroOverlayMid:"rgba(30,46,26,.42)", heroOverlayBot:"rgba(30,46,26,.72)", modalOverlay:"rgba(30,46,26,.50)", dark:false },
-  modern:      { name:"現代簡約",   pageBg:"#FFFFFF", cardBg:"#F7F7F7", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false },
-  'dark-luxury':{ name:"夢幻暗黑奢",pageBg:"#14110E", cardBg:"#1E1A15", primary:"#C9A84C", primaryHover:"#DDB95C", soft:"#332D20", border:"#3A3020", borderSoft:"#4A3E2A", text:"#EDE4D3", subText:"#B8A888", mutedText:"#8A7A60", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.20)", heroOverlayBot:"rgba(0,0,0,.50)", modalOverlay:"rgba(0,0,0,.75)", dark:true },
-  dark:        { name:"夜幕暗黑",   pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true },
+  cream:    { name:"典雅奶油", pageBg:"#F9F5EF", cardBg:"#FFFEFA", primary:"#B5895F", primaryHover:"#9F754C", soft:"#EFE3D0", border:"#E5DDD0", borderSoft:"#E5D5BD", text:"#3A332B", subText:"#6B6259", mutedText:"#9A8F82", heroOverlayTop:"rgba(58,51,43,.08)", heroOverlayMid:"rgba(58,51,43,.42)", heroOverlayBot:"rgba(58,51,43,.72)", modalOverlay:"rgba(58,51,43,.45)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='12' height='12' fill='none' stroke='%23C9A87A' stroke-width='0.6' opacity='0.5'/%3E%3C/svg%3E\")" },
+  oriental: { name:"典雅東方", pageBg:"#FAF4EB", cardBg:"#FFF9F0", primary:"#8B1A1A", primaryHover:"#6E1414", soft:"#F5E4CC", border:"#D4B896", borderSoft:"#DCC4A0", text:"#2C1A0E", subText:"#7A5C3C", mutedText:"#A87C54", heroOverlayTop:"rgba(44,26,14,.06)", heroOverlayMid:"rgba(44,26,14,.42)", heroOverlayBot:"rgba(44,26,14,.72)", modalOverlay:"rgba(44,26,14,.55)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='3' y='3' width='10' height='10' fill='none' stroke='%238B1A1A' stroke-width='0.7' opacity='0.4'/%3E%3Crect x='6' y='6' width='4' height='4' fill='none' stroke='%238B1A1A' stroke-width='0.7' opacity='0.4'/%3E%3C/svg%3E\")" },
+  rose:     { name:"玫瑰金粉", pageBg:"#FDF6F8", cardBg:"#FFFBFC", primary:"#BF7090", primaryHover:"#A85A7C", soft:"#F5DCE2", border:"#EECDD6", borderSoft:"#F0D4DC", text:"#3A2B2E", subText:"#7B5A62", mutedText:"#A08090", heroOverlayTop:"rgba(60,30,40,.10)", heroOverlayMid:"rgba(60,30,40,.45)", heroOverlayBot:"rgba(60,30,40,.75)", modalOverlay:"rgba(60,30,40,.50)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='2' fill='%23BF7090' opacity='0.25'/%3E%3Ccircle cx='0' cy='0' r='1.2' fill='%23BF7090' opacity='0.18'/%3E%3Ccircle cx='14' cy='0' r='1.2' fill='%23BF7090' opacity='0.18'/%3E%3Ccircle cx='0' cy='14' r='1.2' fill='%23BF7090' opacity='0.18'/%3E%3Ccircle cx='14' cy='14' r='1.2' fill='%23BF7090' opacity='0.18'/%3E%3C/svg%3E\")" },
+  handwritten:{ name:"手寫溫柔", pageBg:"#FFF5F7", cardBg:"#FFFCFD", primary:"#C07090", primaryHover:"#A85A7A", soft:"#FAE0E8", border:"#F0C8D5", borderSoft:"#EDD0DA", text:"#3A2030", subText:"#7A5060", mutedText:"#B090A0", heroOverlayTop:"rgba(60,32,48,.06)", heroOverlayMid:"rgba(60,32,48,.40)", heroOverlayBot:"rgba(60,32,48,.70)", modalOverlay:"rgba(60,32,48,.55)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='20' height='10' viewBox='0 0 20 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 5 Q5 0 10 5 Q15 10 20 5' fill='none' stroke='%23C07090' stroke-width='0.8' opacity='0.35'/%3E%3C/svg%3E\")" },
+  lavender: { name:"薰衣草紫", pageBg:"#F8F6FD", cardBg:"#FDFBFF", primary:"#8B6EC4", primaryHover:"#7158AD", soft:"#EAE4F6", border:"#D8CEF0", borderSoft:"#DED4F0", text:"#2E2A3A", subText:"#6B6380", mutedText:"#9A94B0", heroOverlayTop:"rgba(40,35,60,.10)", heroOverlayMid:"rgba(40,35,60,.45)", heroOverlayBot:"rgba(40,35,60,.75)", modalOverlay:"rgba(40,35,60,.50)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 0 L12 6 L6 12 L0 6 Z' fill='none' stroke='%238B6EC4' stroke-width='0.7' opacity='0.35'/%3E%3C/svg%3E\")" },
+  ocean:    { name:"海洋湛藍", pageBg:"#F4F7FC", cardBg:"#F9FBFE", primary:"#3A60A8", primaryHover:"#284680", soft:"#DCE4F2", border:"#C8D5EB", borderSoft:"#D5DDED", text:"#1A2640", subText:"#3A4F6A", mutedText:"#7A90B0", heroOverlayTop:"rgba(20,35,70,.10)", heroOverlayMid:"rgba(20,35,70,.45)", heroOverlayBot:"rgba(20,35,70,.75)", modalOverlay:"rgba(20,35,70,.50)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='24' height='8' viewBox='0 0 24 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 4 Q6 0 12 4 Q18 8 24 4' fill='none' stroke='%233A60A8' stroke-width='0.9' opacity='0.3'/%3E%3Cpath d='M0 8 Q6 4 12 8 Q18 12 24 8' fill='none' stroke='%233A60A8' stroke-width='0.9' opacity='0.2'/%3E%3C/svg%3E\")" },
+  forest:   { name:"森林深綠", pageBg:"#F5F8F5", cardBg:"#FAFCFA", primary:"#4A7C59", primaryHover:"#36633F", soft:"#D8EDE0", border:"#C5DDD0", borderSoft:"#D0DDCC", text:"#1E3028", subText:"#4A6255", mutedText:"#7A9A88", heroOverlayTop:"rgba(20,45,28,.10)", heroOverlayMid:"rgba(20,45,28,.45)", heroOverlayBot:"rgba(20,45,28,.75)", modalOverlay:"rgba(20,45,28,.50)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 2 L14 8 L8 14 M8 2 L2 8 L8 14' fill='none' stroke='%234A7C59' stroke-width='0.7' opacity='0.3'/%3E%3C/svg%3E\")" },
+  botanical:{ name:"自然植物", pageBg:"#F4F7F0", cardBg:"#FAFCF7", primary:"#4A6E3F", primaryHover:"#3A5A30", soft:"#D4E8CA", border:"#C0D4B4", borderSoft:"#CCD8C0", text:"#1E2E1A", subText:"#4A6040", mutedText:"#7A9070", heroOverlayTop:"rgba(30,46,26,.08)", heroOverlayMid:"rgba(30,46,26,.42)", heroOverlayBot:"rgba(30,46,26,.72)", modalOverlay:"rgba(30,46,26,.50)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 18 18' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M9 2 Q12 9 9 16 M9 2 Q6 9 9 16' fill='none' stroke='%234A6E3F' stroke-width='0.8' opacity='0.32'/%3E%3Ccircle cx='9' cy='9' r='1.5' fill='%234A6E3F' opacity='0.2'/%3E%3C/svg%3E\")" },
+  modern:   { name:"現代簡約", pageBg:"#FFFFFF", cardBg:"#F7F7F7", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='5' x2='10' y2='5' stroke='%231A1A1A' stroke-width='0.5' opacity='0.15'/%3E%3Cline x1='5' y1='0' x2='5' y2='10' stroke='%231A1A1A' stroke-width='0.5' opacity='0.15'/%3E%3C/svg%3E\")" },
+  'dark-luxury':{ name:"夢幻暗黑奢", pageBg:"#14110E", cardBg:"#1E1A15", primary:"#C9A84C", primaryHover:"#DDB95C", soft:"#332D20", border:"#3A3020", borderSoft:"#4A3E2A", text:"#EDE4D3", subText:"#B8A888", mutedText:"#8A7A60", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.20)", heroOverlayBot:"rgba(0,0,0,.50)", modalOverlay:"rgba(0,0,0,.75)", dark:true,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 0 L8.2 4.8 L13 5.5 L9.5 8.9 L10.5 14 L7 11.5 L3.5 14 L4.5 8.9 L1 5.5 L5.8 4.8 Z' fill='none' stroke='%23C9A84C' stroke-width='0.7' opacity='0.4'/%3E%3C/svg%3E\")" },
+  dark:     { name:"夜幕暗黑", pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true,
+    pattern:"url(\"data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='8' cy='8' r='0.8' fill='%23D4AA70' opacity='0.5'/%3E%3Ccircle cx='0' cy='0' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3Ccircle cx='16' cy='0' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3Ccircle cx='0' cy='16' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3Ccircle cx='16' cy='16' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3C/svg%3E\")" },
 };
 
 function getTheme(cfg) {
@@ -5519,6 +5536,10 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                       <div data-tp="1" key={i} style={{flex:1,height:14,borderRadius:2,background:c,border:`1px solid ${th.border}`}} />
                     ))}
                   </div>
+                  {th.pattern && (
+                    <div data-tp="1" style={{marginTop:7,height:10,borderRadius:2,
+                      backgroundImage:th.pattern,backgroundSize:'auto',border:`1px solid ${th.borderSoft}`}} />
+                  )}
                 </button>
               );
             })}
@@ -6351,6 +6372,11 @@ function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
                     )}
                     <div style={{width:20,height:20,borderRadius:'50%',background:t.primary,margin:'0 auto 4px'}} />
                     {t.name}
+                    {t.pattern && (
+                      <div data-tp="1" style={{marginTop:5,height:6,borderRadius:1,
+                        backgroundImage:t.pattern,backgroundSize:'auto',
+                        border:`1px solid ${t.borderSoft}`,opacity:.85}} />
+                    )}
                   </button>
                 ))}
               </div>
@@ -6608,16 +6634,16 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
     const unsub = db.collection('users').doc(user.uid).onSnapshot(snap=>{
       if(snap.exists) setProGrant(snap.data().proGrant || null);
     }, ()=>{});
-    // 帳單：付款結果頁回來後重讀（非即時）
-    db.collection('users').doc(user.uid).collection('invoices')
-      .orderBy('paidAt','desc').limit(10).get()
-      .then(snap=>{ const list=[]; snap.forEach(d=>list.push(d.data())); setInvoices(list); })
-      .catch(()=>setInvoices([]));
+    // 帳單：改 onSnapshot，短暫離線自動重連補上（舊版一次性 .get() 離線即被 catch 成空）
+    const unsubInvoices = db.collection('users').doc(user.uid).collection('invoices')
+      .orderBy('paidAt','desc').limit(10)
+      .onSnapshot(snap=>{ const list=[]; snap.forEach(d=>list.push(d.data())); setInvoices(list); },
+        ()=>setInvoices([]));
     // 方案列表
     pricingDocRef(db).get().then(snap=>{
       if(snap.exists && snap.data()?.plans) setPlanList(snap.data().plans.filter(p=>p.enabled!==false));
     }).catch(()=>{});
-    return () => unsub();
+    return () => { unsub(); unsubInvoices(); };
   },[fbRef, user?.uid]);
 
   // 監聽目前訂閱文件（subscriptions/{tradeNo}）→ 判斷 active / cancelled
@@ -6869,7 +6895,7 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
                           onChange={e=>{ setCouponCode(e.target.value.toUpperCase()); setCouponResult(null); setCouponErr(''); }}
                           style={{flex:1,padding:'8px 12px',borderRadius:3,border:`1px solid ${couponResult?.valid?'#7BA77B':couponErr?'#C04060':'#E5DDD0'}`,
                             fontFamily:'monospace',fontSize:13,background:'#FFFEFA',color:'#3A332B',letterSpacing:1}} />
-                        <Btn v="ghost" size="sm" onClick={handleValidateCoupon} disabled={couponLoading}>
+                        <Btn v="gold" size="sm" onClick={handleValidateCoupon} disabled={couponLoading}>
                           {couponLoading?'驗證中…':'套用'}
                         </Btn>
                       </div>
