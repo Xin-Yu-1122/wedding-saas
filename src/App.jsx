@@ -1,7 +1,18 @@
 // ============================================================
-// WEDDING SAAS  v6.12.3  （商業版／多租戶）
-// 最後更新：2026-06-16
+// WEDDING SAAS  v6.13.0  （商業版／多租戶）
+// 最後更新：2026-06-17
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.13.0 2026-06-17  ★ Minor：訂閱生命週期補完（取消訂閱／續扣延長到期日／到期自動降級）
+//          1. 取消訂閱：帳戶中心 Pro 卡新增「取消訂閱」→ 後端 cancelSubscription
+//             呼叫綠界 Action=Cancel 停用後續扣款；Pro 用到 expiresAt 為止（不退款、不立即降級）
+//          2. 續扣延長：webhook 改用 AlreadyExecTimes 冪等；續扣成功時 expiresAt 往後加一個週期
+//             （首次付款行為不變）
+//          3. 到期降級：新增排程 expireSubscriptions（每日 03:00 Asia/Taipei）+ 管理員
+//             callable runExpiryCheck；過期者 proGrant.active=false、名下婚禮 plan='free'
+//          4. 修：移除座位畫布容器重複的 style 屬性（esbuild 警告）
+//          ※ 後端 index.js 同步更新，兩檔都要部署；expireSubscriptions 首次部署需啟用
+//            Cloud Scheduler / Pub/Sub / Eventarc API
 //
 // v6.12.3 2026-06-16  ★ Patch：付款導回 fragment 遺失 → 改用 query 參數承載
 //          【根因】綠界付款完成是 POST 到 payResult，函式 302 帶 #/pay/result，
@@ -1858,7 +1869,7 @@ function ImageLightbox({src, onClose, canShare, shareText}) {
         <button style={{...btnStyle,fontSize:18,fontWeight:300,padding:'4px 12px'}} onClick={onClose}>✕</button>
       </div>
       {/* Image area */}
-      <div style={{flex:1,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center'}}
+      <div
         onWheel={onWheel}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -6586,6 +6597,8 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
   const [paying,      setPaying]      = useState(false);
   const [proGrant,    setProGrant]    = useState(null);   // users/{uid}.proGrant
   const [invoices,    setInvoices]    = useState(null);   // 帳單清單
+  const [subDoc,      setSubDoc]      = useState(null);   // 目前訂閱 subscriptions/{tradeNo}
+  const [cancelling,  setCancelling]  = useState(false);  // 取消訂閱中
 
   // 載入 proGrant（onSnapshot 即時監聽，webhook 開通後自動更新 UI）+ 帳單 + 方案
   React.useEffect(()=>{
@@ -6606,6 +6619,15 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
     }).catch(()=>{});
     return () => unsub();
   },[fbRef, user?.uid]);
+
+  // 監聽目前訂閱文件（subscriptions/{tradeNo}）→ 判斷 active / cancelled
+  React.useEffect(()=>{
+    if(!fbRef?.current || !user?.uid || !proGrant?.tradeNo){ setSubDoc(null); return; }
+    const db = fbRef.current.db;
+    const unsub = db.collection('users').doc(user.uid).collection('subscriptions').doc(proGrant.tradeNo)
+      .onSnapshot(snap=>{ setSubDoc(snap.exists ? snap.data() : null); }, ()=>{});
+    return () => unsub();
+  },[fbRef, user?.uid, proGrant?.tradeNo]);
 
   // 計算折後價
   const calcFinalPrice = (plan, cr) => {
@@ -6666,6 +6688,26 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
     }
   };
 
+  const handleCancel = async () => {
+    if(!fbRef?.current){ uiAlert('系統初始化中，請稍後再試'); return; }
+    if(!await uiConfirm({
+      title:'取消訂閱',
+      message:`取消後將停止下一期扣款，Pro 功能仍可使用至 ${expiresStr || '到期日'}，期間不受影響；到期後自動轉為免費版。\n\n（綠界定期定額一經取消即無法重新啟用，需重新訂閱。）\n\n確定要取消訂閱嗎？`,
+      confirmText:'確定取消', cancelText:'再想想',
+    })) return;
+    setCancelling(true);
+    try {
+      const fn = fbRef.current.functions.httpsCallable('cancelSubscription');
+      await fn({});
+      uiAlert(`已取消訂閱\n\nPro 功能將使用至 ${expiresStr || '到期日'}，到期後不再扣款。`);
+      // subscriptions onSnapshot + proGrant onSnapshot 會自動更新畫面
+    } catch(e) {
+      const raw = e.message || '請稍後再試';
+      const msg = raw.includes(': ') ? raw.split(': ').slice(1).join(': ') : raw;
+      uiAlert('取消失敗\n\n' + msg);
+    } finally { setCancelling(false); }
+  };
+
   const tabs = [
     { id: 'plan',     label: '方案與訂閱' },
     { id: 'security', label: '安全設定' },
@@ -6675,6 +6717,19 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
   const expiresStr = proGrant?.expiresAt
     ? new Date(proGrant.expiresAt).toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'})
     : null;
+
+  // ── v6.13.0 訂閱狀態 ──
+  const _now        = Date.now();
+  const isExpired   = !!(proGrant?.expiresAt && proGrant.expiresAt < _now);
+  const isEcpaySub  = proGrant?.source === 'ecpay' && !!proGrant?.tradeNo;
+  const subStatus   = subDoc?.status || null;                       // active / cancelled / pending
+  const isCancelled = subStatus === 'cancelled' || proGrant?.autoRenew === false;
+  // 顯示用方案狀態：expired（已過期，排程降級前的寬限窗）/ cancelled / active / free
+  const planView = !isPro ? 'free'
+                 : isExpired ? 'expired'
+                 : isCancelled ? 'cancelled'
+                 : 'active';
+  const canCancel = isPro && isEcpaySub && subStatus === 'active' && !isCancelled && !isExpired;
 
   return (
     <div style={{maxWidth:720,margin:'0 auto',padding:'40px 20px'}}>
@@ -6726,22 +6781,46 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
                       {isPro ? '✦ Pro 方案' : '免費版'}
                     </div>
                   </div>
-                  <Tag small color={isPro?'#B5895F':'#9A8F82'} soft={isPro?'#EFE3D0':'#F0EBE3'}>
-                    {isPro ? '已訂閱' : 'Free'}
+                  <Tag small
+                    color={planView==='active'?'#B5895F':planView==='cancelled'?'#C08A3E':planView==='expired'?'#C04040':'#9A8F82'}
+                    soft={planView==='active'?'#EFE3D0':planView==='cancelled'?'#F6ECD9':planView==='expired'?'#FAEEEE':'#F0EBE3'}>
+                    {planView==='active'?'已訂閱':planView==='cancelled'?'已取消':planView==='expired'?'已到期':'Free'}
                   </Tag>
                 </div>
                 <div style={{height:1,background:'#F0EBE3',margin:'18px 0'}} />
                 <div style={{fontSize:13,color:'#6B6259',lineHeight:2}}>
-                  {isPro ? (
-                    <>
-                      <div>✓ 無限婚禮專案・無限桌數・匯出功能</div>
-                      {expiresStr && <div style={{color:'#B5895F',marginTop:4}}>訂閱到期：{expiresStr}</div>}
-                    </>
-                  ) : (
+                  {planView==='free' ? (
                     <>
                       <div>• 最多 {FREE_PROJECT_LIMIT} 個婚禮專案</div>
                       <div>• 排位 {FREE_TABLE_LIMIT} 桌 · {FREE_SEAT_LIMIT} 人</div>
                       <div>• 名單／排位匯出為 Pro 功能</div>
+                    </>
+                  ) : (
+                    <>
+                      <div>✓ 無限婚禮專案・無限桌數・匯出功能</div>
+                      {planView==='active' && (
+                        <>
+                          {expiresStr && <div style={{color:'#B5895F',marginTop:4}}>訂閱中，有效至：{expiresStr}</div>}
+                          {!isEcpaySub && <div style={{color:'#9A8F82',marginTop:4,fontSize:12}}>（由平台手動開通）</div>}
+                          {canCancel && (
+                            <div style={{marginTop:14}}>
+                              <Btn v="red" size="sm" onClick={handleCancel} disabled={cancelling}>
+                                {cancelling ? '取消中…' : '取消訂閱'}
+                              </Btn>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {planView==='cancelled' && (
+                        <div style={{color:'#C08A3E',marginTop:6,fontSize:12.5,lineHeight:1.9}}>
+                          已取消訂閱，Pro 功能將使用至 {expiresStr || '到期日'}，到期後不再扣款、自動轉為免費版。
+                        </div>
+                      )}
+                      {planView==='expired' && (
+                        <div style={{color:'#C04040',marginTop:6,fontSize:12.5,lineHeight:1.9}}>
+                          訂閱已於 {expiresStr || '日前'} 到期，系統將自動調整為免費版。
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
