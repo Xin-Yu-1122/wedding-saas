@@ -5536,10 +5536,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                       <div data-tp="1" key={i} style={{flex:1,height:14,borderRadius:2,background:c,border:`1px solid ${th.border}`}} />
                     ))}
                   </div>
-                  {th.pattern && (
-                    <div data-tp="1" style={{marginTop:7,height:10,borderRadius:2,
-                      backgroundImage:th.pattern,backgroundSize:'auto',border:`1px solid ${th.borderSoft}`}} />
-                  )}
+
                 </button>
               );
             })}
@@ -6372,11 +6369,6 @@ function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
                     )}
                     <div style={{width:20,height:20,borderRadius:'50%',background:t.primary,margin:'0 auto 4px'}} />
                     {t.name}
-                    {t.pattern && (
-                      <div data-tp="1" style={{marginTop:5,height:6,borderRadius:1,
-                        backgroundImage:t.pattern,backgroundSize:'auto',
-                        border:`1px solid ${t.borderSoft}`,opacity:.85}} />
-                    )}
                   </button>
                 ))}
               </div>
