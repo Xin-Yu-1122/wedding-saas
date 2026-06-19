@@ -1,7 +1,12 @@
 // ============================================================
-// WEDDING SAAS  v6.13.1  （商業版／多租戶）
-// 最後更新：2026-06-17
+// WEDDING SAAS  v6.13.2  （商業版／多租戶）
+// 最後更新：2026-06-18
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.13.2 2026-06-18  ★ Patch：金流收尾（非上線切換）
+//          1. 優惠碼防呆：輸入了優惠碼但沒按「套用」就按付款，先跳提示（避免誤用原價結帳）
+//          ※ 後端 index.js 同步更新：webhook 首付失敗回寫 subscription.status='failed'
+//            （續扣失敗不殺有效訂閱，僅記錄 lastFail*）
 //
 // v6.13.1 2026-06-17  ★ Patch：小修補
 //          1. 帳單改 onSnapshot（短暫離線不再顯示空白，自動重連補上）
@@ -6675,6 +6680,15 @@ function AccountCenterPage({ user, weddings, fbRef, onChangePassword, onLinkGoog
   const handlePay = async () => {
     if(!selectedPlan){ uiAlert('請先選擇方案'); return; }
     if(!fbRef?.current){ uiAlert('系統初始化中，請稍後再試'); return; }
+    // 防呆：輸入了優惠碼但尚未按「套用」驗證 → 先確認，避免誤以原價結帳
+    const typedCoupon = couponCode.trim();
+    if(typedCoupon && !couponResult?.valid){
+      if(!await uiConfirm({
+        title:'優惠碼尚未套用',
+        message:`你輸入了優惠碼「${typedCoupon}」但還沒按「套用」驗證，將以原價結帳。\n\n要先回去套用優惠碼嗎？`,
+        confirmText:'仍以原價付款', cancelText:'先去套用',
+      })) return;
+    }
     if(!await uiConfirm({
       title:'確認付款',
       message:`方案：${selectedPlan.name}\n金額：NT$${calcFinalPrice(selectedPlan, couponResult)}${couponResult?.valid?' （已套用優惠碼）':''}\n\n點擊「前往付款」將跳轉至綠界付款頁面。`,
