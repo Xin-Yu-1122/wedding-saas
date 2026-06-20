@@ -1,7 +1,18 @@
 // ============================================================
-// WEDDING SAAS  v6.13.2  （商業版／多租戶）
-// 最後更新：2026-06-18
+// WEDDING SAAS  v6.14.0  （商業版／多租戶）
+// 最後更新：2026-06-21
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.14.0 2026-06-21  ★ Minor：公開形象頁 + 多人協作付費閘門
+//          1. 新增公開形象頁 LandingPage（路由 #/home，未登入訪客預設進入；
+//             已登入者自動導向後台）。登入改為 CTA（#/login）。
+//             • 整套 CSS scope 在 .lp-root 底下，不污染後台既有樣式
+//             • GSAP 只在此頁 lazy load（CDN），離開時 ctx.revert() 清理
+//             • 站內錨點用 JS 平滑捲動，避免與 hash 路由衝突
+//          2. 多人協作改為 Pro 專屬：CollabTab 非 Pro 顯示升級卡、createInvite 擋下；
+//             ※ 需搭配 Firestore 規則（invites 建立 / weddings 改 collaborators 要求 plan=='pro'）
+//          ※ 後端 index.js 同步 v6.14.0：SimulatePaid 防護 + 重複訂閱防呆
+//          （主桌自動帶入新人：規劃中，下一版實作）
 //
 // v6.13.2 2026-06-18  ★ Patch：金流收尾（非上線切換）
 //          1. 優惠碼防呆：輸入了優惠碼但沒按「套用」就按付款，先跳提示（避免誤用原價結帳）
@@ -4920,11 +4931,13 @@ function CollabTab({ weddingId, fbRef, currentRole, currentWedding, user, onRelo
   const [loadingLog, setLoadingLog] = useState(false);
 
   const canManage = hasPerm(currentRole, 'manageCollab');
+  const isProWedding = currentWedding?.plan === 'pro';   // v6.14.0：多人協作為 Pro 專屬
   const collaborators = currentWedding?.collaborators || {};
   const collabList = Object.entries(collaborators).map(([uid,c])=>({uid, ...c}));
 
   // 產生邀請連結
   const createInvite = async () => {
+    if (!isProWedding) { uiProUpgrade('多人協作是 Pro 方案功能，升級後即可邀請親友一起編輯名單與排位。'); return; }
     if (!fbRef.current) return;
     setCreating(true); setInviteLink('');
     try {
@@ -5006,7 +5019,8 @@ function CollabTab({ weddingId, fbRef, currentRole, currentWedding, user, onRelo
 
       {sub==='members' && (
         <div>
-          {/* 邀請區 */}
+          {/* 邀請區（Pro 專屬；非 Pro 顯示升級卡）*/}
+          {isProWedding ? (
           <div style={{...S.card,padding:'20px 22px',marginBottom:16}}>
             <div style={{fontFamily:FONT_STACK,fontSize:15,marginBottom:14}}>邀請協作者</div>
             <Field label="權限角色">
@@ -5037,6 +5051,14 @@ function CollabTab({ weddingId, fbRef, currentRole, currentWedding, user, onRelo
               </div>
             )}
           </div>
+          ) : (
+          <div style={{...S.card,padding:'24px 22px',marginBottom:16,textAlign:'center'}}>
+            <div style={{fontSize:26,marginBottom:8}}>🔒</div>
+            <div style={{fontFamily:FONT_STACK,fontSize:15,marginBottom:6}}>多人協作為 Pro 方案功能</div>
+            <div style={{fontSize:12.5,color:'#9A8F82',lineHeight:1.7,marginBottom:16}}>升級 Pro 後，即可邀請伴侶或親友一起編輯名單與排位，並即時看到誰正在調整。</div>
+            <Btn onClick={()=>uiProUpgrade('多人協作是 Pro 方案功能，升級後即可邀請親友一起協作。')}>升級 Pro 解鎖協作</Btn>
+          </div>
+          )}
 
           {/* 協作者列表 */}
           <div style={{...S.card,padding:'20px 22px'}}>
@@ -5789,7 +5811,7 @@ function useHashRoute() {
   //          故 payResult 函式改帶 ?payresult=1。這裡優先用 query 判定，再把 URL 清成 hash 路由。
   const [route, setRoute] = useState(() => {
     try { if (new URLSearchParams(window.location.search).get('payresult') === '1') return '#/pay/result'; } catch {}
-    return window.location.hash || '#/login';
+    return window.location.hash || '#/home';
   });
   useEffect(() => {
     try {
@@ -5798,7 +5820,7 @@ function useHashRoute() {
         window.history.replaceState(null, '', window.location.pathname + '#/pay/result');
       }
     } catch {}
-    const onHash = () => setRoute(window.location.hash || '#/login');
+    const onHash = () => setRoute(window.location.hash || '#/home');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -5818,6 +5840,749 @@ function parseRoute(hash) {
   return { section: parts[0] || 'login', weddingId: parts[1] || null, page: parts[2] || null };
 }
 
+
+// ============================================================
+// LANDING PAGE — 公開形象頁（v6.14.0）
+//  • 整套 CSS scope 在 .lp-root，不外漏污染後台
+//  • HTML 原樣注入（與已核定的預覽一致）
+//  • GSAP 只在此頁 lazy load（CDN），離開時 ctx.revert() 清理，不殘留
+//  • 站內錨點用 JS 平滑捲動攔截，避免與 hash 路由衝突
+// ============================================================
+const LP_CSS = `
+  .lp-root {
+    --bg:#F9F5EF; --card:#FFFEFA; --primary:#B5895F; --primary-dark:#9F754C;
+    --ink:#3A332B; --sub:#6B6259; --muted:#9A8F82; --border:#E5DDD0;
+    --soft:#EFE3D0; --blush:#F2E0E0; --line:#E8DECF;
+    --serif:'Cormorant Garamond', serif;
+    --sans:'Noto Sans TC', -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+
+  .lp-root * {box-sizing:border-box; margin:0; padding:0;}
+
+  .lp-root {scroll-behavior:smooth;}
+
+  .lp-root {background:var(--bg); color:var(--ink); font-family:var(--sans); font-weight:300; line-height:1.75; -webkit-font-smoothing:antialiased; overflow-x:hidden;}
+
+  .lp-root a {color:inherit; text-decoration:none;}
+
+  .lp-root .wrap {max-width:1120px; margin:0 auto; padding:0 24px;}
+
+  .lp-root .eyebrow {font-size:11px; letter-spacing:4px; text-transform:uppercase; color:var(--muted); font-weight:400;}
+
+  .lp-root .serif {font-family:var(--serif);}
+
+  .lp-root .btn {display:inline-flex; align-items:center; gap:8px; font-family:var(--sans); font-size:14px; font-weight:400; padding:12px 24px; border-radius:2px; cursor:pointer; border:1px solid transparent; transition:transform .25s, background .25s, border-color .25s, color .25s;}
+
+  .lp-root .btn-primary {background:var(--primary); color:#fff;}
+
+  .lp-root .btn-primary:hover {background:var(--primary-dark); transform:translateY(-1px);}
+
+  .lp-root .btn-ghost {background:transparent; color:var(--ink); border-color:var(--border);}
+
+  .lp-root .btn-ghost:hover {border-color:var(--primary); color:var(--primary);}
+
+
+  /* hide-for-animation: only when JS+GSAP is active. If scripts fail or reduced-motion, .js is removed → content visible. */
+  .lp-root.lp-anim .rv, .lp-root.lp-anim [data-hero], .lp-root.lp-anim .seatcard, .lp-root.lp-anim .table-svg {opacity:0;}
+
+  .lp-root .hl-line {display:block; overflow:hidden;}
+
+  .lp-root .hl-line > span {display:inline-block;}
+
+  .lp-root.lp-anim .hl-line > span {transform:translateY(120%);}
+
+
+  /* NAV */
+  .lp-root nav {position:sticky; top:0; z-index:50; background:rgba(249,245,239,.85); backdrop-filter:blur(10px); border-bottom:1px solid var(--line);}
+
+  .lp-root .nav-in {display:flex; align-items:center; justify-content:space-between; height:64px;}
+
+  .lp-root .logo {line-height:1;}
+
+  .lp-root .logo .l1 {font-family:'Noto Serif TC', serif; font-weight:600; font-size:22px; letter-spacing:5px; color:var(--primary);}
+
+  .lp-root .logo .l2 {font-size:9px; letter-spacing:4px; text-transform:uppercase; color:var(--muted); margin-top:3px;}
+
+  .lp-root .nav-links {display:flex; align-items:center; gap:28px; font-size:13px; color:var(--sub);}
+
+  .lp-root .nav-links a.lk {transition:.2s;}
+ .lp-root .nav-links a.lk:hover {color:var(--primary);}
+
+  .lp-root .nav-cta {display:flex; align-items:center; gap:12px;}
+
+  @media(max-width:760px) {
+ .lp-root .nav-links .lk {display:none;}
+ 
+}
+
+
+  /* HERO */
+  .lp-root .hero {position:relative; overflow:hidden;}
+
+  .lp-root .hero-in {display:grid; grid-template-columns:1.05fr .95fr; gap:48px; align-items:center; padding:92px 0 76px;}
+
+  .lp-root .hero h1 {font-family:var(--serif); font-weight:500; font-size:62px; line-height:1.1; letter-spacing:1px; color:var(--ink); margin:18px 0 22px;}
+
+  .lp-root .hero h1 .accent {color:var(--primary);}
+
+  .lp-root .hero p.lead {font-size:16px; color:var(--sub); max-width:30em; margin-bottom:32px;}
+
+  .lp-root .hero .cta-row {display:flex; gap:14px; flex-wrap:wrap;}
+
+  .lp-root .hero .note {margin-top:18px; font-size:12px; color:var(--muted);}
+
+  @media(max-width:860px) {
+ .lp-root .hero-in {grid-template-columns:1fr; gap:32px; padding:56px 0 48px;}
+ .lp-root .hero h1 {font-size:44px;}
+ .lp-root .hero-art {order:-1;}
+ 
+}
+
+
+  /* seating motif (signature) */
+  .lp-root .hero-art {position:relative;}
+
+  .lp-root .seatcard {background:var(--card); border:1px solid var(--border); border-radius:6px; padding:26px; box-shadow:0 24px 60px -34px rgba(58,51,43,.45); will-change:transform;}
+
+  .lp-root .seatcard .cap {display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:16px;}
+
+  .lp-root .tables {display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+
+  .lp-root .table-svg {width:100%; height:auto;}
+
+  .lp-root .seatcard .legend {margin-top:18px; display:flex; gap:18px; font-size:11px; color:var(--sub);}
+
+  .lp-root .dot {display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+
+
+  /* SECTION shell */
+  .lp-root section {padding:84px 0;}
+
+  .lp-root .sec-head {text-align:center; max-width:36em; margin:0 auto 52px;}
+
+  .lp-root .sec-head h2 {font-family:var(--serif); font-weight:500; font-size:38px; color:var(--ink); margin:10px 0 14px; letter-spacing:.5px;}
+
+  .lp-root .sec-head p {color:var(--sub); font-size:15px;}
+
+
+  /* FLOW */
+  .lp-root .flow {display:grid; grid-template-columns:repeat(3,1fr); gap:28px;}
+
+  .lp-root .step {background:var(--card); border:1px solid var(--border); border-radius:6px; padding:26px 24px; position:relative; transition:transform .3s, box-shadow .3s;}
+
+  .lp-root .step:hover {transform:translateY(-3px); box-shadow:0 18px 40px -28px rgba(58,51,43,.5);}
+
+  .lp-root .step-head {display:flex; align-items:baseline; gap:12px; margin-bottom:10px;}
+
+  .lp-root .step .n {font-family:var(--serif); font-size:30px; color:#CBB69A; line-height:1; flex-shrink:0;}
+
+  .lp-root .step h3 {font-size:17px; font-weight:500; color:var(--ink);}
+
+  .lp-root .step ul {list-style:none; display:flex; flex-direction:column; gap:8px;}
+
+  .lp-root .step li {font-size:13.5px; color:var(--sub); display:flex; gap:9px; align-items:flex-start; line-height:1.55;}
+
+  .lp-root .step li::before {content:"–"; color:var(--primary); flex-shrink:0;}
+
+  .lp-root .combo {font-family:var(--serif); font-size:18px; color:var(--primary); letter-spacing:1px; margin:-2px 0 14px;}
+
+  @media(max-width:760px) {
+ .lp-root .flow {grid-template-columns:1fr;}
+ 
+}
+
+  .lp-root .step .mock {background:#F9F5EF; border:1px solid var(--line); border-radius:5px; margin-bottom:16px; padding:8px;}
+
+  .lp-root .mocksvg {width:100%; height:auto; display:block;}
+
+  .lp-root .step .cap-mock {font-size:10px; letter-spacing:1px; color:var(--muted); text-align:center; margin:-8px 0 14px;}
+
+
+  /* FEATURES */
+  .lp-root .feat-band {background:var(--card); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+
+  .lp-root .feat {display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+
+  .lp-root .feat .cell {background:var(--card); padding:30px 26px; transition:background .25s;}
+
+  .lp-root .feat .cell:hover {background:#FFFCF6;}
+
+  .lp-root .feat .ic {font-size:22px; margin-bottom:12px;}
+
+  .lp-root .feat h4 {font-size:15px; font-weight:500; margin-bottom:7px;}
+
+  .lp-root .feat p {font-size:13px; color:var(--sub);}
+
+  @media(max-width:860px) {
+ .lp-root .feat {grid-template-columns:1fr 1fr;}
+ 
+}
+
+  @media(max-width:560px) {
+ .lp-root .feat {grid-template-columns:1fr;}
+ 
+}
+
+  .lp-root .showcase {max-width:900px; margin:0 auto 50px;}
+
+  .lp-root .appwin {background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:0 34px 80px -44px rgba(58,51,43,.55);}
+
+  .lp-root .appwin svg {width:100%; height:auto; display:block;}
+
+  .lp-root .showcase .cap {text-align:center; font-size:12px; color:var(--muted); margin-top:14px;}
+
+
+  /* PRICING */
+  .lp-root .price {display:grid; grid-template-columns:1fr 1fr; gap:24px; max-width:840px; margin:0 auto;}
+
+  .lp-root .plan {background:var(--card); border:1px solid var(--border); border-radius:8px; padding:34px 30px; display:flex; flex-direction:column;}
+
+  .lp-root .plan.pro {border:1.5px solid var(--primary); box-shadow:0 24px 60px -38px rgba(181,137,95,.7); position:relative;}
+
+  .lp-root .plan .tag {position:absolute; top:-12px; left:30px; background:var(--primary); color:#fff; font-size:11px; letter-spacing:2px; padding:4px 12px; border-radius:2px;}
+
+  .lp-root .plan .pname {font-family:var(--serif); font-size:24px; color:var(--ink);}
+
+  .lp-root .plan .pdesc {font-size:13px; color:var(--muted); margin:4px 0 18px;}
+
+  .lp-root .plan .pp {display:flex; align-items:baseline; gap:6px; margin-bottom:4px;}
+
+  .lp-root .plan .pp .cur {font-size:15px; color:var(--sub);}
+
+  .lp-root .plan .pp .amt {font-family:var(--serif); font-size:46px; color:var(--ink); line-height:1;}
+
+  .lp-root .plan .pp .per {font-size:13px; color:var(--muted);}
+
+  .lp-root .plan ul {list-style:none; margin:22px 0 26px; display:flex; flex-direction:column; gap:11px;}
+
+  .lp-root .plan li {font-size:13.5px; color:var(--sub); display:flex; gap:10px; align-items:flex-start;}
+
+  .lp-root .plan li::before {content:"✓"; color:var(--primary); font-size:13px; margin-top:1px;}
+
+  .lp-root .plan li.off {color:var(--muted);}
+ .lp-root .plan li.off::before {content:"—"; color:var(--border);}
+
+  .lp-root .plan .btn {justify-content:center; margin-top:auto;}
+
+  .lp-root .price-note {text-align:center; font-size:12px; color:var(--muted); margin-top:22px;}
+
+  /* period toggle on Pro card */
+  .lp-root .period-toggle {display:inline-flex; background:var(--soft); border-radius:3px; padding:3px; margin:2px 0 16px; gap:2px;}
+
+  .lp-root .pt-btn {flex:1; border:0; background:transparent; cursor:pointer; font-family:var(--sans); font-size:13px; color:var(--sub); padding:7px 16px; border-radius:2px; transition:.2s;}
+
+  .lp-root .pt-btn.active {background:#fff; color:var(--primary); box-shadow:0 1px 3px rgba(58,51,43,.12);}
+
+  .lp-root .plan .orig {font-size:13px; color:#B8AE9F; text-decoration:line-through; margin-right:6px;}
+
+  .lp-root .plan .psave {font-size:12px; color:var(--primary-dark); margin-top:6px; min-height:1.2em;}
+
+  @media(max-width:680px) {
+ .lp-root .price {grid-template-columns:1fr;}
+ 
+}
+
+
+  /* FAQ */
+  .lp-root .faq {max-width:760px; margin:0 auto; border-top:1px solid var(--line);}
+
+  .lp-root .qa {border-bottom:1px solid var(--line); padding:22px 4px;}
+
+  .lp-root .qa h4 {font-size:15px; font-weight:500; margin-bottom:7px; color:var(--ink);}
+
+  .lp-root .qa p {font-size:13.5px; color:var(--sub);}
+
+
+  /* LEGAL */
+  .lp-root .legal-band {background:var(--card); border-top:1px solid var(--line);}
+
+  .lp-root .legal {display:grid; grid-template-columns:repeat(3,1fr); gap:34px;}
+
+  .lp-root .legal h3 {font-family:var(--serif); font-size:21px; margin-bottom:12px; color:var(--ink);}
+
+  .lp-root .legal p, .lp-root .legal li {font-size:12.5px; color:var(--sub); line-height:1.85;}
+
+  .lp-root .legal ul {margin:8px 0 0 18px;}
+
+  .lp-root .legal .ph {background:var(--blush); color:#8a5a5a; padding:1px 6px; border-radius:3px; font-size:11px;}
+
+  @media(max-width:820px) {
+ .lp-root .legal {grid-template-columns:1fr;}
+ 
+}
+
+
+  /* FOOTER */
+  .lp-root footer {background:#fff8ef; border-top:1px solid var(--line); padding:54px 0 30px;}
+
+  .lp-root .foot {display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:30px;}
+
+  .lp-root .foot .logo .l1 {font-size:22px;}
+
+  .lp-root .foot p, .lp-root .foot a {font-size:13px; color:var(--sub);}
+
+  .lp-root .foot .col h5 {font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:14px;}
+
+  .lp-root .foot .col a {display:block; margin-bottom:8px;}
+ .lp-root .foot .col a:hover {color:var(--primary);}
+
+  .lp-root .contact-line {display:flex; align-items:center; gap:9px; margin-top:10px; font-size:13px; color:var(--sub);}
+
+  .lp-root .foot-base {border-top:1px solid var(--line); margin-top:40px; padding-top:22px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:12px; color:var(--muted);}
+
+  @media(max-width:760px) {
+ .lp-root .foot {grid-template-columns:1fr;}
+ 
+}
+
+
+.lp-root{min-height:100vh;}`;
+const LP_HTML = `<!-- NAV -->
+<nav>
+  <div class="wrap nav-in">
+    <div class="logo">
+      <div class="l1">對好入座</div>
+      <div class="l2">MY WEDDING · SEATING</div>
+    </div>
+    <div class="nav-links">
+      <a class="lk" href="#flow">運作流程</a>
+      <a class="lk" href="#features">功能特色</a>
+      <a class="lk" href="#pricing">方案定價</a>
+      <a class="lk" href="#faq">常見問題</a>
+      <div class="nav-cta">
+        <a class="btn btn-ghost" href="#/login">登入</a>
+        <a class="btn btn-primary" href="#/login">免費開始</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap hero-in">
+    <div>
+      <span class="eyebrow hero-eyebrow" data-hero>專屬喜帖 ✕ 表單統計 ✕ 拖曳排位</span>
+      <h1>
+        <span class="hl-line"><span>我的婚禮</span></span>
+        <span class="hl-line"><span class="accent">對好入座</span></span>
+      </h1>
+      <p class="lead hero-lead" data-hero style="margin-bottom:12px;">告別排桌地獄！從發送喜帖到輕鬆排位，一站完成。</p>
+      <p class="lead hero-lead" data-hero>線上喜帖、邀請函回覆、賓客名單到桌次安排都在同一個地方，拖一拖就排好位，避桌同桌自動提醒。</p>
+      <div class="cta-row hero-cta" data-hero>
+        <a class="btn btn-primary" href="#/login">免費開始，不需信用卡</a>
+        <a class="btn btn-ghost" href="#pricing">看方案與定價</a>
+      </div>
+      <p class="note hero-note" data-hero>免費版即可建立喜帖、收邀請函回覆、排 3 桌；升級 Pro 解鎖無限桌次、匯出與多人協作。</p>
+    </div>
+
+    <!-- signature: seating motif -->
+    <div class="hero-art">
+      <div class="seatcard">
+        <div class="cap"><span>SEATING PLAN</span><span>12 桌 · 已排 9</span></div>
+        <div class="tables">
+          <svg class="table-svg" viewBox="0 0 90 90"><circle cx="45" cy="45" r="22" fill="none" stroke="#B5895F" stroke-width="1.4"/><circle cx="45" cy="20" r="4.4" fill="#B5895F"/><circle cx="66" cy="33" r="4.4" fill="#B5895F"/><circle cx="66" cy="57" r="4.4" fill="#B5895F"/><circle cx="45" cy="70" r="4.4" fill="#B5895F"/><circle cx="24" cy="57" r="4.4" fill="#B5895F"/><circle cx="24" cy="33" r="4.4" fill="#B5895F"/><text x="45" y="49" font-size="11" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">1</text></svg>
+          <svg class="table-svg" viewBox="0 0 90 90"><circle cx="45" cy="45" r="22" fill="none" stroke="#B5895F" stroke-width="1.4"/><circle cx="45" cy="20" r="4.4" fill="#B5895F"/><circle cx="66" cy="33" r="4.4" fill="#B5895F"/><circle cx="66" cy="57" r="4.4" fill="#E5DDD0"/><circle cx="45" cy="70" r="4.4" fill="#B5895F"/><circle cx="24" cy="57" r="4.4" fill="#B5895F"/><circle cx="24" cy="33" r="4.4" fill="#B5895F"/><text x="45" y="49" font-size="11" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">2</text></svg>
+          <svg class="table-svg" viewBox="0 0 90 90"><circle cx="45" cy="45" r="22" fill="none" stroke="#C8AE92" stroke-width="1.4" stroke-dasharray="3 3"/><circle cx="45" cy="20" r="4.4" fill="#E5DDD0"/><circle cx="66" cy="33" r="4.4" fill="#E5DDD0"/><circle cx="66" cy="57" r="4.4" fill="#E5DDD0"/><circle cx="45" cy="70" r="4.4" fill="#E5DDD0"/><circle cx="24" cy="57" r="4.4" fill="#E5DDD0"/><circle cx="24" cy="33" r="4.4" fill="#E5DDD0"/><text x="45" y="49" font-size="10" fill="#C0B4A4" text-anchor="middle" font-family="Cormorant Garamond">+</text></svg>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:#B5895F"></span>已入座</span>
+          <span><span class="dot" style="background:#E5DDD0"></span>空位</span>
+          <span><span class="dot" style="background:#fff;border:1px dashed #C8AE92"></span>待新增</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- FLOW -->
+<section id="flow">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow">How it works</span>
+      <h2>三個步驟，從喜帖到安排座位</h2>
+      <div class="combo">專屬喜帖 ✕ 表單統計 ✕ 拖曳排位</div>
+      <p>每一步都接上下一步，不用在不同工具之間搬資料。</p>
+    </div>
+    <div class="flow">
+
+      <div class="step rv">
+        <div class="mock">
+          <svg class="mocksvg" viewBox="0 0 240 150">
+            <rect x="86" y="8" width="68" height="134" rx="11" fill="#FFFEFA" stroke="#E5DDD0"/>
+            <rect x="105" y="13" width="30" height="3.5" rx="1.75" fill="#EADBC8"/>
+            <rect x="91" y="24" width="58" height="38" fill="#EFE3D0"/>
+            <text x="120" y="46" font-size="13" fill="#B5895F" text-anchor="middle" font-family="Cormorant Garamond">&#9825;</text>
+            <text x="120" y="80" font-size="11" fill="#3A332B" text-anchor="middle" font-family="Cormorant Garamond">Shawn &amp; Yu</text>
+            <text x="120" y="93" font-size="7" fill="#9A8F82" text-anchor="middle" letter-spacing="1">2026 . 10 . 10</text>
+            <rect x="101" y="103" width="38" height="14" rx="7" fill="#B5895F"/>
+            <text x="120" y="112.5" font-size="6.5" fill="#FFFEFA" text-anchor="middle">出席回覆</text>
+            <rect x="106" y="126" width="28" height="3" rx="1.5" fill="#E5DDD0"/>
+          </svg>
+        </div>
+        <div class="step-head"><span class="n">01</span><h3>發出線上喜帖</h3></div>
+        <ul>
+          <li>挑選主題、填入婚禮資訊</li>
+          <li>產生專屬邀請連結</li>
+          <li>用 LINE 或社群直接分享給賓客</li>
+        </ul>
+      </div>
+
+      <div class="step rv">
+        <div class="mock">
+          <svg class="mocksvg" viewBox="0 0 240 150">
+            <rect x="18" y="14" width="204" height="122" rx="8" fill="#FFFEFA" stroke="#E5DDD0"/>
+            <text x="30" y="33" font-size="9.5" fill="#3A332B" font-family="Noto Sans TC">賓客名單</text>
+            <text x="210" y="33" font-size="7.5" fill="#9A8F82" text-anchor="end">已回覆 38 / 50</text>
+            <line x1="18" y1="43" x2="222" y2="43" stroke="#EFE3D0"/>
+            <!-- rows -->
+            <g font-family="Noto Sans TC">
+              <circle cx="36" cy="58" r="6" fill="#EAD9C4"/><rect x="48" y="55" width="58" height="6" rx="3" fill="#E5DDD0"/>
+              <rect x="160" y="51" width="50" height="14" rx="7" fill="#E8F0E0"/><text x="185" y="60.5" font-size="7" fill="#4A7C59" text-anchor="middle">出席 · 2 位</text>
+              <circle cx="36" cy="82" r="6" fill="#EAD9C4"/><rect x="48" y="79" width="46" height="6" rx="3" fill="#E5DDD0"/>
+              <rect x="172" y="75" width="38" height="14" rx="7" fill="#F5E8D0"/><text x="191" y="84.5" font-size="7" fill="#9F754C" text-anchor="middle">未定</text>
+              <circle cx="36" cy="106" r="6" fill="#EAD9C4"/><rect x="48" y="103" width="64" height="6" rx="3" fill="#E5DDD0"/>
+              <rect x="172" y="99" width="38" height="14" rx="7" fill="#EFE3D0"/><text x="191" y="108.5" font-size="7" fill="#9A8F82" text-anchor="middle">婉謝</text>
+            </g>
+          </svg>
+        </div>
+        <div class="step-head"><span class="n">02</span><h3>收取賓客回覆與祝福</h3></div>
+        <ul>
+          <li>賓客回覆出席人數與需求</li>
+          <li>線上祝福牆即時看</li>
+          <li>回覆名單人數自動彙整</li>
+        </ul>
+      </div>
+
+      <div class="step rv">
+        <div class="mock">
+          <svg class="mocksvg" viewBox="0 0 240 150">
+            <rect x="18" y="14" width="204" height="122" rx="8" fill="#F9F5EF" stroke="#E5DDD0"/>
+            <!-- table 1 -->
+            <g transform="translate(72,58)">
+              <circle r="20" fill="none" stroke="#B5895F" stroke-width="1.3"/>
+              <circle cx="0" cy="-20" r="4" fill="#B5895F"/><circle cx="19" cy="-6" r="4" fill="#B5895F"/><circle cx="12" cy="16" r="4" fill="#B5895F"/><circle cx="-12" cy="16" r="4" fill="#B5895F"/><circle cx="-19" cy="-6" r="4" fill="#B5895F"/>
+              <text y="3" font-size="9" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">主桌</text>
+            </g>
+            <!-- table 2 with one empty target -->
+            <g transform="translate(150,52)">
+              <circle r="20" fill="none" stroke="#B5895F" stroke-width="1.3"/>
+              <circle cx="0" cy="-20" r="4" fill="#B5895F"/><circle cx="19" cy="-6" r="4" fill="#E5DDD0"/><circle cx="12" cy="16" r="4" fill="#B5895F"/><circle cx="-12" cy="16" r="4" fill="#E5DDD0"/><circle cx="-19" cy="-6" r="4" fill="#B5895F"/>
+              <text y="3" font-size="9" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">2</text>
+            </g>
+            <!-- conflict badge on table1 -->
+            <g transform="translate(58,34)"><rect width="44" height="14" rx="7" fill="#FBE6E6"/><text x="22" y="9.6" font-size="7" fill="#B5524F" text-anchor="middle" font-family="Noto Sans TC">⚠ 避桌衝突</text></g>
+            <!-- dragging chip + dashed path to empty seat -->
+            <path d="M70 118 C 110 110, 150 90, 169 60" fill="none" stroke="#C8AE92" stroke-width="1" stroke-dasharray="3 3"/>
+            <g transform="translate(40,110)"><rect width="52" height="18" rx="9" fill="#FFFEFA" stroke="#B5895F"/><text x="26" y="12" font-size="8" fill="#3A332B" text-anchor="middle" font-family="Noto Sans TC">王小明</text></g>
+          </svg>
+        </div>
+        <div class="step-head"><span class="n">03</span><h3>簡單拖曳快速完成惱人排位</h3></div>
+        <ul>
+          <li>賓客名單拖曳快速安排入桌</li>
+          <li>避桌・同桌需求偵測提醒</li>
+          <li>匯出座位圖帶位好輕鬆</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<div class="feat-band">
+<section id="features" style="padding-top:72px;padding-bottom:72px;">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow">Features</span>
+      <h2>籌備婚宴最頭痛的，一條龍搞定</h2>
+      <p>從喜帖、回覆統計到一張張桌子怎麼坐 —— 不用再開 Excel 和 LINE 群組來回對。</p>
+    </div>
+
+    <div class="showcase rv">
+      <div class="appwin">
+        <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans TC">
+          <!-- canvas bg -->
+          <rect x="0" y="0" width="760" height="400" fill="#F9F5EF"/>
+          <!-- title bar -->
+          <rect x="0" y="0" width="760" height="40" fill="#F4ECE0"/>
+          <circle cx="22" cy="20" r="4" fill="#E0D3C0"/><circle cx="38" cy="20" r="4" fill="#E0D3C0"/><circle cx="54" cy="20" r="4" fill="#E0D3C0"/>
+          <text x="380" y="25" font-size="12" fill="#6B6259" text-anchor="middle">排位 — Xin &amp; Yu 婚禮</text>
+          <rect x="624" y="11" width="118" height="20" rx="10" fill="#B5895F"/>
+          <text x="683" y="24.5" font-size="10.5" fill="#FFFEFA" text-anchor="middle">匯出帶位清單</text>
+          <!-- sidebar -->
+          <rect x="0" y="40" width="200" height="360" fill="#FAF4EA"/>
+          <line x1="200" y1="40" x2="200" y2="400" stroke="#E5DDD0"/>
+          <text x="20" y="72" font-size="12.5" fill="#3A332B">待安排賓客</text>
+          <text x="184" y="72" font-size="11" fill="#B5895F" text-anchor="end">8 人</text>
+          <g>
+            <rect x="16" y="86" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="101.5" font-size="10.5" fill="#3A332B">林伯母</text><text x="172" y="101.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×1</text>
+            <rect x="16" y="116" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="131.5" font-size="10.5" fill="#3A332B">大學同學 A</text><text x="172" y="131.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×2</text>
+            <rect x="16" y="146" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="161.5" font-size="10.5" fill="#3A332B">公司同事</text><text x="172" y="161.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×3</text>
+            <rect x="16" y="176" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="191.5" font-size="10.5" fill="#3A332B">表哥一家</text><text x="172" y="191.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×4</text>
+          </g>
+
+          <!-- main canvas tables -->
+          <!-- 主桌 (filled) -->
+          <g transform="translate(330,135)">
+            <circle r="36" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
+            <circle cx="36" cy="0" r="6" fill="#B5895F"/><circle cx="25" cy="25" r="6" fill="#B5895F"/><circle cx="0" cy="36" r="6" fill="#B5895F"/><circle cx="-25" cy="25" r="6" fill="#B5895F"/><circle cx="-36" cy="0" r="6" fill="#B5895F"/><circle cx="-25" cy="-25" r="6" fill="#B5895F"/><circle cx="0" cy="-36" r="6" fill="#B5895F"/><circle cx="25" cy="-25" r="6" fill="#B5895F"/>
+            <text y="4" font-size="13" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">主桌</text>
+          </g>
+          <!-- 桌2 (mixed, target seats empty) -->
+          <g transform="translate(500,120)">
+            <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
+            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#E5DDD0"/><circle cx="-17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-34" cy="0" r="5.5" fill="#B5895F"/><circle cx="-17" cy="-29" r="5.5" fill="#E5DDD0"/><circle cx="17" cy="-29" r="5.5" fill="#B5895F"/>
+            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">2</text>
+          </g>
+          <!-- 桌3 -->
+          <g transform="translate(650,185)">
+            <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
+            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-17" cy="29" r="5.5" fill="#E5DDD0"/><circle cx="-34" cy="0" r="5.5" fill="#B5895F"/><circle cx="-17" cy="-29" r="5.5" fill="#B5895F"/><circle cx="17" cy="-29" r="5.5" fill="#E5DDD0"/>
+            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">3</text>
+          </g>
+          <!-- 桌4 -->
+          <g transform="translate(360,310)">
+            <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
+            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-34" cy="0" r="5.5" fill="#E5DDD0"/><circle cx="-17" cy="-29" r="5.5" fill="#B5895F"/><circle cx="17" cy="-29" r="5.5" fill="#B5895F"/>
+            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">4</text>
+          </g>
+          <!-- 桌5 (conflict) -->
+          <g transform="translate(560,315)">
+            <circle r="34" fill="#FFFEFA" stroke="#D89B9B" stroke-width="1.6"/>
+            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-17" cy="29" r="5.5" fill="#E5DDD0"/><circle cx="-34" cy="0" r="5.5" fill="#B5895F"/><circle cx="-17" cy="-29" r="5.5" fill="#B5895F"/><circle cx="17" cy="-29" r="5.5" fill="#E5DDD0"/>
+            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">5</text>
+          </g>
+          <!-- conflict badge -->
+          <g transform="translate(536,268)"><rect width="92" height="18" rx="9" fill="#FBE6E6"/><text x="46" y="12.5" font-size="9.5" fill="#B5524F" text-anchor="middle">⚠ 避桌偏好衝突</text></g>
+          <!-- same-table unmet badge -->
+          <g transform="translate(596,140)"><rect width="108" height="18" rx="9" fill="#F5E8D0"/><text x="54" y="12.5" font-size="9.5" fill="#9F754C" text-anchor="middle">↔ 同桌偏好未滿足</text></g>
+
+          <!-- dragging chip + dashed path to empty seat on 桌2 -->
+          <path d="M300 250 C 380 250, 450 180, 483 91" fill="none" stroke="#C8AE92" stroke-width="1.2" stroke-dasharray="4 4"/>
+          <g transform="translate(252,238)"><rect width="96" height="26" rx="13" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.3"/><text x="48" y="16.5" font-size="11" fill="#3A332B" text-anchor="middle">大學同學 A ×2</text></g>
+        </svg>
+      </div>
+      <div class="cap">實際操作畫面示意 · 拖曳賓客即入座，避桌／同桌衝突自動標示</div>
+    </div>
+
+    <div class="feat">
+      <div class="cell rv"><div class="ic">💌</div><h4>線上喜帖</h4><p>多種典雅主題與字體，手機開啟即是一張邀請函，連婚紗照都能輪播。</p></div>
+      <div class="cell rv"><div class="ic">📋</div><h4>賓客名單</h4><p>出席狀態、攜伴人數、桌次一覽，支援匯入與快速搜尋。</p></div>
+      <div class="cell rv"><div class="ic">✅</div><h4>邀請函回覆</h4><p>賓客自助回覆，省去逐一電話確認，名單即時同步。</p></div>
+      <div class="cell rv"><div class="ic">🪑</div><h4>智慧排位</h4><p>拖曳安排桌次，避桌／同桌偏好自動提醒衝突。</p></div>
+      <div class="cell rv"><div class="ic">💬</div><h4>祝福牆</h4><p>收集賓客留言與祝福，婚禮當天可即時呈現。</p></div>
+      <div class="cell rv"><div class="ic">👥</div><h4>多人協作</h4><p>邀請伴侶或親友一起編輯，即時看到誰正在調整。</p></div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow">Pricing</span>
+      <h2>方案與定價</h2>
+      <p>先免費開始，需要更多桌次與匯出時再升級。價格以新台幣計價。</p>
+    </div>
+    <div class="price">
+      <div class="plan">
+        <div class="pname serif">免費版</div>
+        <div class="pdesc">適合小型婚禮先試用</div>
+        <div class="pp"><span class="cur">NT$</span><span class="amt">0</span><span class="per">／永久免費</span></div>
+        <ul>
+          <li>建立線上喜帖與祝福牆</li>
+          <li>收取邀請函回覆</li>
+          <li>賓客名單管理</li>
+          <li>排位最多 3 桌、已入座 32 人</li>
+          <li>最多 2 個婚禮專案</li>
+          <li class="off">匯出帶位清單／名單</li>
+          <li class="off">多人協作</li>
+        </ul>
+        <a class="btn btn-ghost" href="#/login">免費開始</a>
+      </div>
+      <div class="plan pro">
+        <span class="tag" id="proBadge">最划算</span>
+        <div class="pname serif">Pro 方案</div>
+        <div class="pdesc">完整功能，適合正式婚宴</div>
+        <div class="period-toggle" role="tablist" aria-label="計費週期">
+          <button class="pt-btn" data-period="month" role="tab">月費</button>
+          <button class="pt-btn active" data-period="half" role="tab">半年</button>
+        </div>
+        <div class="pp">
+          <span class="orig" id="proOrig" style="display:none;"></span>
+          <span class="cur">NT$</span><span class="amt" id="proAmt">1,099</span><span class="per" id="proPer">／半年</span>
+        </div>
+        <div class="psave" id="proSave">付 6 個月多送 1 個月（等於 7 個月，每月約 NT$157）</div>
+        <ul>
+          <li>免費版全部功能</li>
+          <li>排位桌數無上限</li>
+          <li>匯出帶位清單、名單（CSV／JPG／PDF）</li>
+          <li>多人即時協作</li>
+          <li>專案數量提升</li>
+          <li>主題與字體完整解鎖</li>
+        </ul>
+        <a class="btn btn-primary" href="#/login">升級 Pro</a>
+      </div>
+    </div>
+    <p class="price-note">Pro 提供月費與半年兩種方案。信用卡定期定額付款由綠界 ECPay 安全處理，可隨時取消，已付期間權益保留至到期日。</p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="padding-top:40px;">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow">FAQ</span>
+      <h2>常見問題</h2>
+    </div>
+    <div class="faq">
+      <div class="qa rv"><h4>付款方式有哪些？</h4><p>Pro 方案採信用卡定期定額（自動續扣），由綠界 ECPay 處理刷卡與每期扣款，我們不會接觸或保存您的完整卡號。</p></div>
+      <div class="qa rv"><h4>可以隨時取消訂閱嗎？</h4><p>可以。於帳戶中心點選「取消訂閱」即停止後續自動扣款；已付期間的 Pro 權益會保留到當期到期日為止。</p></div>
+      <div class="qa rv"><h4>退費政策是什麼？</h4><p>數位訂閱服務開通後，當期費用原則上不另退還；取消後不再扣款。詳細條件請見下方「退費政策」。</p></div>
+      <div class="qa rv"><h4>免費版有期限嗎？</h4><p>沒有。免費版可永久使用，僅在桌數、專案數與匯出等進階功能上有所限制。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- LEGAL -->
+<div class="legal-band">
+<section id="legal">
+  <div class="wrap">
+    <div class="legal">
+      <div class="rv" id="terms">
+        <h3>服務條款</h3>
+        <p>本服務「我的婚禮對好入座」由 <span class="ph">〔營業主體名稱／負責人〕</span> 提供，協助使用者製作線上喜帖、管理賓客名單與安排桌次。</p>
+        <ul>
+          <li>使用者須對自行上傳之賓客資料與內容負責，不得用於違法用途。</li>
+          <li>Pro 為訂閱制服務，付款後即開通對應期間之功能權益。</li>
+          <li>服務內容與方案得適時調整，重大變更將於本網站公告。</li>
+        </ul>
+      </div>
+      <div class="rv" id="refund">
+        <h3>退費政策</h3>
+        <p>Pro 訂閱採信用卡定期定額：</p>
+        <ul>
+          <li>取消訂閱後即停止後續自動扣款，已開通之當期權益保留至到期日。</li>
+          <li>數位服務一經開通，當期已扣款項原則上不予退還。</li>
+          <li>如有重複扣款或系統錯誤，請於 <span class="ph">〔7〕</span> 日內聯繫客服，核實後協助處理。</li>
+        </ul>
+      </div>
+      <div class="rv" id="privacy">
+        <h3>隱私權政策</h3>
+        <p>我們僅為提供服務之必要而蒐集與使用您的資料：</p>
+        <ul>
+          <li>帳號資料（Email、登入識別）用於身分驗證與服務通知。</li>
+          <li>付款由綠界 ECPay 處理，我們不保存您的完整信用卡號。</li>
+          <li>您可隨時要求查詢、更正或刪除個人資料。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <div class="logo"><div class="l1">對好入座</div>
+      <div class="l2">MY WEDDING · SEATING</div></div>
+        <p style="margin-top:14px; max-width:24em;">我的婚禮對好入座 —— 告別排桌地獄，籌備婚禮的每一步都簡單一點。</p>
+        <div class="contact-line">✉️ <a href="mailto:〔your@email.com〕"><span class="ph">〔your@email.com〕</span></a></div>
+        <div class="contact-line">📞 <span class="ph">〔0900-000-000〕</span></div>
+      </div>
+      <div class="col">
+        <h5>產品</h5>
+        <a href="#flow">運作流程</a><a href="#features">功能特色</a><a href="#pricing">方案定價</a><a href="#faq">常見問題</a>
+      </div>
+      <div class="col">
+        <h5>條款與政策</h5>
+        <a href="#terms">服務條款</a><a href="#refund">退費政策</a><a href="#privacy">隱私權政策</a>
+        <a href="#legal">聯絡我們</a>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 我的婚禮對好入座 · <span class="ph">〔營業主體／統一編號〕</span></span>
+      <span>付款服務由 綠界科技 ECPay 提供</span>
+    </div>
+  </div>
+</footer>`;
+
+function LandingPage(){
+  const rootRef = useRef(null);
+  useEffect(()=>{
+    const root = rootRef.current; if(!root) return;
+    // 字體
+    if(!document.getElementById('lp-fonts')){
+      const l=document.createElement('link'); l.id='lp-fonts'; l.rel='stylesheet';
+      l.href='https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@500;600&display=swap';
+      document.head.appendChild(l);
+    }
+    // 站內錨點平滑捲動（#section 攔截；#/route 放行給路由）
+    const onClick=(e)=>{
+      const a = e.target && e.target.closest ? e.target.closest('a[href^="#"]') : null;
+      if(!a) return;
+      const href = a.getAttribute('href');
+      if(!href || href.startsWith('#/')) return;
+      e.preventDefault();
+      const el = root.querySelector(href);
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+    root.addEventListener('click', onClick);
+    // 方案切換（月費／半年）
+    const PLANS={ month:{amt:'199',per:'／月',orig:'NT$299',save:'限時優惠價，每月自動續訂',badge:'限時優惠'},
+                  half:{amt:'1,099',per:'／半年',orig:'',save:'付 6 個月多送 1 個月（等於 7 個月，每月約 NT$157）',badge:'最划算'} };
+    const pick=(id)=>root.querySelector('#'+id);
+    const applyPlan=(k)=>{ const p=PLANS[k]; if(!p) return;
+      const a=pick('proAmt'),pe=pick('proPer'),o=pick('proOrig'),s=pick('proSave'),b=pick('proBadge');
+      if(a)a.textContent=p.amt; if(pe)pe.textContent=p.per; if(s)s.textContent=p.save; if(b)b.textContent=p.badge;
+      if(o){ if(p.orig){o.textContent=p.orig;o.style.display='';} else o.style.display='none'; } };
+    const btns = root.querySelectorAll('.pt-btn');
+    const onToggle=(e)=>{ const b=e.currentTarget; btns.forEach(x=>x.classList.remove('active')); b.classList.add('active'); applyPlan(b.getAttribute('data-period')); };
+    btns.forEach(b=>b.addEventListener('click', onToggle));
+    // GSAP lazy load + 進場動畫（scoped），失敗或 reduced-motion → 直接顯示
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reveal=()=>root.classList.remove('lp-anim');
+    let ctx=null, cancelled=false;
+    const loadScript=(src)=>new Promise((ok,no)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=no; document.head.appendChild(s); });
+    const ensureGsap=async()=>{
+      if(!window.gsap) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js');
+      if(!window.ScrollTrigger) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js');
+    };
+    if(reduce){ reveal(); }
+    else {
+      ensureGsap().then(()=>{
+        if(cancelled) return;
+        const gsap=window.gsap; if(!gsap){ reveal(); return; }
+        gsap.registerPlugin(window.ScrollTrigger);
+        ctx = gsap.context(()=>{
+          gsap.set('[data-hero]',{y:18}); gsap.set('.seatcard',{y:24});
+          gsap.set('.table-svg',{scale:.85,transformOrigin:'50% 50%'}); gsap.set('.rv',{y:22}); gsap.set('.plan',{opacity:0,y:26});
+          const tl=gsap.timeline({defaults:{ease:'power3.out'},delay:.1});
+          tl.to('.hero-eyebrow',{autoAlpha:1,y:0,duration:.6},0)
+            .to('.hl-line > span',{y:0,duration:.95,stagger:.12,ease:'power4.out'},'-=.25')
+            .to('.hero-lead',{autoAlpha:1,y:0,duration:.7},'-=.55')
+            .to('.hero-cta',{autoAlpha:1,y:0,duration:.7},'-=.55')
+            .to('.hero-note',{autoAlpha:1,y:0,duration:.6},'-=.55')
+            .to('.seatcard',{autoAlpha:1,y:0,duration:.85},'-=.7')
+            .to('.table-svg',{autoAlpha:1,scale:1,duration:.7,stagger:.14,ease:'back.out(1.5)'},'-=.45');
+          gsap.to('.seatcard',{y:'-=7',duration:3.4,ease:'sine.inOut',repeat:-1,yoyo:true,delay:1.8});
+          Array.from(root.querySelectorAll('.rv')).forEach((el)=>{
+            gsap.to(el,{autoAlpha:1,y:0,duration:.85,ease:'power3.out',scrollTrigger:{trigger:el,start:'top 86%'}});
+          });
+          window.ScrollTrigger.batch(root.querySelectorAll('.plan'),{start:'top 88%',
+            onEnter:(bt)=>gsap.to(bt,{autoAlpha:1,y:0,duration:.8,stagger:.12,ease:'power3.out'})});
+        }, root);
+      }).catch(reveal);
+    }
+    return ()=>{ cancelled=true; root.removeEventListener('click',onClick);
+      btns.forEach(b=>b.removeEventListener('click',onToggle)); if(ctx) ctx.revert(); };
+  },[]);
+  return React.createElement('div',{ref:rootRef, className:'lp-root lp-anim',
+    dangerouslySetInnerHTML:{__html:'<style>'+LP_CSS+'</style>'+LP_HTML}});
+}
 
 // ============================================================
 // LOGIN PAGE — Email/Password + Google OAuth
@@ -8709,14 +9474,19 @@ export default function WeddingApp() {
     );
   }
 
+  // 公開形象首頁：未登入訪客看 LandingPage（CTA 導向 #/login）
+  if(!isLoggedIn && parsed.section==='home'){
+    return <LandingPage />;
+  }
+
   // 公開婚禮路由（#/w/{id} 及其子頁面）：賓客無需登入即可訪問 RSVP / 祝福牆
   // 後台頁面（admin/seating/info）：需登入
   if(!isLoggedIn && !isPublicRoute && parsed.section!=='join'){
     return <AppShell><LoginPage onAuthSuccess={()=>{}} /></AppShell>;
   }
 
-  // 已登入、在 #/login → 依婚禮數量導向
-  if(isLoggedIn && (parsed.section==='login'||parsed.section==='')){
+  // 已登入、在 #/home 或 #/login → 依婚禮數量導向（不顯示公開形象頁）
+  if(isLoggedIn && (parsed.section==='home'||parsed.section==='login'||parsed.section==='')){
     if(!loadingWeddings && user.email){
       // v6.8.0：管理員帳號直接跳後台，不走婚禮向導
       if(isPlatformAdmin(user)) navigate('#/dev');
