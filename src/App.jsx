@@ -1,7 +1,14 @@
 // ============================================================
-// WEDDING SAAS  v6.15.0  （商業版／多租戶）
+// WEDDING SAAS  v6.15.1  （商業版／多租戶）
 // 最後更新：2026-06-21
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.15.1 2026-06-21  ★ Patch：頁籤標題／形象頁卡片順序／賓客名單描述
+//          1. 網頁頁籤標題（document.title）由舊名「喜帖到排位一次搞定」改為
+//             「對好入座 ｜ 婚禮喜帖・賓客名單・智慧排位」，與現行品牌一致
+//          2. 形象頁「籌備婚宴最頭痛的，一條龍搞定」六張功能卡，順序改為：
+//             線上喜帖 → 邀請函回覆 → 賓客名單 → 祝福牆 → 智慧排位 → 多人協作
+//          3. 賓客名單卡介紹小字加入喜餅功能說明（男方／女方分開計算）
 //
 // v6.15.0 2026-06-21  ★ Minor：新人排位（特殊賓客）+ 喜餅管理
 //          【新人】新郎/新娘改為 data.guests 兩筆特殊賓客（isCouple，新郎 side:'groom' 藍／
@@ -6443,10 +6450,10 @@ const LP_HTML = `<!-- NAV -->
 
     <div class="feat">
       <div class="cell rv"><div class="ic">💌</div><h4>線上喜帖</h4><p>多種典雅主題與字體，手機開啟即是一張邀請函，連婚紗照都能輪播。</p></div>
-      <div class="cell rv"><div class="ic">📋</div><h4>賓客名單</h4><p>出席狀態、攜伴人數、桌次一覽，支援匯入與快速搜尋。</p></div>
       <div class="cell rv"><div class="ic">✅</div><h4>邀請函回覆</h4><p>賓客自助回覆，省去逐一電話確認，名單即時同步。</p></div>
-      <div class="cell rv"><div class="ic">🪑</div><h4>智慧排位</h4><p>拖曳安排桌次，避桌／同桌偏好自動提醒衝突。</p></div>
+      <div class="cell rv"><div class="ic">📋</div><h4>賓客名單</h4><p>出席狀態、攜伴人數、桌次一覽，還能逐筆統計喜餅數量（男方／女方分開計算），支援匯入與快速搜尋。</p></div>
       <div class="cell rv"><div class="ic">💬</div><h4>祝福牆</h4><p>收集賓客留言與祝福，婚禮當天可即時呈現。</p></div>
+      <div class="cell rv"><div class="ic">🪑</div><h4>智慧排位</h4><p>拖曳安排桌次，避桌／同桌偏好自動提醒衝突。</p></div>
       <div class="cell rv"><div class="ic">👥</div><h4>多人協作</h4><p>邀請伴侶或親友一起編輯，即時看到誰正在調整。</p></div>
     </div>
   </div>
@@ -8784,7 +8791,7 @@ export default function WeddingApp() {
 
   // 設定頁面標題
   useEffect(()=>{
-    document.title = '喜帖到排位一次搞定';
+    document.title = '對好入座 ｜ 婚禮喜帖・賓客名單・智慧排位';
     // 注入 💐 emoji favicon（SVG data URI）
     const svgFav = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💐</text></svg>`;
     let link = document.querySelector("link[rel~='icon']");
