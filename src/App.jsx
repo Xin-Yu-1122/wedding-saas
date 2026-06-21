@@ -1,7 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.14.0  （商業版／多租戶）
+// WEDDING SAAS  v6.15.0  （商業版／多租戶）
 // 最後更新：2026-06-21
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.15.0 2026-06-21  ★ Minor：新人排位（特殊賓客）+ 喜餅管理
+//          【新人】新郎/新娘改為 data.guests 兩筆特殊賓客（isCouple，新郎 side:'groom' 藍／
+//          新娘 side:'bride' 粉，各 count1、attending）。排位頁首開自動補進待安排（新舊婚禮皆適用、
+//          ref 防迴圈）。可拖到任何桌位、不可刪除、點擊不開編輯（座位/待安排/清單三處 setEditGuest 擋 isCouple）。
+//          外觀沿用 side 配色 + 名字「新郎/新娘」（自動，無需特例）。
+//          • 計入：免費版排位上限 32、排位入座/桌佔用（attending:true 自然計入）
+//          • 排除：名單清單列、RSVP 統計、出席人數、葷素、名單匯出（filter !isCouple）
+//          【名單統計】出席人數排除新人、分母＝總席−2（新人預佔2席）；席次使用進度同步排除；
+//          出席卡內新增 男/女/共同 出席拆分（算喜餅用）。
+//          【喜餅】名單新增「喜餅」+/- 欄位（預設0，attending 才可調）；新增「喜餅數量」統計卡；
+//          匯出新增「預計發喜餅對象名單」（姓名/分類/子分類/出席/人數/喜餅數量，只列 >0，附男女共同小計）。
+//          • 已 jsdom 驗證：名單排除新人(3列)、出席9/分母8、男女共同拆分、喜餅卡/欄位、RoundTable 新人藍渲染
+//          ※ 舊版「鎖死座位格(coupleSeatIndices)」做法已移除，改為本特殊賓客方案。
 //
 // v6.14.0 2026-06-21  ★ Minor：公開形象頁 + 多人協作付費閘門
 //          1. 新增公開形象頁 LandingPage（路由 #/home，未登入訪客預設進入；
@@ -2756,13 +2770,19 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
   const [showAvoid,setShowAvoid] = useState(false);
   const [showSame,setShowSame]   = useState(false);
 
-  const attending = data.guests.filter(g=>g.attending);
+  // v6.15.0：新人(isCouple)只存在於排位，不計入名單統計
+  const realGuests = data.guests.filter(g=>!g.isCouple);
+  const attending = realGuests.filter(g=>g.attending);
   const totalCount = attending.reduce((s,g)=>s+(g.count||0),0);
   const vegTotal  = attending.reduce((s,g)=>s+(g.vegCount||0),0);
   const meatTotal = totalCount-vegTotal;
   const totalSeats= data.tables.reduce((s,t)=>s+(t.capacity||0),0);
+  const guestSeats= Math.max(0, totalSeats-2);   // 新人預佔2席
   const seated    = attending.filter(g=>g.tableId).reduce((s,g)=>s+(g.count||0),0);
-  const declined  = data.guests.filter(g=>!g.attending).length;
+  const declined  = realGuests.filter(g=>!g.attending).length;
+  const cookieTotal = attending.reduce((s,g)=>s+(g.cookieCount||0),0);   // 喜餅總數
+  const sideAttend = (k)=>attending.filter(g=>g.side===k).reduce((s,g)=>s+(g.count||0),0);
+  const groomAttend=sideAttend('groom'), brideAttend=sideAttend('bride'), sharedAttend=sideAttend('shared');
 
   const avoidConflicts = useMemo(()=>effectiveAvoidPairs(data).filter(([a,b])=>{
     const ga=data.guests.find(g=>g.id===a),gb=data.guests.find(g=>g.id===b);
@@ -2782,6 +2802,7 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
   };
 
   const filtered = data.guests.filter(g=>{
+    if(g.isCouple) return false;   // v6.15.0：新人不列入名單清單
     if(!showDeclined&&!g.attending) return false;
     if(filterSide!=='all'&&g.side!==filterSide) return false;
     if(search){
@@ -2816,12 +2837,13 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
   };
   const toggleAtt = id => onUpdate({...data,guests:data.guests.map(g=>g.id===id?{...g,attending:!g.attending}:g)});
   const updCount  = (id,d) => onUpdate({...data,guests:data.guests.map(g=>g.id===id?{...g,count:Math.max(1,(g.count||1)+d)}:g)});
+  const updCookie = (id,d) => onUpdate({...data,guests:data.guests.map(g=>g.id===id?{...g,cookieCount:Math.max(0,(g.cookieCount||0)+d)}:g)});
 
   const exportCSV = () => {
     const tn = id => data.tables.find(t=>t.id===id)?.name||'';
     const gn = id => data.guests.find(g=>g.id===id)?.name||'';
     const h=['姓名','暱稱','分類','子分類','出席','人數','素食','特殊需求','想同桌','要避桌','分區','桌號','備註','紙本喜帖','地址','祝福語','提交時間'];
-    const rows=data.guests.map(g=>[
+    const rows=data.guests.filter(g=>!g.isCouple).map(g=>[
       g.name,g.nickname||'',GI[g.side]?.label||'',g.subGroup||'',
       g.attending?'出席':'婉拒',g.count,g.vegCount,g.special||'',
       (g.sameTable||[]).map(gn).join('、'),(g.avoidTable||[]).map(gn).join('、'),
@@ -2858,6 +2880,23 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
     download('特殊需求名單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
   };
 
+  const exportCookieList = () => {
+    const h=['姓名','分類','子分類','出席','人數','喜餅數量'];
+    const rows=data.guests.filter(g=>!g.isCouple&&(g.cookieCount||0)>0).map(g=>[
+      g.name,GI[g.side]?.label||'',g.subGroup||'',g.attending?'出席':'婉拒',g.count||1,g.cookieCount||0
+    ]);
+    if(!rows.length){uiAlert('目前沒有設定發送喜餅的對象（喜餅數量皆為 0）');return;}
+    // 末列小計：男方／女方／共同／總計
+    const sub=(k)=>data.guests.filter(g=>!g.isCouple&&g.side===k).reduce((s,g)=>s+(g.cookieCount||0),0);
+    const tot=rows.reduce((s,r)=>s+(r[5]||0),0);
+    rows.push(['—小計—','','','','','']);
+    rows.push(['男方',' ',' ',' ',' ',sub('groom')]);
+    rows.push(['女方',' ',' ',' ',' ',sub('bride')]);
+    rows.push(['共同',' ',' ',' ',' ',sub('shared')]);
+    rows.push(['總計',' ',' ',' ',' ',tot]);
+    download('預計發喜餅對象名單_'+new Date().toISOString().slice(0,10)+'.csv',toCSV([h,...rows]),'text/csv;charset=utf-8;');
+  };
+
   const SortTh = ({col,children}) => (
     <th onClick={()=>toggleSort(col)} style={{padding:'11px 9px',textAlign:'left',fontWeight:500,color:'#6B6259',fontSize:12,letterSpacing:.3,whiteSpace:'nowrap',cursor:'pointer',userSelect:'none'}}>
       {children}{sortCol===col?(sortAsc?' ▲':' ▼'):''}
@@ -2892,7 +2931,8 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
                 {label:'匯出 CSV (完整名單)', action: exportCSV},
                 {label:'匯出索取紙本喜帖名單', action: exportInviteList},
                 {label:'匯出素食名單', action: exportVegList},
-                {label:'匯出特殊需求名單', action: exportSpecialList}
+                {label:'匯出特殊需求名單', action: exportSpecialList},
+                {label:'🍪 預計發喜餅對象名單', action: exportCookieList}
               ]} />
             : <Btn v="ghost" size="sm" onClick={()=>uiProUpgrade('名單匯出為 Pro 方案專屬功能')} title="升級 Pro 解鎖匯出">🔒 匯出</Btn>}
           <Btn size="sm" onClick={()=>setShowAdd(true)}>＋ 新增賓客</Btn>
@@ -2900,29 +2940,45 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
       </div>
 
       {/* Stats */}
-      <div className="wed-stats" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
-        {[
-          {l:'確認出席',v:data.guests.filter(g=>g.attending).length,sub:declined+' 組婉拒'},
-          {l:'出席人數',v:totalCount,sub:`/ ${totalSeats||0} 席`},
-          {l:'葷食',v:meatTotal,c:'#B5895F'},
-          {l:'素食',v:vegTotal,c:'#7BA77B'},
-        ].map((s,i)=>(
-          <div key={i} style={{...S.card,padding:'14px 16px'}}>
-            <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>{s.l}</div>
-            <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:s.c||'#3A332B',lineHeight:1}}>{s.v}</div>
-            {s.sub&&<div style={{fontSize:10,color:'#9A8F82',marginTop:2}}>{s.sub}</div>}
+      <div className="wed-stats" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:12}}>
+        <div style={{...S.card,padding:'14px 16px'}}>
+          <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>確認出席</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:'#3A332B',lineHeight:1}}>{attending.length}</div>
+          <div style={{fontSize:10,color:'#9A8F82',marginTop:2}}>{declined} 組婉拒</div>
+        </div>
+        <div style={{...S.card,padding:'14px 16px'}}>
+          <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>出席人數</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:'#3A332B',lineHeight:1}}>{totalCount}</div>
+          <div style={{fontSize:10,color:'#9A8F82',marginTop:2}}>/ {guestSeats} 席（新人預佔2席）</div>
+          <div style={{fontSize:11,marginTop:8,paddingTop:7,borderTop:'1px dashed #E8DECF',display:'flex',gap:9,flexWrap:'wrap'}}>
+            <span style={{color:'#3A60A8'}}>男 <b style={{fontWeight:600}}>{groomAttend}</b></span>
+            <span style={{color:'#BF7090'}}>女 <b style={{fontWeight:600}}>{brideAttend}</b></span>
+            <span style={{color:'#B5895F'}}>共同 <b style={{fontWeight:600}}>{sharedAttend}</b></span>
           </div>
-        ))}
+        </div>
+        <div style={{...S.card,padding:'14px 16px'}}>
+          <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>葷食</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:'#B5895F',lineHeight:1}}>{meatTotal}</div>
+        </div>
+        <div style={{...S.card,padding:'14px 16px'}}>
+          <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>素食</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:'#7BA77B',lineHeight:1}}>{vegTotal}</div>
+        </div>
+        <div style={{...S.card,padding:'14px 16px'}}>
+          <div style={{fontSize:11,color:'#9A8F82',letterSpacing:.3,marginBottom:2}}>🍪 喜餅數量</div>
+          <div style={{fontFamily:FONT_STACK,fontSize:26,fontWeight:500,color:'#C77B3E',lineHeight:1}}>{cookieTotal}</div>
+          <div style={{fontSize:10,color:'#9A8F82',marginTop:2}}>預計發出總數</div>
+        </div>
       </div>
 
       {/* Progress bar */}
       <div style={{...S.card,padding:'12px 18px',marginBottom:16}}>
         <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
           <div style={{fontSize:11,color:'#6B6259',letterSpacing:.5}}>席次使用進度</div>
-          <div style={{fontSize:12,color:'#B5895F',fontWeight:500}}>{seated} / {totalSeats||0} 席　已排 {totalSeats?Math.round(seated/totalSeats*100):0}%</div>
+          <div style={{fontSize:12,color:'#B5895F',fontWeight:500}}>{seated} / {guestSeats||0} 席　已排 {guestSeats?Math.round(seated/guestSeats*100):0}%</div>
         </div>
         <div style={{height:6,background:'#F1EAE0',borderRadius:3,overflow:'hidden'}}>
-          <div style={{width:totalSeats?Math.min(100,seated/totalSeats*100)+'%':'0%',height:'100%',background:'#B5895F',transition:'width .4s'}} />
+          <div style={{width:guestSeats?Math.min(100,seated/guestSeats*100)+'%':'0%',height:'100%',background:'#B5895F',transition:'width .4s'}} />
         </div>
       </div>
 
@@ -2956,6 +3012,7 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>出席</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>人數</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>素食</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,whiteSpace:'nowrap'}}>🍪 喜餅</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,maxWidth:140}}>想同桌</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,maxWidth:140}}>避桌</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>特殊需求</th>
@@ -2992,6 +3049,13 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
                       </div>
                     </td>
                     <td style={{padding:'11px 9px',textAlign:'left',fontSize:12,color:'#7BA77B'}}>{g.vegCount>0?g.vegCount:'—'}</td>
+                    <td style={{padding:'11px 9px',opacity:g.attending?1:.4}}>
+                      <div style={{display:'flex',alignItems:'center',gap:2}}>
+                        <button onClick={()=>updCookie(g.id,-1)} disabled={!g.attending} style={{padding:'1px 5px',color:'#C77B3E'}}>−</button>
+                        <span style={{minWidth:16,textAlign:'center',fontWeight:500,color:(g.cookieCount||0)>0?'#C77B3E':'#9A8F82'}}>{g.cookieCount||0}</span>
+                        <button onClick={()=>updCookie(g.id,1)} disabled={!g.attending} style={{padding:'1px 5px',color:'#C77B3E'}}>＋</button>
+                      </div>
+                    </td>
                     <td style={{padding:'11px 9px'}}>
                       <div style={{display:'flex',flexWrap:'wrap',gap:3,maxWidth:160}}>
                         {(g.sameTable||[]).slice(0,2).map(id=>{const o=data.guests.find(x=>x.id===id);return o?<Tag key={id} small color="#7BA77B" soft="#E5F0E5">{o.name}</Tag>:null;})}
@@ -3396,6 +3460,18 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
     return ()=>clearInterval(autoSaveRef.current);
   },[data,mainTableId,onUpdate]);
 
+  // v6.15.0：排位頁首次開啟自動把新郎/新娘補進待安排（新舊婚禮皆適用，靠 ref 僅補一次、防迴圈）
+  const coupleSeedRef = useRef(false);
+  useEffect(()=>{
+    if(coupleSeedRef.current) return;
+    const ids = new Set((data.guests||[]).map(g=>g.id));
+    if(ids.has('__groom__') && ids.has('__bride__')){ coupleSeedRef.current=true; return; }
+    const add=[];
+    if(!ids.has('__groom__')) add.push({id:'__groom__',isCouple:true,role:'groom',name:'新郎',side:'groom',count:1,attending:true,tableId:null,startSeat:null,subGroup:''});
+    if(!ids.has('__bride__')) add.push({id:'__bride__',isCouple:true,role:'bride',name:'新娘',side:'bride',count:1,attending:true,tableId:null,startSeat:null,subGroup:''});
+    if(add.length){ coupleSeedRef.current=true; onUpdate({...data,guests:[...data.guests,...add]}); }
+  },[data.guests]);
+
   const attendingGuests=data.guests.filter(g=>g.attending);
   const unassigned=attendingGuests.filter(g=>!g.tableId);
   const filteredUnassigned=unassigned.filter(g=>{
@@ -3667,7 +3743,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
       window.removeEventListener('pointerup',up);
       window.removeEventListener('pointercancel',up);
       setDragGhost(null);
-      if(!moved){ const g=data.guests.find(x=>x.id===payload.guestId); if(g) setEditGuest(g); return; }
+      if(!moved){ const g=data.guests.find(x=>x.id===payload.guestId); if(g && !g.isCouple) setEditGuest(g); return; }
       const el=document.elementFromPoint(ev.clientX,ev.clientY);
       if(!el){ if(payload.type==='seat') removeFromTable(payload.guestId); return; }
       const seatEl=el.closest('[data-seat]');
@@ -3846,7 +3922,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
                     <div key={g.id} draggable
                       onDragStart={e=>{e.dataTransfer.setData('text/plain',JSON.stringify({type:'guest',guestId:g.id}));e.dataTransfer.effectAllowed='move';}}
                       onTouchStart={e=>beginTouchDrag(e,{type:'guest',guestId:g.id},displayName(g,2,3))}
-                      onClick={()=>{ if(!touchDragMovedRef.current) setEditGuest(g); }}
+                      onClick={()=>{ if(!touchDragMovedRef.current && !g.isCouple) setEditGuest(g); }}
                       style={{padding:'3px 7px',fontSize:11,background:info.soft,color:info.color,border:`1px solid ${info.color}40`,borderRadius:2,cursor:'grab',display:'inline-flex',alignItems:'center',gap:3,touchAction:'none'}}
                       title={g.name+(g.special?` · ${g.special}`:'')+' (點擊編輯／長按拖曳)'}>
                       {displayName(g,2,3)}{(g.count||1)>1&&<span style={{fontSize:9,opacity:.7}}>+{(g.count||1)-1}</span>}
@@ -3996,7 +4072,7 @@ function SeatingPage({data,onUpdate,mainTableId,setMainTableId,isPro}) {
                 onRemoveSeat={removeFromTable}
                 tapPending={isMobile && tapSelected.length > 0}
                 onTapPlace={isMobile ? assignToTable : null}
-                onClickGuest={setEditGuest} />
+                onClickGuest={(g)=>{ if(g && !g.isCouple) setEditGuest(g); }} />
             ))}
             {/* v5.5 宴會環境設施（emoji + 自訂顏色 + 鎖定 + 點擊編輯） */}
             {data.markers.map(m=>{
