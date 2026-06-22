@@ -1,7 +1,19 @@
 // ============================================================
-// WEDDING SAAS  v6.17.0  （商業版／多租戶）
+// WEDDING SAAS  v6.17.1  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.17.1 2026-06-22  ★ Patch：v6.17.0 上線回饋修正（花襯底/切分線/選擇器/頁尾）
+//          1.【預覽帶主題】後台 BackofficeChrome themeKey 改用 boThemeKey：預覽外觀時 chrome＋
+//             資訊管理花襯底跟著預覽主題切換（原本固定吃已存檔主題）。
+//          2.【移除舊紋路】邀請函/祝福牆 root 的 gs.pagePattern 背景拿掉（backgroundImage:'none'），
+//             不再蓋住新花襯底。
+//          3.【頁尾修正】懸空的「·」修掉（無日期就不顯示分隔點）；新人名下新增「由 對好入座 提供」。
+//          4.【協作卡片寬度】CollabTab 外層 maxWidth:560 移除→跟資訊管理容器同寬。
+//          5.【花切分線回歸 ThemeDivider】線＋主題花（極簡黑用 seatright 字標）：邀請函(RSVP標題上)、
+//             祝福牆(❀❀❀下)、名單(標題列下)、資訊管理(邀請連結下)。排位不加。
+//          6.【文案】邀請函「THE CEREMONY」→「WE ARE GETTING MARRIED」。
+//          7.【選擇器】外觀主題＋建立精靈：極簡黑卡片不顯示圖，標題/小字置中。
 //
 // v6.17.0 2026-06-22  ★ Minor：主題花卉襯底 + 賓客端/資訊管理 GSAP + 裝飾符統一
 //          1.【花卉襯底】ThemeFloraBg：以 themes/{key}.webp 在邀請函/祝福牆/資訊管理鋪「極透下層襯底」
@@ -711,6 +723,21 @@ function ThemeFloraBg({themeKey}){
     <div aria-hidden="true" style={{position:'absolute',inset:0,zIndex:-1,pointerEvents:'none',overflow:'hidden'}}>
       <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',right:-58,top:118,width:'min(42%,360px)',opacity:opA}} />
       <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',left:-72,bottom:-30,width:'min(46%,360px)',opacity:opB,transform:'rotate(6deg)'}} />
+    </div>
+  );
+}
+
+function ThemeDivider({themeKey, mw, my}){
+  const img = flowerImg(themeKey);
+  const t = THEMES[themeKey] || THEMES.cream;
+  const lc = t.borderSoft || t.border;
+  return (
+    <div data-tp="1" aria-hidden="true" style={{display:'flex',alignItems:'center',gap:16,maxWidth:mw||520,margin:(my==null?28:my)+'px auto',padding:'0 12px'}}>
+      <div data-tp="1" style={{flex:1,height:1,background:lc}} />
+      {img
+        ? <img data-tp="1" src={img} loading="lazy" alt="" style={{width:46,height:46,objectFit:'contain',flex:'none',opacity:.95}} />
+        : <span data-tp="1" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:1,color:t.primary,flex:'none'}}>seat<b>right</b></span>}
+      <div data-tp="1" style={{flex:1,height:1,background:lc}} />
     </div>
   );
 }
@@ -2231,7 +2258,7 @@ function RSVPPage({data,onSubmit}) {
   }
 
   return (
-    <div ref={rsvpRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+    <div ref={rsvpRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
       <ThemeFloraBg themeKey={cfg.theme} />
       {/* Hero */}
       <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
@@ -2253,7 +2280,7 @@ function RSVPPage({data,onSubmit}) {
       {cfg.theme==='dark' && <NightArch top={0} />}
       <div style={{maxWidth:540,margin:'0 auto',padding:'48px 20px 24px',textAlign:'center',position:'relative',zIndex:1}}>
         <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
-          color:gs.primary,textTransform:gs.labelCase,marginBottom:12}}>THE CEREMONY</div>
+          color:gs.primary,textTransform:gs.labelCase,marginBottom:12}}>WE ARE GETTING MARRIED</div>
         <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:20,letterSpacing:1,
           color:gs.text,marginBottom:3}}>{cfg.venue}</div>
         <div style={{color:gs.subText,fontSize:13,marginBottom:2}}>{cfg.address}</div>
@@ -2267,6 +2294,7 @@ function RSVPPage({data,onSubmit}) {
 
       {/* Form */}
       <div style={{maxWidth:540,margin:'0 auto',padding:'12px 20px 64px'}}>
+        <ThemeDivider themeKey={cfg.theme} mw={460} my={6} />
         <div style={{textAlign:'center',marginBottom:28}}>
           <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
             color:gs.primary,textTransform:gs.labelCase,marginBottom:10}}>RSVP</div>
@@ -2379,9 +2407,12 @@ function RSVPPage({data,onSubmit}) {
       ) : (
         <div style={{textAlign:'center',padding:'24px 20px',borderTop:`1px solid ${gs.border}`,
           color:gs.mutedText,fontSize:11,letterSpacing:1.5,lineHeight:1.9}}>
-          {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>{guestDeco(cfg.theme)}　</span>}
-          {cfg.groomName} ＆ {cfg.brideName}　·　{cfg.weddingDate}
-          {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>　{guestDeco(cfg.theme)}</span>}
+          <div>
+            {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>{guestDeco(cfg.theme)}　</span>}
+            {cfg.groomName} ＆ {cfg.brideName}{cfg.weddingDate?`　·　${cfg.weddingDate}`:''}
+            {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>　{guestDeco(cfg.theme)}</span>}
+          </div>
+          <div style={{marginTop:6,fontSize:10,opacity:.65}}>由 對好入座 提供</div>
         </div>
       )}
     </div>
@@ -2422,7 +2453,7 @@ function BlessingWallPage({data}) {
   useGuestFloraGsap(bwRootRef, cfg.theme, {blessing:true, petalRef:bwPetalRef});
 
   return (
-    <div ref={bwRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+    <div ref={bwRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
       <ThemeFloraBg themeKey={cfg.theme} />
       <div ref={bwPetalRef} aria-hidden="true" style={{position:'absolute',inset:0,zIndex:0,pointerEvents:'none',overflow:'hidden'}} />
       {cfg.theme==='dark' && <NightArch />}
@@ -2438,6 +2469,8 @@ function BlessingWallPage({data}) {
           ? <div style={{margin:'18px auto 0',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.6}}>{guestDeco(cfg.theme)}　{guestDeco(cfg.theme)}　{guestDeco(cfg.theme)}</div>
           : <div style={{margin:'18px auto 0',width:60,height:1,background:gs.border}} />}
       </div>
+
+      <ThemeDivider themeKey={cfg.theme} mw={520} my={8} />
 
       {blessings.length === 0 ? (
         <div style={{textAlign:'center',padding:'80px 20px',color:gs.subText}}>
@@ -2490,11 +2523,14 @@ function BlessingWallPage({data}) {
           ))}
         </div>
       )}
-      {/* v6.17.0 頁尾（❀ 新人 ＆ 新人 · 日期 ❀；極簡黑無符號） */}
-      <div style={{textAlign:'center',padding:'30px 20px 4px',color:gs.mutedText,fontSize:11,letterSpacing:1.5}}>
-        {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>{guestDeco(cfg.theme)}　</span>}
-        {cfg.groomName} ＆ {cfg.brideName}　·　{cfg.weddingDate}
-        {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>　{guestDeco(cfg.theme)}</span>}
+      {/* v6.17.1 頁尾（❀ 新人 · 日期 ❀ + 由 對好入座 提供；極簡黑無符號） */}
+      <div style={{textAlign:'center',padding:'30px 20px 8px',color:gs.mutedText,fontSize:11,letterSpacing:1.5}}>
+        <div>
+          {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>{guestDeco(cfg.theme)}　</span>}
+          {cfg.groomName} ＆ {cfg.brideName}{cfg.weddingDate?`　·　${cfg.weddingDate}`:''}
+          {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>　{guestDeco(cfg.theme)}</span>}
+        </div>
+        <div style={{marginTop:6,fontSize:10,opacity:.65}}>由 對好入座 提供</div>
       </div>
     </div>
     </div>
@@ -3134,6 +3170,8 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
           <Btn size="sm" onClick={()=>setShowAdd(true)}>＋ 新增賓客</Btn>
         </div>
       </div>
+
+      <ThemeDivider themeKey={data.config?.theme} mw={620} my={4} />
 
       {/* Stats */}
       <div className="wed-stats" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:12}}>
@@ -5280,7 +5318,7 @@ function CollabTab({ weddingId, fbRef, currentRole, currentWedding, user, onRelo
   const fmtTime = (ts)=>{ const d=new Date(ts); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
 
   return (
-    <div style={{maxWidth:560}}>
+    <div>
       {/* 子 Tab */}
       <div style={{display:'flex',gap:4,marginBottom:20}}>
         <button onClick={()=>setSub('members')} style={{padding:'6px 14px',fontSize:13,cursor:'pointer',borderRadius:3,
@@ -5542,6 +5580,8 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
           }}>複製連結</Btn>
         </div>
       )}
+
+      <ThemeDivider themeKey={data.config?.theme} mw={620} my={6} />
 
       {/* Tabs */}
       <div className="wed-nav-menu" style={{display:'flex',gap:4,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
@@ -5825,16 +5865,15 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                   style={{padding:'16px',borderRadius:3,border:`2px solid ${active?th.primary:th.border}`,
                     background:th.pageBg,textAlign:'left',cursor:'pointer',transition:'all .15s',
                     boxShadow:active?`0 0 0 2px ${th.primary}40`:'none'}}>
-                  <div data-tp="1" style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                    {(() => { const fimg = flowerImg(key); return fimg
-                      ? <img data-tp="1" src={fimg} loading="lazy" alt="" style={{width:34,height:34,objectFit:'contain',flex:'none'}} />
-                      : <div data-tp="1" style={{width:34,height:34,flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Cormorant Garamond',serif",fontSize:10,letterSpacing:.3,color:th.primary}}>seat<b>right</b></div>; })()}
+                  {(() => { const fimg = flowerImg(key); const noF = !fimg; return (
+                  <div data-tp="1" style={{display:'flex',alignItems:'center',gap:noF?6:10,marginBottom:10,justifyContent:noF?'center':'flex-start',textAlign:noF?'center':'left'}}>
+                    {fimg && <img data-tp="1" src={fimg} loading="lazy" alt="" style={{width:34,height:34,objectFit:'contain',flex:'none'}} />}
                     <div data-tp="1" style={{lineHeight:1.25}}>
                       <div data-tp="1" style={{fontWeight:active?600:500,color:th.text,fontSize:14}}>{flowerOf(key).name}</div>
                       <div data-tp="1" style={{color:th.mutedText,fontSize:11,marginTop:1}}>{th.name}</div>
                     </div>
-                    {active && <span data-tp="1" style={{marginLeft:'auto',color:th.primary,fontSize:16}}>✓</span>}
-                  </div>
+                    {active && <span data-tp="1" style={{marginLeft:noF?6:'auto',color:th.primary,fontSize:16}}>✓</span>}
+                  </div>); })()}
                   <div data-tp="1" style={{display:'flex',gap:6}}>
                     {[th.pageBg,th.cardBg,th.soft,th.primary].map((c,i)=>(
                       <div data-tp="1" key={i} style={{flex:1,height:14,borderRadius:2,background:c,border:`1px solid ${th.border}`}} />
@@ -7415,13 +7454,11 @@ function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
                         fontWeight:700,lineHeight:1}}>✓</span>
                     )}
                     {(() => { const fimg = flowerImg(k); const fl = flowerOf(k); const selc = form.theme===k; return (<>
-                    {fimg ? (
+                    {fimg && (
                       <img src={fimg} loading="lazy" alt="" style={{width:38,height:38,objectFit:'contain',margin:'0 auto 5px',display:'block',filter:selc?'drop-shadow(0 3px 6px rgba(0,0,0,.18))':'none'}} />
-                    ) : (
-                      <div style={{height:38,margin:'0 auto 5px',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Cormorant Garamond',serif",fontSize:12,letterSpacing:.5,color:selc?'#FFFEFA':t.primary}}>seat<b>right</b></div>
                     )}
-                    <div style={{fontWeight:600,lineHeight:1.25,fontSize:12}}>{fl.name}</div>
-                    <div style={{fontSize:9,opacity:.62,marginTop:1}}>{t.name}</div>
+                    <div style={{fontWeight:600,lineHeight:1.25,fontSize:12,textAlign:'center'}}>{fl.name}</div>
+                    <div style={{fontSize:9,opacity:.62,marginTop:1,textAlign:'center'}}>{t.name}</div>
                     </>); })()}
                   </button>
                 ))}
@@ -9707,6 +9744,7 @@ export default function WeddingApp() {
   const currentTheme = getTheme(data.config);
   // v5.4：預覽中以預覽主題為準，避免切換主題時殘留背景
   const effTheme = (previewMode && previewDraft) ? (THEMES[previewDraft.theme||'cream']||THEMES.cream) : currentTheme;
+  const boThemeKey = (previewMode && previewDraft) ? (previewDraft.theme||data.config?.theme||'cream') : (data.config?.theme||'cream');
   // v6.16.1：只有「檢視特定婚禮」(parsed.section==='w'，含賓客頁與後台) 才套主題；
   // 登入 / Dashboard / 公開首頁一律 applyTheme(null) → 不被婚禮主題污染（修登入頁變深色）。
   React.useEffect(()=>{ applyTheme(parsed.section==='w' ? currentTheme : null); },[data.config?.theme, parsed.section]);
@@ -9972,9 +10010,9 @@ export default function WeddingApp() {
 
       {activePage==='rsvp'    && <RSVPPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} />}
-      {activePage==='admin'   && isAuthedAdmin && <BackofficeChrome themeKey={data.config?.theme} page={activePage}><AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} /></BackofficeChrome>}
-      {activePage==='seating' && isAuthedAdmin && <BackofficeChrome themeKey={data.config?.theme} page={activePage}><SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} /></BackofficeChrome>}
-      {activePage==='info'    && isAuthedAdmin && canInfo && <BackofficeChrome themeKey={data.config?.theme} page={activePage}><InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} /></BackofficeChrome>}
+      {activePage==='admin'   && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} /></BackofficeChrome>}
+      {activePage==='seating' && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} /></BackofficeChrome>}
+      {activePage==='info'    && isAuthedAdmin && canInfo && <BackofficeChrome themeKey={boThemeKey} page={activePage}><InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} /></BackofficeChrome>}
       {activePage==='info'    && isAuthedAdmin && !canInfo && (
         <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div style={{...S.card,padding:32,maxWidth:360,width:'100%',textAlign:'center'}}>
