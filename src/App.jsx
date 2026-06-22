@@ -1,7 +1,22 @@
 // ============================================================
-// WEDDING SAAS  v6.15.1  （商業版／多租戶）
-// 最後更新：2026-06-21
+// WEDDING SAAS  v6.16.0  （商業版／多租戶）
+// 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.16.0 2026-06-22  ★ Minor：主題花卉改版 + 後台 GSAP 微互動
+//          【花卉資料】新增 THEME_FLOWERS 對照表（11 主題各對應一花+英文+花語，花語為
+//             可編輯字串、集中一處）。flowerImg(key) 由 Firebase Storage themes/{key}.webp 組網址
+//             （bucket wedding-saas-558d9.firebasestorage.app，公開讀取）。dark→改名「極簡黑」
+//             noFlower:true、不套花改用 seatright 字標。
+//          【選擇器】建立精靈主題卡改為：花卉縮圖(lazy) + 花名主標 + 舊主題名小字。
+//          【後台裝飾】新增 ThemeChromeStrip（頁首細線+主題花卉，極簡黑用 seatright）與
+//             BackofficeChrome，一處包住 admin/seating/info 三頁。純裝飾、pointerEvents:none。
+//          【GSAP】loadBoGsap 走 CDN lazy load（cdnjs 3.12.5），useBackofficeGsap 在
+//             切頁/換主題時：整頁透明度淡入（不加 transform→不影響排位畫布座標）+ 統計卡
+//             /[data-bo-stagger] 錯落進場；依賴僅 [page,themeKey]→realtime 更新不重播；
+//             gsap.context()+ctx.revert() 卸載清理。排位畫布（data-tp/拖曳/樂觀鎖/presence）完全不碰。
+//          【待辦】10 個 WebP 需上傳 Storage themes/；Storage 規則加 themes/ 公開讀取（保留 weddings/ 寫入）。
+//          【後續可加】Modal/抽屜/NavBar 進場動畫（本版未含，確認體感後再層疊）。
 //
 // v6.15.1 2026-06-21  ★ Patch：頁籤標題／形象頁卡片順序／賓客名單描述
 //          1. 網頁頁籤標題（document.title）由舊名「喜帖到排位一次搞定」改為
@@ -636,6 +651,32 @@ const THEMES = {
   dark:     { name:"夜幕暗黑", pageBg:"#1A1A20", cardBg:"#24242C", primary:"#D4AA70", primaryHover:"#E5BC80", soft:"#3A3828", border:"#3A3A48", borderSoft:"#48484F", text:"#F0EDE8", subText:"#CDC6BE", mutedText:"#A89E92", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.18)", heroOverlayBot:"rgba(0,0,0,.45)", modalOverlay:"rgba(0,0,0,.70)", dark:true,
     pattern:"url(\"data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='8' cy='8' r='0.8' fill='%23D4AA70' opacity='0.5'/%3E%3Ccircle cx='0' cy='0' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3Ccircle cx='16' cy='0' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3Ccircle cx='0' cy='16' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3Ccircle cx='16' cy='16' r='0.5' fill='%23D4AA70' opacity='0.3'/%3E%3C/svg%3E\")" },
 };
+
+// ============================================================
+// THEME FLOWERS — 主題花卉 + 花語（v6.16.0）
+// 主標用花名、舊主題名當小字。花語為可編輯字串（日後直接改此處）。
+// 圖片放 Firebase Storage themes/{key}.webp（公開讀取），以 key 對應。
+// dark（極簡黑）noFlower:true → 不套花，改用 seatright 字標 + 幾何符號。
+// ============================================================
+const THEME_FLOWERS = {
+  cream:        { name:"梔子花", en:"Gardenia",           meaning:"永恆的愛・喜悅" },
+  oriental:     { name:"山茶花", en:"Camellia",           meaning:"謙遜・堅貞的愛" },
+  rose:         { name:"玫瑰",   en:"Rose",               meaning:"愛與感謝・優雅熱情" },
+  handwritten:  { name:"櫻花",   en:"Cherry Blossom",     meaning:"純潔・浪漫" },
+  lavender:     { name:"薰衣草", en:"Lavender",           meaning:"等待愛情・寧靜" },
+  ocean:        { name:"繡球花", en:"Hydrangea",          meaning:"團圓・圓滿・感謝" },
+  forest:       { name:"酢漿草", en:"Four-leaf Clover",   meaning:"幸運・真愛・希望" },
+  botanical:    { name:"鈴蘭",   en:"Lily of the Valley", meaning:"幸福再臨・純潔" },
+  modern:       { name:"海芋",   en:"Calla Lily",         meaning:"高貴・聖潔" },
+  'dark-luxury':{ name:"金合歡", en:"Mimosa",             meaning:"我的心意藏在這金色裡" },
+  dark:         { name:"極簡黑", en:"Minimal Noir",       meaning:"純粹・俐落・不靠裝飾", noFlower:true },
+};
+const THEME_FLOWER_BASE = "https://firebasestorage.googleapis.com/v0/b/wedding-saas-558d9.firebasestorage.app/o/themes%2F";
+function flowerOf(themeKey){ return THEME_FLOWERS[themeKey] || THEME_FLOWERS.cream; }
+function flowerImg(themeKey){
+  const f = THEME_FLOWERS[themeKey];
+  return (f && !f.noFlower) ? (THEME_FLOWER_BASE + themeKey + ".webp?alt=media") : null;
+}
 
 function getTheme(cfg) {
   return THEMES[cfg && cfg.theme] || THEMES.cream;
@@ -2764,6 +2805,65 @@ function SameTablePairsModal({open,onClose,data,onUpdate}) {
 // ============================================================
 // ADMIN PAGE
 // ============================================================
+// ============================================================
+// v6.16.0 後台主題裝飾（花卉 chrome 層）+ GSAP 微互動
+// 只動 chrome 層；排位畫布（data-tp / 拖曳 / 樂觀鎖 / presence）完全不碰。
+// ============================================================
+let _boGsapPromise = null;
+function loadBoGsap(){
+  if (typeof window === 'undefined' || typeof document === 'undefined') return Promise.resolve(null);
+  if (window.gsap) return Promise.resolve(window.gsap);
+  if (_boGsapPromise) return _boGsapPromise;
+  _boGsapPromise = new Promise((res)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js';
+    s.async = true;
+    s.onload = ()=>res(window.gsap || null);
+    s.onerror = ()=>res(null);
+    document.head.appendChild(s);
+  });
+  return _boGsapPromise;
+}
+// 切頁 / 換主題時：整頁淡入 + 統計卡/區塊錯落。realtime 資料更新「不在依賴內」→ 不重播。
+function useBackofficeGsap(ref, page, themeKey){
+  useEffect(()=>{
+    let alive = true, ctx = null;
+    loadBoGsap().then((gsap)=>{
+      if(!alive || !gsap || !ref.current) return;
+      ctx = gsap.context(()=>{
+        gsap.from(ref.current, { opacity:0, duration:.3, ease:'power1.out' });   // 只用透明度，不加 transform → 不影響排位畫布座標
+        const items = ref.current.querySelectorAll('.wed-stats > *, [data-bo-stagger]');
+        if(items.length) gsap.from(items, { opacity:0, y:12, duration:.34, stagger:.05, delay:.05, ease:'power2.out' });
+      }, ref);
+    });
+    return ()=>{ alive=false; if(ctx) ctx.revert(); };
+  }, [page, themeKey]);
+}
+// 後台頁首裝飾條：細線 + 主題花卉（極簡黑用 seatright 字標）。純裝飾、不攔截事件。
+function ThemeChromeStrip({ themeKey }){
+  const t = THEMES[themeKey] || THEMES.cream;
+  const img = flowerImg(themeKey);
+  return (
+    <div aria-hidden="true" style={{display:'flex',alignItems:'center',gap:12,padding:'12px 22px 0',pointerEvents:'none'}}>
+      <span style={{flex:1,height:1,background:t.border,opacity:.75}} />
+      {img
+        ? <img src={img} loading="lazy" alt="" style={{width:26,height:26,objectFit:'contain',opacity:.92,flex:'none'}} />
+        : <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,letterSpacing:.5,color:t.primary,opacity:.85,flex:'none'}}>seat<b>right</b></span>}
+    </div>
+  );
+}
+// 包住後台頁面：頂部裝飾條 + GSAP 進場。一處套用 admin/seating/info。
+function BackofficeChrome({ themeKey, page, children }){
+  const ref = useRef(null);
+  useBackofficeGsap(ref, page, themeKey);
+  return (
+    <div ref={ref} style={{position:'relative'}}>
+      <ThemeChromeStrip themeKey={themeKey} />
+      {children}
+    </div>
+  );
+}
+
 function AdminPage({data,onUpdate,weddingId,isPro}) {
   const GI = getGroupInfo(data.config);
   const [search,setSearch] = useState('');
@@ -7220,8 +7320,15 @@ function WeddingSetupWizard({ user, fbRef, onComplete, onCancel }) {
                         width:16,height:16,fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',
                         fontWeight:700,lineHeight:1}}>✓</span>
                     )}
-                    <div style={{width:20,height:20,borderRadius:'50%',background:t.primary,margin:'0 auto 4px'}} />
-                    {t.name}
+                    {(() => { const fimg = flowerImg(k); const fl = flowerOf(k); const selc = form.theme===k; return (<>
+                    {fimg ? (
+                      <img src={fimg} loading="lazy" alt="" style={{width:38,height:38,objectFit:'contain',margin:'0 auto 5px',display:'block',filter:selc?'drop-shadow(0 3px 6px rgba(0,0,0,.18))':'none'}} />
+                    ) : (
+                      <div style={{height:38,margin:'0 auto 5px',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Cormorant Garamond',serif",fontSize:12,letterSpacing:.5,color:selc?'#FFFEFA':t.primary}}>seat<b>right</b></div>
+                    )}
+                    <div style={{fontWeight:600,lineHeight:1.25,fontSize:12}}>{fl.name}</div>
+                    <div style={{fontSize:9,opacity:.62,marginTop:1}}>{t.name}</div>
+                    </>); })()}
                   </button>
                 ))}
               </div>
@@ -9769,9 +9876,9 @@ export default function WeddingApp() {
 
       {activePage==='rsvp'    && <RSVPPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} />}
-      {activePage==='admin'   && isAuthedAdmin && <AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} />}
-      {activePage==='seating' && isAuthedAdmin && <SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} />}
-      {activePage==='info'    && isAuthedAdmin && canInfo && <InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} />}
+      {activePage==='admin'   && isAuthedAdmin && <BackofficeChrome themeKey={data.config?.theme} page={activePage}><AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} /></BackofficeChrome>}
+      {activePage==='seating' && isAuthedAdmin && <BackofficeChrome themeKey={data.config?.theme} page={activePage}><SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} /></BackofficeChrome>}
+      {activePage==='info'    && isAuthedAdmin && canInfo && <BackofficeChrome themeKey={data.config?.theme} page={activePage}><InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} /></BackofficeChrome>}
       {activePage==='info'    && isAuthedAdmin && !canInfo && (
         <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div style={{...S.card,padding:32,maxWidth:360,width:'100%',textAlign:'center'}}>
