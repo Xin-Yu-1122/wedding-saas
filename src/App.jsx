@@ -1,7 +1,16 @@
 // ============================================================
-// WEDDING SAAS  v6.16.0  （商業版／多租戶）
+// WEDDING SAAS  v6.16.1  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.16.1 2026-06-22  ★ Patch：登入頁主題污染 / InfoPage 選擇器花卉 / 範例名稱
+//          1. 【登入頁變深色】applyTheme 改為僅在檢視特定婚禮(parsed.section==='w')時套主題，
+//             登入／Dashboard／公開首頁一律 applyTheme(null)。根治 AppShell(子)先清、
+//             WeddingApp(父) effect 後又把婚禮主題套回的順序問題。
+//          2. 【主題沒帶入】資訊管理頁的第二個主題選擇器（外觀主題）補上 v6.16.0 花卉樣式：
+//             花卉縮圖 + 花名主標 + 舊主題名小字（保留色塊條），與建立精靈一致。
+//          3. 【私人名字當範例】字體預覽範例由寫死的私人名字改為通用範例：
+//             中文「雅婷 ＆ 家豪」、英文「Emma & Liam」；footer 範例文字同步改通用。
 //
 // v6.16.0 2026-06-22  ★ Minor：主題花卉改版 + 後台 GSAP 微互動
 //          【花卉資料】新增 THEME_FLOWERS 對照表（11 主題各對應一花+英文+花語，花語為
@@ -5523,7 +5532,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                 <TTextarea value={draft.transportInfo||''} onChange={v=>setD('transportInfo',v)} rows={2} />
               </Field>
               <Field label="邀請函頁尾文字" hint="顯示在邀請函最底部（可換行）">
-                <TTextarea value={draft.footerText||''} onChange={v=>setD('footerText',v)} rows={3} placeholder={"例：© 2025 陳馨諺 & 蘇珮語 婚禮邀請\n聯絡：02-xxxx-xxxx"} />
+                <TTextarea value={draft.footerText||''} onChange={v=>setD('footerText',v)} rows={3} placeholder={"例：© 2025 王小明 & 陳美玲 婚禮邀請\n聯絡：02-xxxx-xxxx"} />
               </Field>
             </div>
 
@@ -5737,8 +5746,13 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                     background:th.pageBg,textAlign:'left',cursor:'pointer',transition:'all .15s',
                     boxShadow:active?`0 0 0 2px ${th.primary}40`:'none'}}>
                   <div data-tp="1" style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                    <div data-tp="1" style={{width:28,height:28,borderRadius:'50%',background:th.primary,border:`2px solid ${th.border}`}} />
-                    <div data-tp="1" style={{fontWeight:active?600:400,color:th.text,fontSize:14}}>{th.name}</div>
+                    {(() => { const fimg = flowerImg(key); return fimg
+                      ? <img data-tp="1" src={fimg} loading="lazy" alt="" style={{width:34,height:34,objectFit:'contain',flex:'none'}} />
+                      : <div data-tp="1" style={{width:34,height:34,flex:'none',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Cormorant Garamond',serif",fontSize:10,letterSpacing:.3,color:th.primary}}>seat<b>right</b></div>; })()}
+                    <div data-tp="1" style={{lineHeight:1.25}}>
+                      <div data-tp="1" style={{fontWeight:active?600:500,color:th.text,fontSize:14}}>{flowerOf(key).name}</div>
+                      <div data-tp="1" style={{color:th.mutedText,fontSize:11,marginTop:1}}>{th.name}</div>
+                    </div>
                     {active && <span data-tp="1" style={{marginLeft:'auto',color:th.primary,fontSize:16}}>✓</span>}
                   </div>
                   <div data-tp="1" style={{display:'flex',gap:6}}>
@@ -5770,7 +5784,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                       {active&&<span data-tp="1" style={{marginLeft:'auto',color:'#B5895F',fontSize:14}}>✓</span>}
                     </div>
                     <div data-tp="1" style={{fontFamily:f.family,fontSize:18,color:'#6B6259',lineHeight:1.4}}>
-                      <span data-own-font="1" style={{fontFamily:f.family}}>馨諺 &amp; 珮語</span>
+                      <span data-own-font="1" style={{fontFamily:f.family}}>雅婷 ＆ 家豪</span>
                     </div>
                     <div data-tp="1" style={{fontFamily:f.family,fontSize:12,color:'#9A8F82',marginTop:4,lineHeight:1.5}}>
                       <span data-own-font="1" style={{fontFamily:f.family}}>民國 115 年 11 月 22 日</span>
@@ -5799,7 +5813,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                       {active&&<span data-tp="1" style={{marginLeft:'auto',color:'#B5895F',fontSize:14}}>✓</span>}
                     </div>
                     <div data-tp="1" style={{fontFamily:f.family,fontSize:18,color:'#6B6259',lineHeight:1.4}}>
-                      <span data-own-font="1" style={{fontFamily:f.family}}>Hsin-Yen &amp; Pei-Yu</span>
+                      <span data-own-font="1" style={{fontFamily:f.family}}>Emma & Liam</span>
                     </div>
                     <div data-tp="1" style={{fontFamily:f.family,fontSize:12,color:'#9A8F82',marginTop:4,lineHeight:1.5}}>
                       <span data-own-font="1" style={{fontFamily:f.family}}>November 22, 2026</span>
@@ -9613,7 +9627,9 @@ export default function WeddingApp() {
   const currentTheme = getTheme(data.config);
   // v5.4：預覽中以預覽主題為準，避免切換主題時殘留背景
   const effTheme = (previewMode && previewDraft) ? (THEMES[previewDraft.theme||'cream']||THEMES.cream) : currentTheme;
-  React.useEffect(()=>{ applyTheme(currentTheme); },[data.config?.theme]);
+  // v6.16.1：只有「檢視特定婚禮」(parsed.section==='w'，含賓客頁與後台) 才套主題；
+  // 登入 / Dashboard / 公開首頁一律 applyTheme(null) → 不被婚禮主題污染（修登入頁變深色）。
+  React.useEffect(()=>{ applyTheme(parsed.section==='w' ? currentTheme : null); },[data.config?.theme, parsed.section]);
   React.useEffect(()=>{ applyFont(data.config?.fontCJK||'noto-serif', data.config?.fontLatin||'cormorant'); },[data.config?.fontCJK, data.config?.fontLatin]);
 
   // v4.12：外觀預覽模式 handlers
