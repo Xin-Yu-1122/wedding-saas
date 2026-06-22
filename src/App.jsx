@@ -1,7 +1,20 @@
 // ============================================================
-// WEDDING SAAS  v6.16.1  （商業版／多租戶）
+// WEDDING SAAS  v6.17.0  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.17.0 2026-06-22  ★ Minor：主題花卉襯底 + 賓客端/資訊管理 GSAP + 裝飾符統一
+//          1.【花卉襯底】ThemeFloraBg：以 themes/{key}.webp 在邀請函/祝福牆/資訊管理鋪「極透下層襯底」
+//             (右上+左下，opacity .11~.16；深色略升)，zIndex:-1 / pointerEvents:none / isolation:isolate
+//             置於內容下層。無角落漂浮花、無漂移動畫。極簡黑(noFlower)不套花。
+//             排位畫布(data-tp/拖曳/樂觀鎖/presence)完全不碰；花飾僅在 BackofficeChrome page==='info' 注入。
+//          2.【GSAP】useGuestFloraGsap（lazy loadBoGsap + ctx.revert + prefers-reduced-motion）：
+//             邀請函=表單卡淡入(+y)；祝福牆=卡片「僅透明度」錯落(不碰 transform→旋轉/hover不壞)
+//             + 環境花瓣緩落(僅非極簡黑、尊重 reduced-motion)；資訊管理沿用 useBackofficeGsap 頁面淡入
+//             + 連結列/基本卡 data-bo-stagger 錯落。
+//          3.【裝飾符統一】邀請函/祝福牆分隔裝飾、祝福卡角標、空狀態統一為 ❀(guestDeco)；
+//             兩頁頁尾改「❀ 新人 ＆ 新人 · 日期 ❀」。極簡黑全部不顯示符號、NavBar tab emoji 清空。
+//             山茶花(oriental)素材重上色為主題暗紅(離線處理，葉保留綠)。
 //
 // v6.16.1 2026-06-22  ★ Patch：登入頁主題污染 / InfoPage 選擇器花卉 / 範例名稱
 //          1. 【登入頁變深色】applyTheme 改為僅在檢視特定婚禮(parsed.section==='w')時套主題，
@@ -687,6 +700,21 @@ function flowerImg(themeKey){
   return (f && !f.noFlower) ? (THEME_FLOWER_BASE + themeKey + ".webp?alt=media") : null;
 }
 
+// === v6.17.0 主題花卉裝飾層 + 統一裝飾符（極簡黑 noFlower 不顯示）===
+function guestDeco(themeKey){ const f=THEME_FLOWERS[themeKey]; return (f&&f.noFlower)?'':'❀'; }
+function ThemeFloraBg({themeKey}){
+  const img=flowerImg(themeKey);
+  if(!img) return null;                       // 極簡黑(noFlower)：不套花襯底
+  const t=THEMES[themeKey]||THEMES.cream;
+  const opA=t.dark?0.16:0.14, opB=t.dark?0.12:0.11;
+  return (
+    <div aria-hidden="true" style={{position:'absolute',inset:0,zIndex:-1,pointerEvents:'none',overflow:'hidden'}}>
+      <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',right:-58,top:118,width:'min(42%,360px)',opacity:opA}} />
+      <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',left:-72,bottom:-30,width:'min(46%,360px)',opacity:opB,transform:'rotate(6deg)'}} />
+    </div>
+  );
+}
+
 function getTheme(cfg) {
   return THEMES[cfg && cfg.theme] || THEMES.cream;
 }
@@ -834,7 +862,7 @@ function getGuestStyle(themeKey) {
       blessingCardBgs:['#26262E','#2A2A32','#222229','#28282F','#242430','#262630'],
       blessingCardText:'#F0EDE8', blessingBorderColor:'rgba(212,170,112,.18)',
       navBg:'rgba(26,26,32,.92)',
-      icons:{ rsvp:'💌', blessings:'💝', admin:'📋', seating:'🪑', info:'⚙️' },
+      icons:{ rsvp:'', blessings:'', admin:'', seating:'', info:'' },
     },
   };
   return { ...base, ...t, ...(overrides[themeKey] || {}) };
@@ -2015,6 +2043,8 @@ function RSVPPage({data,onSubmit}) {
   const [formStartTime] = useState(Date.now());
   const [validationError,setValidationError] = useState('');
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const rsvpRootRef = useRef(null);
+  useGuestFloraGsap(rsvpRootRef, cfg.theme, {blessing:false});
 
   // 初始化 session token 和 reCAPTCHA v3
   useEffect(()=>{
@@ -2201,7 +2231,8 @@ function RSVPPage({data,onSubmit}) {
   }
 
   return (
-    <div style={{position:'relative',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+    <div ref={rsvpRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+      <ThemeFloraBg themeKey={cfg.theme} />
       {/* Hero */}
       <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
         <PhotoCarousel photos={data.photos} speed={data.config.carouselSpeed||4500} />
@@ -2240,14 +2271,10 @@ function RSVPPage({data,onSubmit}) {
           <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
             color:gs.primary,textTransform:gs.labelCase,marginBottom:10}}>RSVP</div>
           <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:22,letterSpacing:2,color:gs.text}}>賓客回覆</div>
-          {/* 分隔線 / 裝飾 */}
-          {gs.dividerChar ? (
-            <div style={{margin:'14px auto',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.7}}>
-              {gs.dividerChar}　{gs.dividerChar}　{gs.dividerChar}
-            </div>
-          ) : (
-            <div style={{width:28,height:gs.radius===0?2:1,background:gs.primary,margin:'14px auto',opacity:.6}} />
-          )}
+          {/* 分隔裝飾（v6.17.0 統一 ❀；極簡黑改細線） */}
+          {guestDeco(cfg.theme)
+            ? <div style={{margin:'14px auto',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.7}}>{guestDeco(cfg.theme)}　{guestDeco(cfg.theme)}　{guestDeco(cfg.theme)}</div>
+            : <div style={{width:28,height:gs.radius===0?2:1,background:gs.primary,margin:'14px auto',opacity:.6}} />}
         </div>
 
         <form onSubmit={submit} style={{...S.card,padding:'28px 24px',
@@ -2351,9 +2378,10 @@ function RSVPPage({data,onSubmit}) {
         </div>
       ) : (
         <div style={{textAlign:'center',padding:'24px 20px',borderTop:`1px solid ${gs.border}`,
-          fontFamily:gs.labelFont,color:gs.mutedText,fontSize:10,letterSpacing:gs.labelCase==='uppercase'?3:2,
-          textTransform:gs.labelCase}}>
-          WEDDING OF {cfg.groomName} &amp; {cfg.brideName}
+          color:gs.mutedText,fontSize:11,letterSpacing:1.5,lineHeight:1.9}}>
+          {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>{guestDeco(cfg.theme)}　</span>}
+          {cfg.groomName} ＆ {cfg.brideName}　·　{cfg.weddingDate}
+          {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>　{guestDeco(cfg.theme)}</span>}
         </div>
       )}
     </div>
@@ -2389,8 +2417,14 @@ function BlessingWallPage({data}) {
     return cols_;
   },[blessings,cols]);
 
+  const bwRootRef = useRef(null);
+  const bwPetalRef = useRef(null);
+  useGuestFloraGsap(bwRootRef, cfg.theme, {blessing:true, petalRef:bwPetalRef});
+
   return (
-    <div style={{position:'relative',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+    <div ref={bwRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:gs.pagePattern||'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
+      <ThemeFloraBg themeKey={cfg.theme} />
+      <div ref={bwPetalRef} aria-hidden="true" style={{position:'absolute',inset:0,zIndex:0,pointerEvents:'none',overflow:'hidden'}} />
       {cfg.theme==='dark' && <NightArch />}
     <div style={{padding:'40px 20px 80px',maxWidth:1200,margin:'0 auto',position:'relative',zIndex:1}}>
       {/* 標題區 */}
@@ -2400,18 +2434,14 @@ function BlessingWallPage({data}) {
         <div style={{fontFamily:gs.headingFont||FONT_STACK,fontSize:28,letterSpacing:3,
           color:gs.text,marginBottom:8}}>給新人的祝福</div>
         <div style={{fontSize:13,color:gs.subText}}>來自親友們的溫暖祝福　·　共 {blessings.length} 則</div>
-        {gs.dividerChar ? (
-          <div style={{margin:'18px auto 0',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.6}}>
-            {gs.dividerChar}　{gs.dividerChar}　{gs.dividerChar}
-          </div>
-        ) : (
-          <div style={{margin:'18px auto 0',width:60,height:1,background:gs.border}} />
-        )}
+        {guestDeco(cfg.theme)
+          ? <div style={{margin:'18px auto 0',fontSize:14,color:gs.primary,letterSpacing:6,opacity:.6}}>{guestDeco(cfg.theme)}　{guestDeco(cfg.theme)}　{guestDeco(cfg.theme)}</div>
+          : <div style={{margin:'18px auto 0',width:60,height:1,background:gs.border}} />}
       </div>
 
       {blessings.length === 0 ? (
         <div style={{textAlign:'center',padding:'80px 20px',color:gs.subText}}>
-          <div style={{fontSize:48,marginBottom:16,opacity:.5}}>{gs.ornament||'💌'}</div>
+          <div style={{fontSize:48,marginBottom:16,opacity:.5}}>{guestDeco(cfg.theme)}</div>
           <div style={{fontSize:14,marginBottom:6}}>目前還沒有公開的祝福</div>
           <div style={{fontSize:12}}>歡迎在邀請函留下祝福，並勾選公開讓大家看到 💝</div>
         </div>
@@ -2428,7 +2458,7 @@ function BlessingWallPage({data}) {
                 const cardText=gs.blessingCardText||'#3A332B';
                 const borderColor=gs.blessingBorderColor||(gs.dark?'rgba(255,255,255,.06)':'rgba(255,255,255,.6)');
                 return (
-                  <div key={g.id} data-tp="1" style={{
+                  <div key={g.id} data-tp="1" data-wfade="1" style={{
                     background:cardBg, padding:'22px 22px 18px',
                     borderRadius:gs.blessingRadius,
                     boxShadow:gs.shadow,
@@ -2438,7 +2468,7 @@ function BlessingWallPage({data}) {
                   }}
                   onMouseEnter={e=>{e.currentTarget.style.transform=`rotate(0deg) translateY(-2px)`;e.currentTarget.style.boxShadow='0 8px 20px rgba(58,51,43,.12), 0 2px 5px rgba(58,51,43,.06)';}}
                   onMouseLeave={e=>{e.currentTarget.style.transform=`rotate(${rotate}deg) translateY(${nudgeY}px)`;e.currentTarget.style.boxShadow=gs.shadow;}}>
-                    <div data-tp="1" style={{position:'absolute',top:14,right:18,fontSize:18,opacity:.25,color:gs.primary}}>{gs.ornament||'💝'}</div>
+                    <div data-tp="1" style={{position:'absolute',top:14,right:18,fontSize:18,opacity:.25,color:gs.primary}}>{guestDeco(cfg.theme)}</div>
                     <div data-tp="1" style={{fontSize:14,lineHeight:1.85,color:cardText,whiteSpace:'pre-line',
                       fontFamily:gs.headingFont||'"Noto Serif TC",serif',marginBottom:16,letterSpacing:.3}}>
                       "{g.blessing}"
@@ -2460,6 +2490,12 @@ function BlessingWallPage({data}) {
           ))}
         </div>
       )}
+      {/* v6.17.0 頁尾（❀ 新人 ＆ 新人 · 日期 ❀；極簡黑無符號） */}
+      <div style={{textAlign:'center',padding:'30px 20px 4px',color:gs.mutedText,fontSize:11,letterSpacing:1.5}}>
+        {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>{guestDeco(cfg.theme)}　</span>}
+        {cfg.groomName} ＆ {cfg.brideName}　·　{cfg.weddingDate}
+        {guestDeco(cfg.theme) && <span style={{color:gs.primary,opacity:.7}}>　{guestDeco(cfg.theme)}</span>}
+      </div>
     </div>
     </div>
   );
@@ -2848,6 +2884,49 @@ function useBackofficeGsap(ref, page, themeKey){
     return ()=>{ alive=false; if(ctx) ctx.revert(); };
   }, [page, themeKey]);
 }
+// v6.17.0 賓客端進場動畫 + 祝福牆環境花瓣（優雅內斂；無漂浮；data-tp 排位畫布完全不碰）
+function useGuestFloraGsap(ref, themeKey, opts){
+  const blessing = !!(opts && opts.blessing);
+  const petalRef = opts && opts.petalRef;
+  useEffect(()=>{
+    let alive=true, ctx=null; const timers=[];
+    const reduce = (typeof window!=='undefined') && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const noFlower = !!(THEME_FLOWERS[themeKey] && THEME_FLOWERS[themeKey].noFlower);
+    loadBoGsap().then((gsap)=>{
+      if(!alive || !gsap || !ref.current) return;
+      ctx = gsap.context(()=>{
+        gsap.from(ref.current,{opacity:0,duration:.45,ease:'power1.out'});           // 整頁淡入（僅透明度）
+        const fl=ref.current.querySelectorAll('[data-flora]');
+        if(fl.length) gsap.from(fl,{opacity:0,duration:.9,delay:.05,ease:'power1.out'});
+        if(!reduce){
+          const cards=ref.current.querySelectorAll('[data-stagger]');
+          if(cards.length) gsap.from(cards,{opacity:0,y:14,duration:.6,stagger:.07,delay:.12,ease:'power2.out'});
+          const wfade=ref.current.querySelectorAll('[data-wfade]');                  // 祝福卡：僅透明度，不碰 transform（旋轉/hover不壞）
+          if(wfade.length) gsap.from(wfade,{opacity:0,duration:.5,stagger:.05,delay:.1,ease:'power1.out'});
+        }
+      }, ref);
+      if(blessing && !reduce && !noFlower && petalRef && petalRef.current){
+        const layer=petalRef.current; const t=THEMES[themeKey]||THEMES.cream;
+        const petalSvg='<svg width="16" height="16" viewBox="0 0 18 18"><path d="M9 1 C16 4 16 14 9 17 C2 14 2 4 9 1 Z" fill="'+t.primary+'" fill-opacity="'+(t.dark?.5:.6)+'"/></svg>';
+        const spawn=()=>{
+          if(!alive || !layer.isConnected) return;
+          const d=document.createElement('div');
+          d.style.cssText='position:absolute;top:-24px;will-change:transform,opacity;pointer-events:none';
+          d.style.left=(Math.random()*(layer.clientWidth||320))+'px';
+          d.innerHTML=petalSvg;
+          layer.appendChild(d);
+          const dur=9+Math.random()*6, sc=.6+Math.random()*.7;
+          gsap.fromTo(d,{y:-24,opacity:0,rotation:Math.random()*60},
+            {y:(layer.clientHeight||window.innerHeight||700)+40,x:'+='+(Math.random()*80-40),rotation:'+='+(160+Math.random()*180),scale:sc,opacity:.85,duration:dur,ease:'none',onComplete:()=>d.remove()});
+          gsap.to(d,{opacity:0,duration:2,delay:Math.max(dur-2.4,0.1)});
+          timers.push(setTimeout(spawn,1100+Math.random()*1000));
+        };
+        for(let i=0;i<3;i++) timers.push(setTimeout(spawn,i*700));
+      }
+    });
+    return ()=>{ alive=false; timers.forEach(clearTimeout); if(ctx) ctx.revert(); if(petalRef&&petalRef.current) petalRef.current.innerHTML=''; };
+  }, [themeKey]);
+}
 // 後台頁首裝飾條：細線 + 主題花卉（極簡黑用 seatright 字標）。純裝飾、不攔截事件。
 function ThemeChromeStrip({ themeKey }){
   const t = THEMES[themeKey] || THEMES.cream;
@@ -2866,7 +2945,8 @@ function BackofficeChrome({ themeKey, page, children }){
   const ref = useRef(null);
   useBackofficeGsap(ref, page, themeKey);
   return (
-    <div ref={ref} style={{position:'relative'}}>
+    <div ref={ref} style={{position:'relative',isolation:'isolate'}}>
+      {page==='info' && <ThemeFloraBg themeKey={themeKey} />}
       <ThemeChromeStrip themeKey={themeKey} />
       {children}
     </div>
@@ -5448,7 +5528,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 
       {/* 賓客邀請連結 — 用 #EFE3D0 (soft) 與 #6B6259 (subText)，兩者都在主題替換清單內，任何主題下成對轉換、對比正常 */}
       {weddingId && (
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8,
+        <div data-bo-stagger="1" style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8,
           padding:'10px 16px',marginBottom:16,
           background:'#EFE3D0',borderRadius:3,border:'1px solid #E5DDD0'}}>
           <div style={{fontSize:12,color:'#6B6259',display:'flex',alignItems:'center',gap:6}}>
@@ -5477,7 +5557,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 
       {/* BASIC INFO */}
       {tab==='basic' && (
-        <div style={{...S.card,padding:28}}>
+        <div data-bo-stagger="1" style={{...S.card,padding:28}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
             <div style={{fontSize:16,fontFamily:FONT_STACK,letterSpacing:1}}>婚禮基本資訊</div>
             <div style={{display:'flex',gap:8}}>
