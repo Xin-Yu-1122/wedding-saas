@@ -1,7 +1,12 @@
 // ============================================================
-// WEDDING SAAS  v6.17.2  （商業版／多租戶）
+// WEDDING SAAS  v6.17.3  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.17.3 2026-06-23  ★ Patch：資訊管理預覽一致性
+//          1.【切分線花跟預覽】InfoPage 新增 boThemeKey 傳入；切分線與子tab emoji 改用 infoTheme
+//             (=boThemeKey||已存檔)，預覽不同主題時切分線上的花一併切換。
+//          2.【基本資訊預覽置中】基本資訊右側即時預覽的場地/地址/電話/時間/交通改置中，與實際邀請函一致。
 //
 // v6.17.2 2026-06-22  ★ Patch：v6.17.1 回饋修正（頁首條/切分線寬距/花閃內容/海芋對比/icon）
 //          1.【移除後台頁首裝飾條】BackofficeChrome 不再渲染 ThemeChromeStrip（名單/排位/資訊管理）：
@@ -5441,7 +5446,8 @@ function CollabTab({ weddingId, fbRef, currentRole, currentWedding, user, onRelo
 }
 
 
-function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPreview,weddingId,fbRef,currentRole,currentWedding,user,onReloadWeddings}) {
+function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPreview,weddingId,fbRef,currentRole,currentWedding,user,onReloadWeddings,boThemeKey}) {
+  const infoTheme = boThemeKey || data.config?.theme;  // 預覽時跟著預覽主題
   const [tab,setTab] = useState('basic');
   // 外觀頁籤開啟時預載所有字體，讓字體預覽卡片能即時顯示
   useEffect(()=>{ if(tab==='theme') preloadAllFonts(); },[tab]);
@@ -5559,7 +5565,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
   const sortedPhotos=[...data.photos].sort((a,b)=>(a.order||0)-(b.order||0));
 
   // v6.17.2：極簡風主題(現代簡約/極簡黑)不顯示 tab emoji，維持簡約一致
-  const infoMinimal = (data.config?.theme==='modern' || data.config?.theme==='dark');
+  const infoMinimal = (infoTheme==='modern' || infoTheme==='dark');
   const tabs=[
     {id:'basic',ic:'📋',tx:'基本資訊'},
     {id:'photos',ic:'🎠',tx:'輪播圖'},
@@ -5595,7 +5601,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
         </div>
       )}
 
-      <ThemeDivider themeKey={data.config?.theme} mw={860} my={16} />
+      <ThemeDivider themeKey={infoTheme} mw={860} my={16} />
 
       {/* Tabs */}
       <div className="wed-nav-menu" style={{display:'flex',gap:4,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
@@ -5679,11 +5685,13 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                 </div>
                 <div style={{textAlign:'center',fontSize:10,color:'#9A8F82',letterSpacing:2,marginBottom:12}}>{draft.weddingDate}</div>
                 <div style={{height:1,background:'#E5DDD0',marginBottom:12}} />
-                <div style={{fontSize:13,fontWeight:500,color:'#3A332B',marginBottom:3}}>{draft.venue}</div>
-                <div style={{fontSize:11,color:'#6B6259',marginBottom:2}}>{draft.address}</div>
-                <div style={{fontSize:10,color:'#9A8F82',marginBottom:8}}>{draft.phone}</div>
-                <div style={{display:'inline-block',padding:'4px 10px',border:'1px solid #E5D5BD',fontSize:10,color:'#B5895F',letterSpacing:1}}>{draft.weddingTime}</div>
-                {draft.transportInfo&&<div style={{fontSize:10,color:'#9A8F82',marginTop:8}}>{draft.transportInfo}</div>}
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:13,fontWeight:500,color:'#3A332B',marginBottom:3}}>{draft.venue}</div>
+                  <div style={{fontSize:11,color:'#6B6259',marginBottom:2}}>{draft.address}</div>
+                  <div style={{fontSize:10,color:'#9A8F82',marginBottom:8}}>{draft.phone}</div>
+                  <div style={{display:'inline-block',padding:'4px 10px',border:'1px solid #E5D5BD',fontSize:10,color:'#B5895F',letterSpacing:1}}>{draft.weddingTime}</div>
+                  {draft.transportInfo&&<div style={{fontSize:10,color:'#9A8F82',marginTop:8}}>{draft.transportInfo}</div>}
+                </div>
               </div>
             )}
           </div>
@@ -10026,7 +10034,7 @@ export default function WeddingApp() {
       {activePage==='blessings' && <BlessingWallPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} />}
       {activePage==='admin'   && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} /></BackofficeChrome>}
       {activePage==='seating' && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} /></BackofficeChrome>}
-      {activePage==='info'    && isAuthedAdmin && canInfo && <BackofficeChrome themeKey={boThemeKey} page={activePage}><InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} /></BackofficeChrome>}
+      {activePage==='info'    && isAuthedAdmin && canInfo && <BackofficeChrome themeKey={boThemeKey} page={activePage}><InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} boThemeKey={boThemeKey} /></BackofficeChrome>}
       {activePage==='info'    && isAuthedAdmin && !canInfo && (
         <div style={{minHeight:'calc(100vh - 58px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div style={{...S.card,padding:32,maxWidth:360,width:'100%',textAlign:'center'}}>
