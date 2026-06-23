@@ -1,7 +1,18 @@
 // ============================================================
-// WEDDING SAAS  v6.17.1  （商業版／多租戶）
+// WEDDING SAAS  v6.17.2  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.17.2 2026-06-22  ★ Patch：v6.17.1 回饋修正（頁首條/切分線寬距/花閃內容/海芋對比/icon）
+//          1.【移除後台頁首裝飾條】BackofficeChrome 不再渲染 ThemeChromeStrip（名單/排位/資訊管理）：
+//             排位頁不再被它擠壓影響操作；資訊管理仍保留花襯底。
+//          2.【切分線跟容器寬+間距】ThemeDivider mw 改對齊各頁內容容器：邀請函500/祝福牆1160(容器1200)/
+//             名單1360(容器1400)/資訊860(容器900)；名單切分線與下方卡片間距加大(my 20)。
+//          3.【邀請函花閃開內容】ThemeFloraBg 加 topA；邀請函右上花改 top:60vh（落在 Hero 之下的內容右側留白，不再被切）。
+//          4.【海芋卡片邊界】modern pageBg #FFFFFF→#F1F1F3、cardBg #F7F7F7→#FFFFFF：淺灰頁底襯白卡，邊界清楚。
+//          5.【海芋 icon】NavBar 資訊管理 NavIcon 改設定滑桿線條（只影響 useIcon 的現代簡約）。
+//          6.【資訊管理子 tab icon】現代簡約＋極簡黑不顯示 emoji（infoMinimal），其餘維持。
+//          7.【極簡黑切分線】ThemeDivider 於 noFlower 改為整條細線，無中間圖。
 //
 // v6.17.1 2026-06-22  ★ Patch：v6.17.0 上線回饋修正（花襯底/切分線/選擇器/頁尾）
 //          1.【預覽帶主題】後台 BackofficeChrome themeKey 改用 boThemeKey：預覽外觀時 chrome＋
@@ -678,7 +689,7 @@ const THEMES = {
     pattern:"url(\"data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 2 L14 8 L8 14 M8 2 L2 8 L8 14' fill='none' stroke='%234A7C59' stroke-width='0.7' opacity='0.3'/%3E%3C/svg%3E\")" },
   botanical:{ name:"自然植物", pageBg:"#F4F7F0", cardBg:"#FAFCF7", primary:"#4A6E3F", primaryHover:"#3A5A30", soft:"#D4E8CA", border:"#C0D4B4", borderSoft:"#CCD8C0", text:"#1E2E1A", subText:"#4A6040", mutedText:"#7A9070", heroOverlayTop:"rgba(30,46,26,.08)", heroOverlayMid:"rgba(30,46,26,.42)", heroOverlayBot:"rgba(30,46,26,.72)", modalOverlay:"rgba(30,46,26,.50)", dark:false,
     pattern:"url(\"data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 18 18' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M9 2 Q12 9 9 16 M9 2 Q6 9 9 16' fill='none' stroke='%234A6E3F' stroke-width='0.8' opacity='0.32'/%3E%3Ccircle cx='9' cy='9' r='1.5' fill='%234A6E3F' opacity='0.2'/%3E%3C/svg%3E\")" },
-  modern:   { name:"現代簡約", pageBg:"#FFFFFF", cardBg:"#F7F7F7", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false,
+  modern:   { name:"現代簡約", pageBg:"#F1F1F3", cardBg:"#FFFFFF", primary:"#1A1A1A", primaryHover:"#333333", soft:"#EBEBEB", border:"#D4D4D4", borderSoft:"#E0E0E0", text:"#0D0D0D", subText:"#555555", mutedText:"#888888", heroOverlayTop:"rgba(0,0,0,.04)", heroOverlayMid:"rgba(0,0,0,.40)", heroOverlayBot:"rgba(0,0,0,.70)", modalOverlay:"rgba(0,0,0,.60)", dark:false,
     pattern:"url(\"data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='5' x2='10' y2='5' stroke='%231A1A1A' stroke-width='0.5' opacity='0.15'/%3E%3Cline x1='5' y1='0' x2='5' y2='10' stroke='%231A1A1A' stroke-width='0.5' opacity='0.15'/%3E%3C/svg%3E\")" },
   'dark-luxury':{ name:"夢幻暗黑奢", pageBg:"#14110E", cardBg:"#1E1A15", primary:"#C9A84C", primaryHover:"#DDB95C", soft:"#332D20", border:"#3A3020", borderSoft:"#4A3E2A", text:"#EDE4D3", subText:"#B8A888", mutedText:"#8A7A60", heroOverlayTop:"rgba(0,0,0,.02)", heroOverlayMid:"rgba(0,0,0,.20)", heroOverlayBot:"rgba(0,0,0,.50)", modalOverlay:"rgba(0,0,0,.75)", dark:true,
     pattern:"url(\"data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 0 L8.2 4.8 L13 5.5 L9.5 8.9 L10.5 14 L7 11.5 L3.5 14 L4.5 8.9 L1 5.5 L5.8 4.8 Z' fill='none' stroke='%23C9A84C' stroke-width='0.7' opacity='0.4'/%3E%3C/svg%3E\")" },
@@ -714,14 +725,14 @@ function flowerImg(themeKey){
 
 // === v6.17.0 主題花卉裝飾層 + 統一裝飾符（極簡黑 noFlower 不顯示）===
 function guestDeco(themeKey){ const f=THEME_FLOWERS[themeKey]; return (f&&f.noFlower)?'':'❀'; }
-function ThemeFloraBg({themeKey}){
+function ThemeFloraBg({themeKey, topA}){
   const img=flowerImg(themeKey);
   if(!img) return null;                       // 極簡黑(noFlower)：不套花襯底
   const t=THEMES[themeKey]||THEMES.cream;
   const opA=t.dark?0.16:0.14, opB=t.dark?0.12:0.11;
   return (
     <div aria-hidden="true" style={{position:'absolute',inset:0,zIndex:-1,pointerEvents:'none',overflow:'hidden'}}>
-      <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',right:-58,top:118,width:'min(42%,360px)',opacity:opA}} />
+      <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',right:-58,top:topA||118,width:'min(42%,360px)',opacity:opA}} />
       <img src={img} loading="lazy" alt="" data-flora="1" style={{position:'absolute',left:-72,bottom:-30,width:'min(46%,360px)',opacity:opB,transform:'rotate(6deg)'}} />
     </div>
   );
@@ -731,12 +742,14 @@ function ThemeDivider({themeKey, mw, my}){
   const img = flowerImg(themeKey);
   const t = THEMES[themeKey] || THEMES.cream;
   const lc = t.borderSoft || t.border;
+  const m = (my==null?28:my)+'px auto';
+  if(!img){  // 極簡黑(noFlower)：整條細線，無中間圖
+    return <div data-tp="1" aria-hidden="true" style={{height:1,background:lc,maxWidth:mw||520,margin:m}} />;
+  }
   return (
-    <div data-tp="1" aria-hidden="true" style={{display:'flex',alignItems:'center',gap:16,maxWidth:mw||520,margin:(my==null?28:my)+'px auto',padding:'0 12px'}}>
+    <div data-tp="1" aria-hidden="true" style={{display:'flex',alignItems:'center',gap:16,maxWidth:mw||520,margin:m,padding:'0 12px'}}>
       <div data-tp="1" style={{flex:1,height:1,background:lc}} />
-      {img
-        ? <img data-tp="1" src={img} loading="lazy" alt="" style={{width:46,height:46,objectFit:'contain',flex:'none',opacity:.95}} />
-        : <span data-tp="1" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:1,color:t.primary,flex:'none'}}>seat<b>right</b></span>}
+      <img data-tp="1" src={img} loading="lazy" alt="" style={{width:46,height:46,objectFit:'contain',flex:'none',opacity:.95}} />
       <div data-tp="1" style={{flex:1,height:1,background:lc}} />
     </div>
   );
@@ -916,7 +929,7 @@ const NAV_ICONS = {
   blessings:'M12 21s-7-4.5-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.5-9 9-9 9z',  // heart
   admin:    'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',    // list
   seating:  'M6 19v-3m12 3v-3M6 16h12M6 16v-5a6 6 0 0112 0v5',            // chair/table
-  info:     'M12 22a10 10 0 100-20 10 10 0 000 20zM12 8h.01M11 12h1v5h1', // info circle
+  info:     'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6', // sliders/settings
 };
 function NavIcon({ name, color, size=14 }) {
   const d = NAV_ICONS[name];
@@ -2259,7 +2272,7 @@ function RSVPPage({data,onSubmit}) {
 
   return (
     <div ref={rsvpRootRef} style={{position:'relative',isolation:'isolate',minHeight:'100vh',backgroundImage:'none',backgroundSize:gs.pagePatternSize||'auto',backgroundRepeat:gs.pagePatternMode==='scene'?'repeat-x':gs.pagePatternMode==='top-scene'?'no-repeat':(gs.pagePatternRepeat||'repeat'),backgroundPosition:gs.pagePatternMode==='scene'?'left bottom':gs.pagePatternMode==='top-scene'?'top center':(gs.pagePatternPos||'0 0')}}>
-      <ThemeFloraBg themeKey={cfg.theme} />
+      <ThemeFloraBg themeKey={cfg.theme} topA="60vh" />
       {/* Hero */}
       <div className="wed-hero" style={{position:'relative',height:'58vh',minHeight:340,maxHeight:580}}>
         <PhotoCarousel photos={data.photos} speed={data.config.carouselSpeed||4500} />
@@ -2294,7 +2307,7 @@ function RSVPPage({data,onSubmit}) {
 
       {/* Form */}
       <div style={{maxWidth:540,margin:'0 auto',padding:'12px 20px 64px'}}>
-        <ThemeDivider themeKey={cfg.theme} mw={460} my={6} />
+        <ThemeDivider themeKey={cfg.theme} mw={500} my={10} />
         <div style={{textAlign:'center',marginBottom:28}}>
           <div style={{fontFamily:gs.labelFont,fontSize:11,letterSpacing:gs.labelSpacing,
             color:gs.primary,textTransform:gs.labelCase,marginBottom:10}}>RSVP</div>
@@ -2470,7 +2483,7 @@ function BlessingWallPage({data}) {
           : <div style={{margin:'18px auto 0',width:60,height:1,background:gs.border}} />}
       </div>
 
-      <ThemeDivider themeKey={cfg.theme} mw={520} my={8} />
+      <ThemeDivider themeKey={cfg.theme} mw={1160} my={14} />
 
       {blessings.length === 0 ? (
         <div style={{textAlign:'center',padding:'80px 20px',color:gs.subText}}>
@@ -2983,7 +2996,6 @@ function BackofficeChrome({ themeKey, page, children }){
   return (
     <div ref={ref} style={{position:'relative',isolation:'isolate'}}>
       {page==='info' && <ThemeFloraBg themeKey={themeKey} />}
-      <ThemeChromeStrip themeKey={themeKey} />
       {children}
     </div>
   );
@@ -3171,7 +3183,7 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
         </div>
       </div>
 
-      <ThemeDivider themeKey={data.config?.theme} mw={620} my={4} />
+      <ThemeDivider themeKey={data.config?.theme} mw={1360} my={20} />
 
       {/* Stats */}
       <div className="wed-stats" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:12}}>
@@ -5546,14 +5558,16 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 
   const sortedPhotos=[...data.photos].sort((a,b)=>(a.order||0)-(b.order||0));
 
+  // v6.17.2：極簡風主題(現代簡約/極簡黑)不顯示 tab emoji，維持簡約一致
+  const infoMinimal = (data.config?.theme==='modern' || data.config?.theme==='dark');
   const tabs=[
-    {id:'basic',l:'📋 基本資訊'},
-    {id:'photos',l:'🎠 輪播圖'},
-    {id:'thanks',l:'💌 謝謝頁面'},
-    {id:'groups',l:'👥 關係分類'},
-    {id:'theme',l:'🎨 外觀'},
-    {id:'collab',l:'🤝 協作管理'},
-    {id:'backup',l:'📦 備份'},
+    {id:'basic',ic:'📋',tx:'基本資訊'},
+    {id:'photos',ic:'🎠',tx:'輪播圖'},
+    {id:'thanks',ic:'💌',tx:'謝謝頁面'},
+    {id:'groups',ic:'👥',tx:'關係分類'},
+    {id:'theme',ic:'🎨',tx:'外觀'},
+    {id:'collab',ic:'🤝',tx:'協作管理'},
+    {id:'backup',ic:'📦',tx:'備份'},
   ];
 
   return (
@@ -5581,7 +5595,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
         </div>
       )}
 
-      <ThemeDivider themeKey={data.config?.theme} mw={620} my={6} />
+      <ThemeDivider themeKey={data.config?.theme} mw={860} my={16} />
 
       {/* Tabs */}
       <div className="wed-nav-menu" style={{display:'flex',gap:4,marginBottom:24,borderBottom:'1px solid #E5DDD0',overflowX:'auto'}}>
@@ -5590,7 +5604,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
             color:tab===t.id?'#3A332B':'#9A8F82',fontWeight:tab===t.id?600:400,
             borderBottom:tab===t.id?'2px solid #B5895F':'2px solid transparent',
             marginBottom:-1,transition:'all .15s'}}>
-            {t.l}
+            {infoMinimal ? t.tx : `${t.ic} ${t.tx}`}
           </button>
         ))}
       </div>
