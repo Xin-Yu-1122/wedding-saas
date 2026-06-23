@@ -1,7 +1,21 @@
 // ============================================================
-// WEDDING SAAS  v6.17.3  （商業版／多租戶）
+// WEDDING SAAS  v6.18.0  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.18.0 2026-06-23  ★ Minor：協作邀請後端驗證 + 定價動態 + Modal/NavBar 進場
+//          1.【協作安全】acceptInvite 改呼叫後端 Cloud Function（index.js v6.15.0）驗證 token/過期/已用/Pro
+//             後才以 Admin 權限寫入 collaborators；前端不再直寫。需搭配 Firestore 規則：禁止非擁有者
+//             改 weddings.collaborators（見交付說明）。
+//          2.【定價動態】LandingPage 改從 config/pricing 讀月費/半年價（含原價/省字/badge），
+//             讀不到或離線 → fallback 回原本寫死值。需 config 文件可公開讀。
+//          3.【Modal/NavBar 進場】Modal 面板改 .wmodalin（opacity+scale+y pop）、NavBar 首次載入
+//             .wed-nav-intro 淡入滑下（每 session 一次）；皆為 CSS keyframe、包在
+//             prefers-reduced-motion:no-preference 內（尊重減少動態、且無 GSAP 非同步載入閃爍）。
+//
+// v6.17.4 2026-06-23  ★ Patch：名單頁切分線補上預覽主題
+//          v6.17.3 只接了資訊管理；名單頁(AdminPage)切分線仍吃已存檔主題。
+//          AdminPage 新增 boThemeKey 傳入 → adminTheme(=boThemeKey||已存檔)，切分線花跟預覽主題切換。
 //
 // v6.17.3 2026-06-23  ★ Patch：資訊管理預覽一致性
 //          1.【切分線花跟預覽】InfoPage 新增 boThemeKey 傳入；切分線與子tab emoji 改用 infoTheme
@@ -1157,6 +1171,9 @@ body{margin:0;background:#F9F5EF}
 .wed-scroll::-webkit-scrollbar-thumb{background:#D4B894;border-radius:3px}
 @keyframes wfadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .wfadein{animation:wfadein .4s ease-out}
+@keyframes wedModalIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes wedNavIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: no-preference){.wmodalin{animation:wedModalIn .3s cubic-bezier(.16,.84,.44,1)}.wed-nav-intro{animation:wedNavIn .55s ease-out}}
 @keyframes wspin{to{transform:rotate(360deg)}}
 @keyframes wedPreviewPulse{0%,100%{box-shadow:0 0 0 0 rgba(181,137,95,.5)}50%{box-shadow:0 0 0 7px rgba(181,137,95,0)}}
 .wed-preview-eye{animation:wedPreviewPulse 1.8s ease-in-out infinite}
@@ -1689,7 +1706,7 @@ function Modal({open,onClose,children,title,width=520,closeColor}) {
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(58,51,43,.45)',zIndex:1000,
       display:'flex',alignItems:'center',justifyContent:'center',padding:16,backdropFilter:'blur(4px)'}}>
-      <div onClick={e=>e.stopPropagation()} className="wfadein wed-scroll"
+      <div onClick={e=>e.stopPropagation()} className="wmodalin wed-scroll"
         style={{...S.card,padding:28,maxWidth:width,width:'100%',maxHeight:'92vh',overflowY:'auto',position:'relative'}}>
         {title && <div style={{fontFamily:FONT_STACK,fontSize:20,fontWeight:500,letterSpacing:1,
           borderBottom:'1px solid #E5DDD0',paddingBottom:14,marginBottom:20}}>{title}</div>}
@@ -3006,7 +3023,8 @@ function BackofficeChrome({ themeKey, page, children }){
   );
 }
 
-function AdminPage({data,onUpdate,weddingId,isPro}) {
+function AdminPage({data,onUpdate,weddingId,isPro,boThemeKey}) {
+  const adminTheme = boThemeKey || data.config?.theme;  // 預覽時跟著預覽主題
   const GI = getGroupInfo(data.config);
   const [search,setSearch] = useState('');
   const [filterSide,setFilterSide] = useState('all');
@@ -3188,7 +3206,7 @@ function AdminPage({data,onUpdate,weddingId,isPro}) {
         </div>
       </div>
 
-      <ThemeDivider themeKey={data.config?.theme} mw={1360} my={20} />
+      <ThemeDivider themeKey={adminTheme} mw={1360} my={20} />
 
       {/* Stats */}
       <div className="wed-stats" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:12}}>
@@ -5981,10 +5999,13 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
 // ============================================================
 // NAVBAR  — public shows only RSVP + admin login
 // ============================================================
+let _navIntroDone = false;  // v6.18.0：NavBar 進場動畫每場 session 只播一次
 function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,presence}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const gs = getGuestStyle(cfg?.theme);
+  const navIntro = !_navIntroDone;
+  useEffect(()=>{ _navIntroDone = true; }, []);
 
   useEffect(()=>{
     if(!menuOpen) return;
@@ -6039,7 +6060,7 @@ function NavBar({page,onNav,authed,onLogout,onDashboard,syncStatus,cfg,role,pres
   const adminTabs  = [{id:'rsvp',l:'邀請函'},{id:'blessings',l:'祝福牆'},{id:'admin',l:'名單'},{id:'seating',l:'排位'},{id:'info',l:'資訊管理'}];
 
   return (
-    <nav className="no-print wed-nav" style={{position:'sticky',top:0,zIndex:50,
+    <nav className={"no-print wed-nav"+(navIntro?" wed-nav-intro":"")} style={{position:'sticky',top:0,zIndex:50,
       background:gs.navBg, backgroundImage:gs.navPattern||'none',
       backdropFilter:'blur(12px)',borderBottom:`1px solid ${gs.navBorder}`,
       padding:'11px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',minHeight:58,gap:8}}>
@@ -6870,8 +6891,9 @@ function LandingPage(){
     };
     root.addEventListener('click', onClick);
     // 方案切換（月費／半年）
-    const PLANS={ month:{amt:'199',per:'／月',orig:'NT$299',save:'限時優惠價，每月自動續訂',badge:'限時優惠'},
+    let PLANS={ month:{amt:'199',per:'／月',orig:'NT$299',save:'限時優惠價，每月自動續訂',badge:'限時優惠'},
                   half:{amt:'1,099',per:'／半年',orig:'',save:'付 6 個月多送 1 個月（等於 7 個月，每月約 NT$157）',badge:'最划算'} };
+    const _fmt=(num)=>Number(num||0).toLocaleString('en-US');
     const pick=(id)=>root.querySelector('#'+id);
     const applyPlan=(k)=>{ const p=PLANS[k]; if(!p) return;
       const a=pick('proAmt'),pe=pick('proPer'),o=pick('proOrig'),s=pick('proSave'),b=pick('proBadge');
@@ -6884,6 +6906,29 @@ function LandingPage(){
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const reveal=()=>root.classList.remove('lp-anim');
     let ctx=null, cancelled=false;
+    // v6.18.0 從 config/pricing 動態覆寫定價（讀不到/離線 → 保留上方 fallback）
+    (async()=>{
+      try{
+        if(typeof initFirebase!=='function') return;
+        const fb = await initFirebase();
+        if(!fb || cancelled) return;
+        const snap = await pricingDocRef(fb.db).get();
+        if(cancelled || !snap.exists) return;
+        const arr = (snap.data().plans)||[];
+        const m = arr.find(x=>x.period==='month' && x.enabled!==false);
+        const h = arr.find(x=>x.period==='6month' && x.enabled!==false);
+        if(m) PLANS.month={ amt:_fmt(m.price), per:'／月',
+          orig:(m.originalPrice && m.originalPrice>m.price)?('NT$'+_fmt(m.originalPrice)):'',
+          save:m.note||'每月自動續訂', badge:m.badge||'' };
+        if(h){ const months=(6+(h.bonusMonths||0))||7; const per=Math.round((h.price||0)/months);
+          PLANS.half={ amt:_fmt(h.price), per:'／半年',
+          orig:(h.originalPrice && h.originalPrice>h.price)?('NT$'+_fmt(h.originalPrice)):'',
+          save:h.note||('付 6 個月多送 '+(h.bonusMonths||1)+' 個月（每月約 NT$'+_fmt(per)+'）'), badge:h.badge||'' }; }
+        if(cancelled) return;
+        const act = root.querySelector('.pt-btn.active');
+        applyPlan(act ? act.getAttribute('data-period') : 'half');
+      }catch(e){ /* 靜默 fallback */ }
+    })();
     const loadScript=(src)=>new Promise((ok,no)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=no; document.head.appendChild(s); });
     const ensureGsap=async()=>{
       if(!window.gsap) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js');
@@ -9183,38 +9228,17 @@ export default function WeddingApp() {
     }
     const u = fb.auth.currentUser;
     try {
-      const inviteSnap = await inviteDocRef(fb.db, token).get();
-      if (!inviteSnap.exists) return { error: '邀請連結無效或已過期' };
-      const inv = inviteSnap.data();
-      if (inv.used) {
-        // 同一個用戶重新點自己的邀請連結 → 已是成員，直接引導進入婚禮
-        if (inv.usedBy === u.uid) {
-          return { weddingId: inv.weddingId, role: inv.role, alreadyMember: true };
-        }
-        return { error: '此邀請連結已由其他人使用。如需新連結，請請主辦方重新產生。' };
+      // v6.18.0：改由後端 Cloud Function 驗證 token 後寫入（前端不再直寫 collaborators）
+      const fn = fb.functions.httpsCallable('acceptInvite');
+      const res = await fn({ token });
+      const d = (res && res.data) || {};
+      if (d.weddingId) {
+        await loadUserWeddings(fb, u.uid);
+        return { weddingId: d.weddingId, role: d.role, alreadyMember: d.alreadyMember };
       }
-      if (inv.expiresAt && Date.now() > inv.expiresAt) return { error: '邀請連結已過期' };
-
-      // 寫入 collaborators
-      await weddingDoc(fb.db, inv.weddingId).update({
-        [`collaborators.${u.uid}`]: {
-          role: inv.role, email: u.email||'', name: u.displayName||'',
-          addedAt: Date.now(), addedBy: inv.inviterUid,
-        }
-      });
-      // 把婚禮加到受邀者的 weddingIds
-      const userRef = fb.db.collection('users').doc(u.uid);
-      const userSnap = await userRef.get();
-      const ids = userSnap.exists ? (userSnap.data().weddingIds||[]) : [];
-      if (!ids.includes(inv.weddingId)) {
-        await userRef.set({ uid:u.uid, email:u.email||'', weddingIds:[...ids, inv.weddingId] }, {merge:true});
-      }
-      // 標記邀請已使用
-      await inviteDocRef(fb.db, token).update({ used:true, usedBy:u.uid, usedAt:Date.now() });
-      await loadUserWeddings(fb, u.uid);
-      return { weddingId: inv.weddingId, role: inv.role };
+      return { error: '加入失敗，請稍後再試' };
     } catch(e) {
-      return { error: e.message };
+      return { error: (e && e.message) || '加入失敗' };
     }
   };
 
@@ -10032,7 +10056,7 @@ export default function WeddingApp() {
 
       {activePage==='rsvp'    && <RSVPPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} onSubmit={submitRSVP} />}
       {activePage==='blessings' && <BlessingWallPage data={previewMode&&previewDraft?{...dataWithImages,config:{...dataWithImages.config,...previewDraft}}:dataWithImages} />}
-      {activePage==='admin'   && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} /></BackofficeChrome>}
+      {activePage==='admin'   && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><AdminPage data={dataWithImages} onUpdate={canEditGuests?updateDataLogged:()=>uiAlert('您沒有編輯名單的權限')} readOnly={!canEditGuests} weddingId={weddingId} isPro={isPro} boThemeKey={boThemeKey} /></BackofficeChrome>}
       {activePage==='seating' && isAuthedAdmin && <BackofficeChrome themeKey={boThemeKey} page={activePage}><SeatingPage data={dataWithImages} onUpdate={canEditSeating?updateDataLogged:()=>uiAlert('您沒有編輯排位的權限')} mainTableId={mainTableId} setMainTableId={setMainTableId} isPro={isPro} readOnly={!canEditSeating} /></BackofficeChrome>}
       {activePage==='info'    && isAuthedAdmin && canInfo && <BackofficeChrome themeKey={boThemeKey} page={activePage}><InfoPage data={dataWithImages} onUpdate={updateData} savePhotoData={savePhotoData} deletePhotoData={deletePhotoData} photoMap={photoMap} onPreview={startPreview} weddingId={weddingId} fbRef={fbRef} currentRole={currentRole} currentWedding={currentWedding} user={user} onReloadWeddings={()=>fbRef.current&&loadUserWeddings(fbRef.current,user.uid)} boThemeKey={boThemeKey} /></BackofficeChrome>}
       {activePage==='info'    && isAuthedAdmin && !canInfo && (
