@@ -1,7 +1,17 @@
 // ============================================================
-// WEDDING SAAS  v6.18.0  （商業版／多租戶）
+// WEDDING SAAS  v6.19.0  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.19.0 2026-06-24  ★ Minor：形象頁互動功能展示 + RWD + 返回置頂 + 手機漢堡選單
+//          1.【功能展示】#features 改為互動版（8 顆扁卡片 icon：線上喜帖/邀請函回覆/賓客名單/
+//             祝福牆/智慧排位/多人協作/花語主題/備份還原）。點卡片切換示意圖＋加強文案，
+//             桌機/平板圖文並排一眼看完；手機隱藏網格改滑動卡片＋Pagination Dots。
+//             花語主題示意圖由 THEME_FLOWERS 動態帶入（真實花名/花語/themes圖）。
+//          2.【返回置頂】右下浮動鈕，捷動超過 480px 淡入，點擊平滑回頂（scope 於 .lp-root）。
+//          3.【手機導覽】≤760px nav 改漢堡選單，下拉含四個錦點＋登入/免費開始，點連結自動收合。
+//          4.【定價預設月費】Pro 卡預設顯示月費 199／月（原 static 為半年），半年仍可切。
+//          5.【後台外觀主題】資訊管理選擇器補入花語（花名／花語／舊主題名三行）。
 //
 // v6.18.0 2026-06-23  ★ Minor：協作邀請後端驗證 + 定價動態 + Modal/NavBar 進場
 //          1.【協作安全】acceptInvite 改呼叫後端 Cloud Function（index.js v6.15.0）驗證 token/過期/已用/Pro
@@ -5908,9 +5918,10 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                   {(() => { const fimg = flowerImg(key); const noF = !fimg; return (
                   <div data-tp="1" style={{display:'flex',alignItems:'center',gap:noF?6:10,marginBottom:10,justifyContent:noF?'center':'flex-start',textAlign:noF?'center':'left'}}>
                     {fimg && <img data-tp="1" src={fimg} loading="lazy" alt="" style={{width:34,height:34,objectFit:'contain',flex:'none'}} />}
-                    <div data-tp="1" style={{lineHeight:1.25}}>
+                    <div data-tp="1" style={{lineHeight:1.3}}>
                       <div data-tp="1" style={{fontWeight:active?600:500,color:th.text,fontSize:14}}>{flowerOf(key).name}</div>
-                      <div data-tp="1" style={{color:th.mutedText,fontSize:11,marginTop:1}}>{th.name}</div>
+                      <div data-tp="1" style={{color:th.primary,fontSize:10.5,marginTop:2,letterSpacing:.3}}>花語 · {flowerOf(key).meaning}</div>
+                      <div data-tp="1" style={{color:th.mutedText,fontSize:10.5,marginTop:1}}>{th.name}</div>
                     </div>
                     {active && <span data-tp="1" style={{marginLeft:noF?6:'auto',color:th.primary,fontSize:16}}>✓</span>}
                   </div>); })()}
@@ -6495,6 +6506,57 @@ const LP_CSS = `
 }
 
 
+  /* FEATURES interactive (v6.19.0) */
+  .lp-root .feat-cards {display:grid; grid-template-columns:repeat(8,1fr); gap:8px; margin-bottom:26px;}
+  .lp-root .fcard {text-align:center; background:var(--card); border:1px solid var(--border); border-radius:9px; padding:12px 6px 11px; cursor:pointer; transition:transform .2s, box-shadow .2s, border-color .2s, background .2s; font-family:var(--sans);}
+  .lp-root .fcard:hover {transform:translateY(-2px); box-shadow:0 14px 30px -24px rgba(58,51,43,.5);}
+  .lp-root .fcard.on {border-color:var(--primary); background:#FCF7F0; box-shadow:0 14px 32px -22px rgba(181,137,95,.7);}
+  .lp-root .fcard .fic {color:var(--primary); height:23px; margin:0 auto 6px;}
+  .lp-root .fcard .fic svg {width:22px; height:22px; display:block; margin:0 auto;}
+  .lp-root .fcard h4 {font-size:12.5px; font-weight:500; color:var(--ink); line-height:1.3; margin:0;}
+  .lp-root .fcard.on h4, .lp-root .fcard.on .fic {color:var(--primary-dark);}
+  .lp-root .feat-stage {display:grid; grid-template-columns:1.32fr 1fr; align-items:center; gap:28px; max-width:1000px; margin:0 auto;}
+  .lp-root .feat-copy {text-align:left;}
+  .lp-root .feat-copy .ctag {display:inline-block; font-size:11px; letter-spacing:2px; color:var(--primary); border:1px solid var(--soft); background:#FBF6EE; padding:3px 10px; border-radius:20px;}
+  .lp-root .feat-copy h3 {font-family:var(--serif); font-size:27px; font-weight:500; line-height:1.3; color:var(--ink); margin:12px 0 10px;}
+  .lp-root .feat-copy p {font-size:14.5px; color:var(--sub); line-height:1.85;}
+  .lp-root .feat-mockfade {animation:lpmf .45s ease;}
+  @keyframes lpmf {from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+  .lp-root .feat-mobile {display:none;}
+  .lp-root .feat-car {display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  .lp-root .feat-car::-webkit-scrollbar {display:none;}
+  .lp-root .feat-panel {flex:0 0 100%; scroll-snap-align:center; display:flex; flex-direction:column; gap:16px;}
+  .lp-root .feat-panel .feat-copy {text-align:center;}
+  .lp-root .feat-dots {display:flex; justify-content:center; gap:8px; margin-top:18px;}
+  .lp-root .feat-dots button {width:8px; height:8px; padding:0; border:0; border-radius:50%; background:#D8CBB6; cursor:pointer; transition:.2s;}
+  .lp-root .feat-dots button.on {background:var(--primary); width:22px; border-radius:4px;}
+  .lp-root .feat-swipehint {text-align:center; font-size:11px; color:var(--muted); margin-top:10px;}
+  @media(max-width:860px){ .lp-root .feat-cards {grid-template-columns:repeat(4,1fr); gap:10px;} }
+  @media(max-width:680px){
+    .lp-root .feat-stage {display:none;}
+    .lp-root .feat-cards {display:none;}
+    .lp-root .feat-mobile {display:block;}
+  }
+
+  /* back-to-top (v6.19.0) */
+  .lp-root .to-top {position:fixed; right:22px; bottom:22px; z-index:60; width:46px; height:46px; border-radius:50%; border:1px solid var(--border); background:var(--card); color:var(--primary); font-size:20px; line-height:1; cursor:pointer; box-shadow:0 14px 30px -16px rgba(58,51,43,.5); opacity:0; visibility:hidden; transform:translateY(10px); transition:opacity .25s, transform .25s, visibility .25s;}
+  .lp-root .to-top.show {opacity:1; visibility:visible; transform:none;}
+  .lp-root .to-top:hover {background:var(--primary); color:#fff;}
+
+  /* mobile hamburger nav (v6.19.0) */
+  .lp-root .nav-burger {display:none; background:transparent; border:0; cursor:pointer; padding:8px; color:var(--ink);}
+  .lp-root .nav-burger svg {display:block;}
+  .lp-root .mnav {display:none; border-top:1px solid var(--line); background:rgba(249,245,239,.98); backdrop-filter:blur(10px);}
+  .lp-root .mnav.open {display:block;}
+  .lp-root .mnav a {display:block; padding:13px 24px; font-size:14px; color:var(--sub); border-bottom:1px solid var(--line);}
+  .lp-root .mnav a:hover {color:var(--primary);}
+  .lp-root .mnav .mcta {display:flex; gap:12px; padding:16px 24px;}
+  .lp-root .mnav .mcta .btn {flex:1; justify-content:center;}
+  @media(max-width:760px){
+    .lp-root .nav-cta {display:none;}
+    .lp-root .nav-burger {display:inline-flex;}
+  }
+
 .lp-root{min-height:100vh;}`;
 const LP_HTML = `<!-- NAV -->
 <nav>
@@ -6512,6 +6574,19 @@ const LP_HTML = `<!-- NAV -->
         <a class="btn btn-ghost" href="#/login">登入</a>
         <a class="btn btn-primary" href="#/login">免費開始</a>
       </div>
+    </div>
+    <button class="nav-burger" id="navBurger" aria-label="選單" aria-expanded="false">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mnav" id="mnav">
+    <a href="#flow">運作流程</a>
+    <a href="#features">功能特色</a>
+    <a href="#pricing">方案定價</a>
+    <a href="#faq">常見問題</a>
+    <div class="mcta">
+      <a class="btn btn-ghost" href="#/login">登入</a>
+      <a class="btn btn-primary" href="#/login">免費開始</a>
     </div>
   </div>
 </nav>
@@ -6654,83 +6729,17 @@ const LP_HTML = `<!-- NAV -->
     <div class="sec-head rv">
       <span class="eyebrow">Features</span>
       <h2>籌備婚宴最頭痛的，一條龍搞定</h2>
-      <p>從喜帖、回覆統計到一張張桌子怎麼坐 —— 不用再開 Excel 和 LINE 群組來回對。</p>
     </div>
 
-    <div class="showcase rv">
-      <div class="appwin">
-        <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans TC">
-          <!-- canvas bg -->
-          <rect x="0" y="0" width="760" height="400" fill="#F9F5EF"/>
-          <!-- title bar -->
-          <rect x="0" y="0" width="760" height="40" fill="#F4ECE0"/>
-          <circle cx="22" cy="20" r="4" fill="#E0D3C0"/><circle cx="38" cy="20" r="4" fill="#E0D3C0"/><circle cx="54" cy="20" r="4" fill="#E0D3C0"/>
-          <text x="380" y="25" font-size="12" fill="#6B6259" text-anchor="middle">排位 — Xin &amp; Yu 婚禮</text>
-          <rect x="624" y="11" width="118" height="20" rx="10" fill="#B5895F"/>
-          <text x="683" y="24.5" font-size="10.5" fill="#FFFEFA" text-anchor="middle">匯出帶位清單</text>
-          <!-- sidebar -->
-          <rect x="0" y="40" width="200" height="360" fill="#FAF4EA"/>
-          <line x1="200" y1="40" x2="200" y2="400" stroke="#E5DDD0"/>
-          <text x="20" y="72" font-size="12.5" fill="#3A332B">待安排賓客</text>
-          <text x="184" y="72" font-size="11" fill="#B5895F" text-anchor="end">8 人</text>
-          <g>
-            <rect x="16" y="86" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="101.5" font-size="10.5" fill="#3A332B">林伯母</text><text x="172" y="101.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×1</text>
-            <rect x="16" y="116" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="131.5" font-size="10.5" fill="#3A332B">大學同學 A</text><text x="172" y="131.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×2</text>
-            <rect x="16" y="146" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="161.5" font-size="10.5" fill="#3A332B">公司同事</text><text x="172" y="161.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×3</text>
-            <rect x="16" y="176" width="168" height="24" rx="12" fill="#FFFEFA" stroke="#E5DDD0"/><text x="30" y="191.5" font-size="10.5" fill="#3A332B">表哥一家</text><text x="172" y="191.5" font-size="9.5" fill="#9A8F82" text-anchor="end">×4</text>
-          </g>
-
-          <!-- main canvas tables -->
-          <!-- 主桌 (filled) -->
-          <g transform="translate(330,135)">
-            <circle r="36" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
-            <circle cx="36" cy="0" r="6" fill="#B5895F"/><circle cx="25" cy="25" r="6" fill="#B5895F"/><circle cx="0" cy="36" r="6" fill="#B5895F"/><circle cx="-25" cy="25" r="6" fill="#B5895F"/><circle cx="-36" cy="0" r="6" fill="#B5895F"/><circle cx="-25" cy="-25" r="6" fill="#B5895F"/><circle cx="0" cy="-36" r="6" fill="#B5895F"/><circle cx="25" cy="-25" r="6" fill="#B5895F"/>
-            <text y="4" font-size="13" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">主桌</text>
-          </g>
-          <!-- 桌2 (mixed, target seats empty) -->
-          <g transform="translate(500,120)">
-            <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
-            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#E5DDD0"/><circle cx="-17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-34" cy="0" r="5.5" fill="#B5895F"/><circle cx="-17" cy="-29" r="5.5" fill="#E5DDD0"/><circle cx="17" cy="-29" r="5.5" fill="#B5895F"/>
-            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">2</text>
-          </g>
-          <!-- 桌3 -->
-          <g transform="translate(650,185)">
-            <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
-            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-17" cy="29" r="5.5" fill="#E5DDD0"/><circle cx="-34" cy="0" r="5.5" fill="#B5895F"/><circle cx="-17" cy="-29" r="5.5" fill="#B5895F"/><circle cx="17" cy="-29" r="5.5" fill="#E5DDD0"/>
-            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">3</text>
-          </g>
-          <!-- 桌4 -->
-          <g transform="translate(360,310)">
-            <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
-            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-34" cy="0" r="5.5" fill="#E5DDD0"/><circle cx="-17" cy="-29" r="5.5" fill="#B5895F"/><circle cx="17" cy="-29" r="5.5" fill="#B5895F"/>
-            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">4</text>
-          </g>
-          <!-- 桌5 (conflict) -->
-          <g transform="translate(560,315)">
-            <circle r="34" fill="#FFFEFA" stroke="#D89B9B" stroke-width="1.6"/>
-            <circle cx="34" cy="0" r="5.5" fill="#B5895F"/><circle cx="17" cy="29" r="5.5" fill="#B5895F"/><circle cx="-17" cy="29" r="5.5" fill="#E5DDD0"/><circle cx="-34" cy="0" r="5.5" fill="#B5895F"/><circle cx="-17" cy="-29" r="5.5" fill="#B5895F"/><circle cx="17" cy="-29" r="5.5" fill="#E5DDD0"/>
-            <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">5</text>
-          </g>
-          <!-- conflict badge -->
-          <g transform="translate(536,268)"><rect width="92" height="18" rx="9" fill="#FBE6E6"/><text x="46" y="12.5" font-size="9.5" fill="#B5524F" text-anchor="middle">⚠ 避桌偏好衝突</text></g>
-          <!-- same-table unmet badge -->
-          <g transform="translate(596,140)"><rect width="108" height="18" rx="9" fill="#F5E8D0"/><text x="54" y="12.5" font-size="9.5" fill="#9F754C" text-anchor="middle">↔ 同桌偏好未滿足</text></g>
-
-          <!-- dragging chip + dashed path to empty seat on 桌2 -->
-          <path d="M300 250 C 380 250, 450 180, 483 91" fill="none" stroke="#C8AE92" stroke-width="1.2" stroke-dasharray="4 4"/>
-          <g transform="translate(252,238)"><rect width="96" height="26" rx="13" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.3"/><text x="48" y="16.5" font-size="11" fill="#3A332B" text-anchor="middle">大學同學 A ×2</text></g>
-        </svg>
-      </div>
-      <div class="cap">實際操作畫面示意 · 拖曳賓客即入座，避桌／同桌衝突自動標示</div>
+    <div class="feat-cards" id="featCards"></div>
+    <div class="feat-stage" id="featStage">
+      <div class="appwin" id="featMock"></div>
+      <div class="feat-copy" id="featCopy"></div>
     </div>
-
-    <div class="feat">
-      <div class="cell rv"><div class="ic">💌</div><h4>線上喜帖</h4><p>多種典雅主題與字體，手機開啟即是一張邀請函，連婚紗照都能輪播。</p></div>
-      <div class="cell rv"><div class="ic">✅</div><h4>邀請函回覆</h4><p>賓客自助回覆，省去逐一電話確認，名單即時同步。</p></div>
-      <div class="cell rv"><div class="ic">📋</div><h4>賓客名單</h4><p>出席狀態、攜伴人數、桌次一覽，還能逐筆統計喜餅數量（男方／女方分開計算），支援匯入與快速搜尋。</p></div>
-      <div class="cell rv"><div class="ic">💬</div><h4>祝福牆</h4><p>收集賓客留言與祝福，婚禮當天可即時呈現。</p></div>
-      <div class="cell rv"><div class="ic">🪑</div><h4>智慧排位</h4><p>拖曳安排桌次，避桌／同桌偏好自動提醒衝突。</p></div>
-      <div class="cell rv"><div class="ic">👥</div><h4>多人協作</h4><p>邀請伴侶或親友一起編輯，即時看到誰正在調整。</p></div>
+    <div class="feat-mobile">
+      <div class="feat-car" id="featCar"></div>
+      <div class="feat-dots" id="featDots"></div>
+      <div class="feat-swipehint">← 左右滑動切換功能 →</div>
     </div>
   </div>
 </section>
@@ -6761,18 +6770,18 @@ const LP_HTML = `<!-- NAV -->
         <a class="btn btn-ghost" href="#/login">免費開始</a>
       </div>
       <div class="plan pro">
-        <span class="tag" id="proBadge">最划算</span>
+        <span class="tag" id="proBadge">限時優惠</span>
         <div class="pname serif">Pro 方案</div>
         <div class="pdesc">完整功能，適合正式婚宴</div>
         <div class="period-toggle" role="tablist" aria-label="計費週期">
-          <button class="pt-btn" data-period="month" role="tab">月費</button>
-          <button class="pt-btn active" data-period="half" role="tab">半年</button>
+          <button class="pt-btn active" data-period="month" role="tab">月費</button>
+          <button class="pt-btn" data-period="half" role="tab">半年</button>
         </div>
         <div class="pp">
-          <span class="orig" id="proOrig" style="display:none;"></span>
-          <span class="cur">NT$</span><span class="amt" id="proAmt">1,099</span><span class="per" id="proPer">／半年</span>
+          <span class="orig" id="proOrig">NT$299</span>
+          <span class="cur">NT$</span><span class="amt" id="proAmt">199</span><span class="per" id="proPer">／月</span>
         </div>
-        <div class="psave" id="proSave">付 6 個月多送 1 個月（等於 7 個月，每月約 NT$157）</div>
+        <div class="psave" id="proSave">限時優惠價，每月自動續訂</div>
         <ul>
           <li>免費版全部功能</li>
           <li>排位桌數無上限</li>
@@ -6867,7 +6876,8 @@ const LP_HTML = `<!-- NAV -->
       <span>付款服務由 綠界科技 ECPay 提供</span>
     </div>
   </div>
-</footer>`;
+</footer>
+<button class="to-top" id="lpToTop" aria-label="返回頂端">↑</button>`;
 
 function LandingPage(){
   const rootRef = useRef(null);
@@ -6890,6 +6900,308 @@ function LandingPage(){
       if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
     };
     root.addEventListener('click', onClick);
+    // ===== v6.19.0 互動功能展示（版型 B） =====
+    const cleanups=[];
+    (function(){
+function ic(p){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`; }
+const ICON = {
+  invite : ic('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3.5 7.5 12 13l8.5-5.5"/>'),
+  rsvp   : ic('<circle cx="12" cy="12" r="9"/><path d="M8.3 12.3l2.4 2.4L16 9.4"/>'),
+  guests : ic('<circle cx="4.5" cy="6" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/><circle cx="4.5" cy="18" r="1.1"/><path d="M9 6h11M9 12h11M9 18h11"/>'),
+  wall   : ic('<path d="M21 11.5a7.5 7.5 0 0 1-7.5 7.5H8l-4 3 1.2-4.8A7.5 7.5 0 1 1 21 11.5z"/><path d="M12 9.2c1-1.6 3.4-1 3.4 1 0 1.4-2 2.6-3.4 3.6-1.4-1-3.4-2.2-3.4-3.6 0-2 2.4-2.6 3.4-1z"/>'),
+  seating: ic('<circle cx="12" cy="12" r="5"/><circle cx="12" cy="4.6" r="1.3"/><circle cx="12" cy="19.4" r="1.3"/><circle cx="4.6" cy="12" r="1.3"/><circle cx="19.4" cy="12" r="1.3"/>'),
+  collab : ic('<circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3.2 2.7-5 5.5-5s5.5 1.8 5.5 5"/><circle cx="17.5" cy="8.5" r="2.3"/><path d="M16.5 14c2.4.1 4.5 1.7 4.5 5"/>'),
+  theme  : ic('<circle cx="12" cy="6.4" r="2.7"/><circle cx="17.6" cy="12" r="2.7"/><circle cx="12" cy="17.6" r="2.7"/><circle cx="6.4" cy="12" r="2.7"/><circle cx="12" cy="12" r="2.3"/>'),
+  backup : ic('<path d="M12 3l8 3v5.5c0 4.7-3.4 7.6-8 8.5-4.6-.9-8-3.8-8-8.5V6z"/><path d="M9 12l2 2 4-4"/>'),
+};
+
+/* ---------- mock svg builders ---------- */
+function chrome(title, btn){
+  return `<rect x="0" y="0" width="720" height="440" fill="#F9F5EF"/>
+    <rect x="0" y="0" width="720" height="38" fill="#F4ECE0"/>
+    <circle cx="22" cy="19" r="4" fill="#E0D3C0"/><circle cx="38" cy="19" r="4" fill="#E0D3C0"/><circle cx="54" cy="19" r="4" fill="#E0D3C0"/>
+    <text x="360" y="24" font-size="12" fill="#6B6259" text-anchor="middle">${title}</text>
+    ${btn?`<rect x="588" y="10" width="118" height="19" rx="9.5" fill="#B5895F"/><text x="647" y="23" font-size="10" fill="#FFFEFA" text-anchor="middle">${btn}</text>`:''}`;
+}
+function wrap(inner){ return `<svg viewBox="0 0 720 440" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans TC" class="mockfade">${inner}</svg>`; }
+const M = {};
+
+/* 1 線上喜帖 */
+M.invite = wrap(chrome('線上喜帖','預覽喜帖') + `
+  <g>
+    <rect x="36" y="78" width="120" height="300" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <text x="96" y="104" font-size="11" fill="#9A8F82" text-anchor="middle">選擇主題</text>
+    ${['山茶花','酢漿草','薰衣草','金合歡'].map((nm,i)=>`<g transform="translate(54,${118+i*62})">
+      <rect width="84" height="50" rx="7" fill="${['#F6ECE7','#EEF1EA','#F1ECF5','#FBF4E8'][i]}" stroke="${i===0?'#B5895F':'#E5DDD0'}" stroke-width="${i===0?1.5:1}"/>
+      <circle cx="20" cy="25" r="9" fill="${['#C77E7E','#8FA67E','#A98FBE','#D6B36B'][i]}" opacity=".75"/>
+      <text x="38" y="22" font-size="9" fill="#3A332B">${nm}</text>
+      <text x="38" y="34" font-size="7" fill="#9A8F82">主題</text>
+    </g>`).join('')}
+  </g>
+  <g transform="translate(245,66)">
+    <rect width="220" height="356" rx="26" fill="#FFFEFA" stroke="#D9CCB8" stroke-width="1.5"/>
+    <rect x="14" y="16" width="192" height="150" rx="12" fill="#EFE3D0"/>
+    <path d="M14 130 L70 96 L120 128 L168 92 L206 122 L206 166 L14 166 Z" fill="#D8C6A6"/>
+    <circle cx="160" cy="58" r="16" fill="#E7D3B0"/>
+    <text x="110" y="208" font-size="20" fill="#B5895F" text-anchor="middle" font-family="Noto Serif TC" font-weight="600">新人 ＆ 新人</text>
+    <text x="110" y="232" font-size="10" fill="#6B6259" text-anchor="middle" letter-spacing="2">2026 · 10 · 10　SAT</text>
+    <line x1="48" y1="250" x2="172" y2="250" stroke="#E8DECF"/>
+    <text x="110" y="274" font-size="9.5" fill="#9A8F82" text-anchor="middle">誠摯邀請您一同見證</text>
+    <rect x="40" y="296" width="140" height="34" rx="17" fill="#B5895F"/>
+    <text x="110" y="318" font-size="11" fill="#FFFEFA" text-anchor="middle">立即線上回覆 →</text>
+  </g>
+  <g transform="translate(536,96)" font-size="10.5" fill="#6B6259">
+    <text x="0" y="0">✓ 婚紗照輪播</text>
+    <text x="0" y="34">✓ 自選主題及文字</text>
+    <text x="0" y="68">✓ 時間・地點顯示</text>
+    <text x="0" y="102">✓ 一頁完成回覆</text>
+    <text x="0" y="140" fill="#9A8F82">免印刷・免寄送</text>
+  </g>`);
+
+/* 2 邀請函回覆 */
+M.rsvp = wrap(chrome('邀請函回覆','即時統計') + `
+  <g transform="translate(40,66)">
+    <rect width="320" height="330" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <text x="24" y="34" font-size="13" fill="#3A332B">出席回覆</text>
+    <text x="24" y="64" font-size="10.5" fill="#9A8F82">您是否能出席？</text>
+    <rect x="24" y="74" width="130" height="34" rx="17" fill="#B5895F"/><text x="89" y="96" font-size="11" fill="#fff" text-anchor="middle">我會出席</text>
+    <rect x="164" y="74" width="130" height="34" rx="17" fill="#F4ECE0" stroke="#E5DDD0"/><text x="229" y="96" font-size="11" fill="#9A8F82" text-anchor="middle">不克前來</text>
+    <text x="24" y="142" font-size="10.5" fill="#9A8F82">攜伴人數</text>
+    <g transform="translate(24,152)"><rect width="34" height="32" rx="6" fill="#F4ECE0"/><text x="17" y="21" font-size="14" fill="#6B6259" text-anchor="middle">−</text>
+      <rect x="44" width="60" height="32" rx="6" fill="#FFFEFA" stroke="#E5DDD0"/><text x="74" y="21" font-size="13" fill="#3A332B" text-anchor="middle">2</text>
+      <rect x="114" width="34" height="32" rx="6" fill="#B5895F"/><text x="131" y="21" font-size="14" fill="#fff" text-anchor="middle">+</text></g>
+    <text x="24" y="222" font-size="10.5" fill="#9A8F82">飲食需求</text>
+    <g transform="translate(24,232)" font-size="10.5" fill="#3A332B">
+      <rect width="14" height="14" rx="3" fill="#B5895F"/><text x="22" y="11.5">需要素食 ×1</text></g>
+    <rect x="24" y="284" width="272" height="34" rx="17" fill="#B5895F"/><text x="160" y="306" font-size="11.5" fill="#fff" text-anchor="middle">送出回覆</text>
+  </g>
+  <g transform="translate(388,66)">
+    <rect width="292" height="330" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <text x="22" y="34" font-size="13" fill="#3A332B">回覆統計</text>
+    <g transform="translate(22,52)">
+      ${[['已出席',157,'#B5895F',.99],['未回覆',1,'#E0D3C0',.04],['不克前來',1,'#D8B0A0',.04]].map((r,i)=>`
+        <text y="${i*64+4}" font-size="11" fill="#6B6259">${r[0]}</text>
+        <text x="248" y="${i*64+4}" font-size="13" fill="#3A332B" text-anchor="end" font-family="Cormorant Garamond">${r[1]}</text>
+        <rect y="${i*64+12}" width="248" height="9" rx="4.5" fill="#F1E8D8"/>
+        <rect y="${i*64+12}" width="${(248*r[3]).toFixed(0)}" height="9" rx="4.5" fill="${r[2]}"/>`).join('')}
+    </g>
+    <line x1="22" y1="250" x2="270" y2="250" stroke="#E8DECF"/>
+    <text x="22" y="276" font-size="10.5" fill="#9A8F82">總邀請 159 人 · 出席率 99%</text>
+    <text x="22" y="302" font-size="10.5" fill="#9A8F82">名單即時同步，免電話確認</text>
+  </g>`);
+
+/* 3 賓客名單 */
+M.guests = wrap(chrome('賓客名單','') + `
+  <g transform="translate(40,62)">
+    <rect width="490" height="346" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <rect x="0" y="0" width="490" height="34" rx="10" fill="#FAF4EA"/>
+    <g font-size="10" fill="#9A8F82"><text x="18" y="22">姓名</text><text x="150" y="22">出席</text><text x="250" y="22">葷素</text><text x="330" y="22">攜伴</text><text x="408" y="22">桌次</text></g>
+    ${[['林女士','出席','葷','1','2','#5C8A4E'],['王先生','出席','素','3','4','#5C8A4E'],['大學同學','未回覆','—','—','—','#B58F4E'],['表哥一家','出席','葷','4','6','#5C8A4E'],['陳先生','不克','—','—','—','#B57070']]
+      .map((r,i)=>`<g transform="translate(0,${44+i*52})">
+        ${i%2?'<rect width="490" height="48" fill="#FCF8F0"/>':''}
+        <text x="18" y="28" font-size="11.5" fill="#3A332B">${r[0]}</text>
+        <rect x="146" y="14" width="48" height="20" rx="10" fill="${r[5]}22"/><text x="170" y="28" font-size="9.5" fill="${r[5]}" text-anchor="middle">${r[1]}</text>
+        <text x="262" y="28" font-size="10.5" fill="${r[2]==='素'?'#5C8A4E':r[2]==='葷'?'#9F754C':'#C9BBA6'}" text-anchor="middle">${r[2]}</text>
+        <text x="342" y="28" font-size="10.5" fill="#6B6259" text-anchor="middle">${r[3]}</text>
+        <text x="420" y="28" font-size="10.5" fill="#6B6259" text-anchor="middle">${r[4]}</text>
+      </g>`).join('')}
+  </g>
+  <g transform="translate(548,62)">
+    <rect width="132" height="346" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <text x="16" y="30" font-size="12" fill="#3A332B">喜餅統計</text>
+    <g transform="translate(16,42)">
+      <rect width="100" height="50" rx="8" fill="#FBF4EA"/>
+      <text x="12" y="22" font-size="9.5" fill="#9A8F82">男方</text><text x="86" y="36" font-size="19" fill="#B5895F" text-anchor="end" font-family="Cormorant Garamond">38</text>
+      <rect y="60" width="100" height="50" rx="8" fill="#F7EEF0"/>
+      <text x="12" y="82" font-size="9.5" fill="#9A8F82">女方</text><text x="86" y="96" font-size="19" fill="#9F754C" text-anchor="end" font-family="Cormorant Garamond">52</text>
+    </g>
+    <line x1="16" y1="200" x2="116" y2="200" stroke="#E8DECF"/>
+    <g transform="translate(16,222)" font-size="9.8" fill="#6B6259">
+      <text>✓ 葷素分計</text>
+      <text y="24">✓ 同桌・避桌列出</text>
+      <text y="48">✓ 快速搜尋</text>
+    </g>
+  </g>`);
+
+/* 4 祝福牆 */
+M.wall = wrap(chrome('祝福牆','') + `
+  ${[ ['28','66','#FBF4EA','賓客留言','祝你們白頭偕老，幸福久久 ♡','公開'],
+      ['250','60','#F7EEF0','大學同窗','終於等到這一天，恭喜你們！','公開'],
+      ['472','74','#EEF3EC','公司同事','新婚快樂，要一直甜甜蜜蜜～','僅新人'],
+      ['40','228','#F3ECF4','親友祝福','祝福這對佳偶 永浴愛河','公開'],
+      ['262','242','#FBF4EA','好友','我哭了 太美了 一定要幸福','僅新人'],
+      ['484','234','#F7EEF0','家人','早生貴子 百年好合 ❀','公開'] ]
+    .map(c=>`<g transform="translate(${c[0]},${c[1]})">
+      <rect width="200" height="124" rx="10" fill="${c[2]}" stroke="#EADFCE"/>
+      <text x="18" y="32" font-size="11.5" fill="#B5895F" font-family="Noto Serif TC">${c[3]}</text>
+      <line x1="18" y1="44" x2="120" y2="44" stroke="#E5DDD0"/>
+      <text x="18" y="70" font-size="10.5" fill="#6B6259">${c[4]}</text>
+      ${c[5]==='公開'
+        ?`<g transform="translate(18,92)"><rect width="46" height="18" rx="9" fill="#E7F0E2"/><text x="23" y="12.5" font-size="9" fill="#5C8A4E" text-anchor="middle">公開</text></g>`
+        :`<g transform="translate(18,92)"><rect width="64" height="18" rx="9" fill="#F0E6E6"/><text x="32" y="12.5" font-size="9" fill="#A06A6A" text-anchor="middle">僅新人可見</text></g>`}
+    </g>`).join('')}
+  <g fill="#E7C2C2" opacity=".7"><circle cx="200" cy="120" r="3"/><circle cx="610" cy="180" r="2.5"/><circle cx="360" cy="205" r="3"/><circle cx="120" cy="355" r="2.5"/><circle cx="660" cy="365" r="3"/></g>`);
+
+/* 5 智慧排位 */
+M.seating = wrap(chrome('排位編輯','匯出帶位清單') + `
+  <rect x="0" y="38" width="184" height="402" fill="#FAF4EA"/><line x1="184" y1="38" x2="184" y2="440" stroke="#E5DDD0"/>
+  <text x="16" y="64" font-size="11.5" fill="#3A332B">待安排賓客</text><text x="168" y="64" font-size="10" fill="#B5895F" text-anchor="end">8 人</text>
+  ${['林女士 ×1','大學同學 ×2','公司同事 ×3','表哥一家 ×4'].map((t,i)=>`<g transform="translate(14,${74+i*28})"><rect width="156" height="22" rx="11" fill="#FFFEFA" stroke="#E5DDD0"/><text x="13" y="15" font-size="9.5" fill="#3A332B">${t}</text></g>`).join('')}
+  <!-- version + zone controls -->
+  <g transform="translate(200,52)"><rect width="92" height="22" rx="11" fill="#FFFEFA" stroke="#B5895F"/><text x="46" y="15" font-size="9.5" fill="#9F754C" text-anchor="middle">版本 A ▾</text></g>
+  <g transform="translate(300,52)"><rect width="78" height="22" rx="11" fill="#F4ECE0" stroke="#E5DDD0"/><text x="39" y="15" font-size="9.5" fill="#6B6259" text-anchor="middle">＋ 新版本</text></g>
+  <g transform="translate(600,52)"><rect width="100" height="22" rx="11" fill="#F4ECE0" stroke="#E5DDD0"/><text x="50" y="15" font-size="9.5" fill="#6B6259" text-anchor="middle">⤢ 調整場地</text></g>
+  <!-- zones -->
+  <rect x="210" y="92" width="230" height="330" rx="10" fill="none" stroke="#C8AE92" stroke-dasharray="5 5"/>
+  <text x="222" y="110" font-size="9.5" fill="#9F754C">分區：親友區</text>
+  <rect x="452" y="92" width="248" height="330" rx="10" fill="none" stroke="#A9BBA0" stroke-dasharray="5 5"/>
+  <text x="464" y="110" font-size="9.5" fill="#6E8A62">分區：同事區</text>
+  <!-- tables -->
+  ${[[300,200,'主桌'],[380,330,'4'],[560,180,'2'],[640,310,'3']].map(t=>`<g transform="translate(${t[0]},${t[1]})">
+    <circle r="32" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
+    ${[0,45,90,135,180,225,270,315].map(a=>{const x=Math.cos(a*Math.PI/180)*32;const y=Math.sin(a*Math.PI/180)*32;return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.6" fill="#B5895F"/>`}).join('')}
+    <text y="4" font-size="11" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">${t[2]}</text></g>`).join('')}
+  <g transform="translate(516,330)"><rect width="92" height="18" rx="9" fill="#FBE6E6"/><text x="46" y="12.5" font-size="9" fill="#B5524F" text-anchor="middle">⚠ 避桌衝突</text></g>
+  <!-- drag -->
+  <path d="M250 250 C 300 230, 340 215, 300 168" fill="none" stroke="#C8AE92" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <g transform="translate(206,238)"><rect width="96" height="24" rx="12" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.2"/><text x="48" y="16" font-size="10" fill="#3A332B" text-anchor="middle">大學同學 ×2</text></g>`);
+
+/* 6 多人協作 */
+M.collab = wrap(chrome('排位 · 多人協作','3 人在線') + `
+  <rect x="0" y="38" width="190" height="402" fill="#FAF4EA"/><line x1="190" y1="38" x2="190" y2="440" stroke="#E5DDD0"/>
+  <text x="18" y="68" font-size="12" fill="#3A332B">協作成員</text>
+  ${[['新郎','#B5895F','我'],['新娘','#C77E7E','新娘'],['婚顧','#7E9BC7','婚顧']].map((m,i)=>`<g transform="translate(16,${80+i*38})">
+    <circle cx="14" cy="14" r="13" fill="${m[1]}"/><text x="14" y="18" font-size="10" fill="#fff" text-anchor="middle">${m[0][0]}</text>
+    <text x="36" y="13" font-size="11" fill="#3A332B">${m[2]}</text>
+    <circle cx="36" cy="22" r="3" fill="#5C8A4E"/><text x="44" y="25" font-size="8.5" fill="#9A8F82">線上</text></g>`).join('')}
+  ${[[340,160,'主桌'],[510,150,'2'],[400,330,'4']].map(t=>`<g transform="translate(${t[0]},${t[1]})">
+    <circle r="34" fill="#FFFEFA" stroke="#B5895F" stroke-width="1.4"/>
+    ${[0,45,90,135,180,225,270,315].map(a=>{const x=Math.cos(a*Math.PI/180)*34;const y=Math.sin(a*Math.PI/180)*34;return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#B5895F"/>`}).join('')}
+    <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">${t[2]}</text></g>`).join('')}
+  <g transform="translate(630,250)"><circle r="34" fill="#FFFEFA" stroke="#7E9BC7" stroke-width="2"/>
+    ${[0,45,90,135,180,225,270,315].map(a=>{const x=Math.cos(a*Math.PI/180)*34;const y=Math.sin(a*Math.PI/180)*34;return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#B5895F"/>`}).join('')}
+    <text y="4" font-size="12" fill="#9A8F82" text-anchor="middle" font-family="Cormorant Garamond">3</text></g>
+  <g transform="translate(596,212)"><path d="M0 0 L0 16 L4 12 L7 18 L9 17 L6 11 L11 11 Z" fill="#7E9BC7"/><rect x="12" y="6" width="86" height="16" rx="8" fill="#7E9BC7"/><text x="55" y="18" font-size="9" fill="#fff" text-anchor="middle">婚顧 編輯桌3</text></g>
+  <g transform="translate(430,300)"><path d="M0 0 L0 16 L4 12 L7 18 L9 17 L6 11 L11 11 Z" fill="#C77E7E"/><rect x="12" y="6" width="74" height="16" rx="8" fill="#C77E7E"/><text x="49" y="18" font-size="9" fill="#fff" text-anchor="middle">新娘 編輯桌4</text></g>
+  <g transform="translate(40,300)" font-size="10.5" fill="#6B6259"><text>同一份名單即時同步</text><text y="22" fill="#9A8F82">不再互傳 Excel 版本</text></g>`);
+      function themeMock(){
+        const ks=Object.keys(THEME_FLOWERS).filter(function(k){return !THEME_FLOWERS[k].noFlower;});
+        const cells=ks.map(function(k,i){
+          const col=i%5,row=Math.floor(i/5),x=30+col*134,y=110+row*150,sel=(i===0);
+          const f=THEME_FLOWERS[k],img=flowerImg(k);
+          return `<g transform="translate(${x},${y})">`
+            +`<rect width="120" height="134" rx="10" fill="#FFFEFA" stroke="${sel?'#B5895F':'#E5DDD0'}" stroke-width="${sel?2:1}"/>`
+            +`<image href="${img}" x="36" y="13" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`
+            +`<text x="12" y="86" font-size="12" fill="#3A332B">${f.name}</text>`
+            +`<text x="12" y="104" font-size="8.5" fill="#9A8F82">花語</text>`
+            +`<text x="12" y="120" font-size="8.5" fill="#9A8F82">${f.meaning}</text>`
+            +(sel?`<g transform="translate(98,72)"><circle r="8" fill="#B5895F"/><path d="M-3 0 L-1 2 L3 -2.5" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`:``)
+            +`</g>`;
+        }).join('');
+        return wrap(chrome('花語主題','套用主題')
+          +`<text x="30" y="74" font-size="13" fill="#3A332B">選擇你們的婚禮主題</text>`
+          +`<text x="30" y="94" font-size="10.5" fill="#9A8F82">每一款植物水彩主題，都附上專屬花語</text>`
+          +cells);
+      }
+/* 8 資料備份與還原 */
+M.backup = wrap(chrome('資料備份與還原','立即備份') + `
+  <g transform="translate(40,66)">
+    <rect width="338" height="330" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <text x="22" y="34" font-size="13" fill="#3A332B">備份快照</text>
+    <text x="316" y="34" font-size="9.5" fill="#5C8A4E" text-anchor="end">● 自動備份開啟</text>
+    ${[['今天 03:00','自動','賓客名單・排位'],['昨天 03:00','自動','賓客名單・排位'],['06/20 18:42','手動','排位版本 A']]
+      .map((s,i)=>`<g transform="translate(22,${52+i*64})">
+        <rect width="294" height="52" rx="8" fill="#FBF6EE" stroke="#EFE3D0"/>
+        <text x="16" y="22" font-size="11.5" fill="#3A332B">${s[0]}</text>
+        <rect x="16" y="30" width="${s[1]==='自動'?34:34}" height="15" rx="7.5" fill="${s[1]==='自動'?'#E7F0E2':'#EAEFF6'}"/><text x="${16+17}" y="41" font-size="8.5" fill="${s[1]==='自動'?'#5C8A4E':'#5E79A6'}" text-anchor="middle">${s[1]}</text>
+        <text x="58" y="42" font-size="9" fill="#9A8F82">${s[2]}</text>
+        <rect x="216" y="14" width="62" height="24" rx="12" fill="#B5895F"/><text x="247" y="30" font-size="10" fill="#fff" text-anchor="middle">還原</text>
+      </g>`).join('')}
+  </g>
+  <g transform="translate(396,66)">
+    <rect width="284" height="330" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
+    <g transform="translate(142,74)">
+      <path d="M0 -34 L30 -23 V 9 C30 30 17 42 0 47 C-17 42 -30 30 -30 9 V -23 Z" fill="#F4ECE0" stroke="#B5895F" stroke-width="1.6"/>
+      <path d="M-11 6 L-3 14 L13 -4" stroke="#B5895F" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="142" y="150" font-size="13" fill="#3A332B" text-anchor="middle">資料安全防護</text>
+    <g transform="translate(36,176)" font-size="10.5" fill="#6B6259">
+      <text>✓ 每日自動備份</text>
+      <text y="26">✓ 一鍵還原任一時間點</text>
+      <text y="52">✓ reCAPTCHA 登入／表單防護</text>
+    </g>
+    <g transform="translate(36,256)"><rect width="212" height="48" rx="8" fill="#F7FAFF" stroke="#D8E2F0"/>
+      <circle cx="28" cy="24" r="13" fill="none" stroke="#5E79A6" stroke-width="2.4"/><path d="M22 24 a6 6 0 1 0 2-4" fill="none" stroke="#5E79A6" stroke-width="2.4"/>
+      <text x="52" y="20" font-size="10" fill="#3A332B">reCAPTCHA</text>
+      <text x="52" y="34" font-size="8.5" fill="#9A8F82">已通過驗證・防機器人</text>
+    </g>
+  </g>`);
+      const FEATURES=[
+        {key:'invite', title:'線上喜帖', tag:'喜帖',
+         headline:'一條連結，就是一張會說故事的喜帖',
+         body:'多款花語主題與各種字體隨意搭配，手機一開即是邀請函；婚紗照輪播、自選主題與文字、時間地點一頁到位 —— 不印、不寄、不用跑印刷廠。'},
+        {key:'rsvp', title:'邀請函回覆', tag:'出席回覆',
+         headline:'賓客自行回覆，賓客名單同步建立',
+         body:'出席與否、攜伴人數、素食需求，賓客動動手指就完成；即時統計，省下一通通電話。'},
+        {key:'guests', title:'賓客名單', tag:'名單管理',
+         headline:'一張表，掌握每位賓客的所有細節',
+         body:'出席狀態、葷素需求、攜伴與桌次一目了然，還能逐一列出每位賓客的同桌與避桌對象；喜餅數量男方／女方分開計，名單再多也不亂。'},
+        {key:'wall', title:'祝福牆', tag:'祝福牆',
+         headline:'把每一句祝福，留成婚禮的風景',
+         body:'賓客留言即時匯聚成牆，落瓣動畫輕輕襯底；每一則祝福都能由你決定公開讓賓客同樂，或悄悄只留給新人珍藏。'},
+        {key:'seating', title:'智慧排位', tag:'排位',
+         headline:'拖一拖，排桌地獄變成十分鐘的事',
+         body:'賓客拖曳即入座，避桌、同桌偏好自動偵測並標示衝突；可建立多種排位版本沙盤推演，畫板能自由調整場地大小並分區控管，確認完可一鍵匯出帶位清單，當天帶位輕鬆無難度。'},
+        {key:'collab', title:'多人協作', tag:'協作',
+         headline:'兩個人的婚禮，一起編輯才安心',
+         body:'邀請伴侶或親友共同編輯，即時看見誰正在調整哪一桌；不再互傳 Excel 版本，永遠對著同一份最新名單。'},
+        {key:'theme', title:'花語主題', tag:'主題',
+         headline:'選一朵花，定下整場婚禮的調性',
+         body:'多款植物水彩主題，每一款都附上專屬花語；山茶花的謙遜堅貞、酢漿草的幸運真愛⋯⋯ 讓喜帖與祝福牆，從第一眼就是你們的故事。'},
+        {key:'backup', title:'備份與還原', tag:'安全備份',
+         headline:'你的每一筆心血，都有備份守著',
+         body:'系統每日自動備份賓客名單與排位，需要時一鍵還原到任一時間點；登入與回覆表單皆有 reCAPTCHA 把關，擋下惡意流量，資料安全無虞。'},
+      ];
+      const mk=(f)=> f.key==='theme' ? themeMock() : M[f.key];
+      const copyHTML=(f)=>`<span class="ctag">${f.tag}</span><h3>${f.headline}</h3><p>${f.body}</p>`;
+      // desktop / tablet : cards + side-by-side preview
+      const cardsEl=root.querySelector('#featCards'), mockEl=root.querySelector('#featMock'), copyEl=root.querySelector('#featCopy');
+      if(cardsEl && mockEl && copyEl){
+        FEATURES.forEach((f,i)=>{ const b=document.createElement('button'); b.className='fcard'+(i===0?' on':''); b.dataset.i=i; b.innerHTML=`<div class="fic">${ICON[f.key]}</div><h4>${f.title}</h4>`; cardsEl.appendChild(b); });
+        const setB=(i)=>{ cardsEl.querySelectorAll('.fcard').forEach((el,j)=>el.classList.toggle('on',j==i)); mockEl.innerHTML=`<div class="feat-mockfade">${mk(FEATURES[i])}</div>`; copyEl.innerHTML=copyHTML(FEATURES[i]); };
+        const onCardClick=(e)=>{ const b=e.target.closest('.fcard'); if(b) setB(+b.dataset.i); };
+        const onCardHover=(e)=>{ const b=e.target.closest('.fcard'); if(b) setB(+b.dataset.i); };
+        cardsEl.addEventListener('click',onCardClick); cardsEl.addEventListener('mouseover',onCardHover);
+        cleanups.push(()=>{ cardsEl.removeEventListener('click',onCardClick); cardsEl.removeEventListener('mouseover',onCardHover); });
+        setB(0);
+      }
+      // mobile : swipe carousel + pagination dots
+      const carEl=root.querySelector('#featCar'), dotsEl=root.querySelector('#featDots');
+      if(carEl && dotsEl){
+        FEATURES.forEach((f,i)=>{ const p=document.createElement('div'); p.className='feat-panel'; p.innerHTML=`<div class="appwin">${mk(f)}</div><div class="feat-copy">${copyHTML(f)}</div>`; carEl.appendChild(p); const d=document.createElement('button'); d.dataset.i=i; if(i===0)d.className='on'; dotsEl.appendChild(d); });
+        const sync=()=>{ const w=carEl.clientWidth||1, idx=Math.round(carEl.scrollLeft/(w+14)); dotsEl.querySelectorAll('button').forEach((d,j)=>d.classList.toggle('on',j===idx)); };
+        const onScroll=()=>window.requestAnimationFrame(sync);
+        const onDot=(e)=>{ const b=e.target.closest('button'); if(!b) return; const w=carEl.clientWidth; carEl.scrollTo({left:(+b.dataset.i)*(w+14),behavior:'smooth'}); };
+        carEl.addEventListener('scroll',onScroll); dotsEl.addEventListener('click',onDot);
+        cleanups.push(()=>{ carEl.removeEventListener('scroll',onScroll); dotsEl.removeEventListener('click',onDot); });
+      }
+    })();
+    // 返回置頂
+    const toTopBtn=root.querySelector('#lpToTop');
+    if(toTopBtn){
+      const onScrollTop=()=>{ if(window.scrollY>480) toTopBtn.classList.add('show'); else toTopBtn.classList.remove('show'); };
+      const onTopClick=()=>window.scrollTo({top:0,behavior:'smooth'});
+      window.addEventListener('scroll',onScrollTop,{passive:true}); toTopBtn.addEventListener('click',onTopClick); onScrollTop();
+      cleanups.push(()=>{ window.removeEventListener('scroll',onScrollTop); toTopBtn.removeEventListener('click',onTopClick); });
+    }
+    // 手機漢堡選單
+    const burger=root.querySelector('#navBurger'), mnav=root.querySelector('#mnav');
+    if(burger && mnav){
+      const toggleMenu=()=>{ const open=mnav.classList.toggle('open'); burger.setAttribute('aria-expanded',open?'true':'false'); };
+      const closeMenu=(e)=>{ if(e.target.closest('a')) { mnav.classList.remove('open'); burger.setAttribute('aria-expanded','false'); } };
+      burger.addEventListener('click',toggleMenu); mnav.addEventListener('click',closeMenu);
+      cleanups.push(()=>{ burger.removeEventListener('click',toggleMenu); mnav.removeEventListener('click',closeMenu); });
+    }
     // 方案切換（月費／半年）
     let PLANS={ month:{amt:'199',per:'／月',orig:'NT$299',save:'限時優惠價，每月自動續訂',badge:'限時優惠'},
                   half:{amt:'1,099',per:'／半年',orig:'',save:'付 6 個月多送 1 個月（等於 7 個月，每月約 NT$157）',badge:'最划算'} };
@@ -6926,7 +7238,7 @@ function LandingPage(){
           save:h.note||('付 6 個月多送 '+(h.bonusMonths||1)+' 個月（每月約 NT$'+_fmt(per)+'）'), badge:h.badge||'' }; }
         if(cancelled) return;
         const act = root.querySelector('.pt-btn.active');
-        applyPlan(act ? act.getAttribute('data-period') : 'half');
+        applyPlan(act ? act.getAttribute('data-period') : 'month');
       }catch(e){ /* 靜默 fallback */ }
     })();
     const loadScript=(src)=>new Promise((ok,no)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=no; document.head.appendChild(s); });
@@ -6961,7 +7273,7 @@ function LandingPage(){
       }).catch(reveal);
     }
     return ()=>{ cancelled=true; root.removeEventListener('click',onClick);
-      btns.forEach(b=>b.removeEventListener('click',onToggle)); if(ctx) ctx.revert(); };
+      btns.forEach(b=>b.removeEventListener('click',onToggle)); cleanups.forEach(fn=>{try{fn();}catch(e){}}); if(ctx) ctx.revert(); };
   },[]);
   return React.createElement('div',{ref:rootRef, className:'lp-root lp-anim',
     dangerouslySetInnerHTML:{__html:'<style>'+LP_CSS+'</style>'+LP_HTML}});
