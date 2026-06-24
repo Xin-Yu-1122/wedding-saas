@@ -1,7 +1,17 @@
 // ============================================================
-// WEDDING SAAS  v6.19.0  （商業版／多租戶）
+// WEDDING SAAS  v6.19.2  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.19.2 2026-06-24  ★ Patch：後台花語強調 + 喜帖縮圖帶花圖 + 形象頁 RWD 補強
+//          1.【後台外觀主題】花語加 ❫ 前綴、字級/間距加大、色系名改括號淡化；極簡黑(noFlower)不顯示花語。
+//          2.【線上喜帖示意】選擇主題縮圖改用真實花圖（flowerImg：oriental/forest/lavender/dark-luxury）。
+//          3.【RWD】hero 手機版移除 order:-1（標題+CTA 置前）、收小上內距；新增 ≤680/≤480 斷點
+//             （section/wrap 內距、h1/h2 字級、CTA 滿寬、seatcard 內距）。
+//
+// v6.19.1 2026-06-24  ★ Patch：修正管理員首次點婚禮被彈回 #/dev 的 bug
+//          AppShell「尚未指定婚禮」防護在 weddingId state 尚未同步時（由 [route] effect 補上）
+//          於 render 期誤觸發 navigate('#/dev')。加上「正前往 #/w/{id} 則不重導、只顯示載入」守衛。
 //
 // v6.19.0 2026-06-24  ★ Minor：形象頁互動功能展示 + RWD + 返回置頂 + 手機漢堡選單
 //          1.【功能展示】#features 改為互動版（8 顆扁卡片 icon：線上喜帖/邀請函回覆/賓客名單/
@@ -5920,8 +5930,8 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                     {fimg && <img data-tp="1" src={fimg} loading="lazy" alt="" style={{width:34,height:34,objectFit:'contain',flex:'none'}} />}
                     <div data-tp="1" style={{lineHeight:1.3}}>
                       <div data-tp="1" style={{fontWeight:active?600:500,color:th.text,fontSize:14}}>{flowerOf(key).name}</div>
-                      <div data-tp="1" style={{color:th.primary,fontSize:10.5,marginTop:2,letterSpacing:.3}}>花語 · {flowerOf(key).meaning}</div>
-                      <div data-tp="1" style={{color:th.mutedText,fontSize:10.5,marginTop:1}}>{th.name}</div>
+                      {!noF && <div data-tp="1" style={{color:th.primary,fontSize:11.5,fontWeight:500,marginTop:3,marginBottom:1,letterSpacing:.5}}>❫ {flowerOf(key).meaning}</div>}
+                      <div data-tp="1" style={{color:th.mutedText,fontSize:10,marginTop:noF?1:0}}>（{th.name}）</div>
                     </div>
                     {active && <span data-tp="1" style={{marginLeft:noF?6:'auto',color:th.primary,fontSize:16}}>✓</span>}
                   </div>); })()}
@@ -6302,9 +6312,9 @@ const LP_CSS = `
   .lp-root .hero .note {margin-top:18px; font-size:12px; color:var(--muted);}
 
   @media(max-width:860px) {
- .lp-root .hero-in {grid-template-columns:1fr; gap:32px; padding:56px 0 48px;}
+ .lp-root .hero-in {grid-template-columns:1fr; gap:28px; padding:34px 0 44px;}
  .lp-root .hero h1 {font-size:44px;}
- .lp-root .hero-art {order:-1;}
+ /* v6.19.2：手機版標題+CTA 置前，裝飾排位卡移到下方（不再 order:-1） */
  
 }
 
@@ -6555,6 +6565,25 @@ const LP_CSS = `
   @media(max-width:760px){
     .lp-root .nav-cta {display:none;}
     .lp-root .nav-burger {display:inline-flex;}
+  }
+
+  /* v6.19.2 RWD 收斂 */
+  @media(max-width:680px){
+    .lp-root section {padding:54px 0;}
+    .lp-root .sec-head {margin-bottom:34px;}
+  }
+  @media(max-width:480px){
+    .lp-root .wrap {padding:0 18px;}
+    .lp-root section {padding:46px 0;}
+    .lp-root .hero h1 {font-size:33px; margin:14px 0 18px;}
+    .lp-root .hero p.lead {font-size:15px;}
+    .lp-root .hero-in {padding:26px 0 38px;}
+    .lp-root .sec-head h2 {font-size:26px;}
+    .lp-root .sec-head p {font-size:14px;}
+    .lp-root .hero .cta-row {gap:10px;}
+    .lp-root .hero .cta-row .btn {flex:1; justify-content:center; padding:12px 14px;}
+    .lp-root .seatcard {padding:20px;}
+    .lp-root .feat-copy h3 {font-size:22px;}
   }
 
 .lp-root{min-height:100vh;}`;
@@ -6931,11 +6960,11 @@ M.invite = wrap(chrome('線上喜帖','預覽喜帖') + `
   <g>
     <rect x="36" y="78" width="120" height="300" rx="10" fill="#FFFEFA" stroke="#E5DDD0"/>
     <text x="96" y="104" font-size="11" fill="#9A8F82" text-anchor="middle">選擇主題</text>
-    ${['山茶花','酢漿草','薰衣草','金合歡'].map((nm,i)=>`<g transform="translate(54,${118+i*62})">
+    ${[['oriental','山茶花'],['forest','酢漿草'],['lavender','薰衣草'],['dark-luxury','金合歡']].map(([k,nm],i)=>`<g transform="translate(54,${118+i*62})">
       <rect width="84" height="50" rx="7" fill="${['#F6ECE7','#EEF1EA','#F1ECF5','#FBF4E8'][i]}" stroke="${i===0?'#B5895F':'#E5DDD0'}" stroke-width="${i===0?1.5:1}"/>
-      <circle cx="20" cy="25" r="9" fill="${['#C77E7E','#8FA67E','#A98FBE','#D6B36B'][i]}" opacity=".75"/>
-      <text x="38" y="22" font-size="9" fill="#3A332B">${nm}</text>
-      <text x="38" y="34" font-size="7" fill="#9A8F82">主題</text>
+      <image href="${flowerImg(k)}" x="9" y="11" width="28" height="28" preserveAspectRatio="xMidYMid meet"/>
+      <text x="44" y="23" font-size="9" fill="#3A332B">${nm}</text>
+      <text x="44" y="35" font-size="7" fill="#9A8F82">主題</text>
     </g>`).join('')}
   </g>
   <g transform="translate(245,66)">
@@ -10286,9 +10315,13 @@ export default function WeddingApp() {
 
   // 尚未指定婚禮
   if(!weddingId){
-    if(isLoggedIn && !loadingWeddings){
-      if(isPlatformAdmin(user)) navigate('#/dev');
-      else navigate(weddings.length===0?'#/setup':(weddings.length===1?`#/w/${weddings[0].weddingId}`:'#/dashboard'));
+    // v6.19.1：正前往特定婚禮（#/w/{id}）時 weddingId state 尚未同步（由 [route] effect 補上）→
+    // 僅顯示載入、勿在 render 期重導，否則管理員首次點婚禮會被彈回 #/dev（第二次才成功）。
+    if(!(parsed.section==='w' && parsed.weddingId)){
+      if(isLoggedIn && !loadingWeddings){
+        if(isPlatformAdmin(user)) navigate('#/dev');
+        else navigate(weddings.length===0?'#/setup':(weddings.length===1?`#/w/${weddings[0].weddingId}`:'#/dashboard'));
+      }
     }
     return (
       <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F9F5EF'}}>
