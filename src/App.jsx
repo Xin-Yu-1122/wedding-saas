@@ -1,7 +1,11 @@
 // ============================================================
-// WEDDING SAAS  v6.19.2  （商業版／多租戶）
+// WEDDING SAAS  v6.19.3  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.19.3 2026-06-24  ★ Patch：形象頁 hero 內容谼鄰修正
+//          .hero-in padding 覆蓋 .wrap 水平留白導致手機內容谼鄰；
+//          三個斷點的 .hero-in padding 改為含水平內距（桌機 24px / 手機 20px）。
 //
 // v6.19.2 2026-06-24  ★ Patch：後台花語強調 + 喜帖縮圖帶花圖 + 形象頁 RWD 補強
 //          1.【後台外觀主題】花語加 ❫ 前綴、字級/間距加大、色系名改括號淡化；極簡黑(noFlower)不顯示花語。
@@ -6299,7 +6303,7 @@ const LP_CSS = `
   /* HERO */
   .lp-root .hero {position:relative; overflow:hidden;}
 
-  .lp-root .hero-in {display:grid; grid-template-columns:1.05fr .95fr; gap:48px; align-items:center; padding:92px 0 76px;}
+  .lp-root .hero-in {display:grid; grid-template-columns:1.05fr .95fr; gap:48px; align-items:center; padding:92px 24px 76px;}
 
   .lp-root .hero h1 {font-family:var(--serif); font-weight:500; font-size:62px; line-height:1.1; letter-spacing:1px; color:var(--ink); margin:18px 0 22px;}
 
@@ -6312,7 +6316,7 @@ const LP_CSS = `
   .lp-root .hero .note {margin-top:18px; font-size:12px; color:var(--muted);}
 
   @media(max-width:860px) {
- .lp-root .hero-in {grid-template-columns:1fr; gap:28px; padding:34px 0 44px;}
+ .lp-root .hero-in {grid-template-columns:1fr; gap:28px; padding:34px 24px 44px;}
  .lp-root .hero h1 {font-size:44px;}
  /* v6.19.2：手機版標題+CTA 置前，裝飾排位卡移到下方（不再 order:-1） */
  
@@ -6577,7 +6581,7 @@ const LP_CSS = `
     .lp-root section {padding:46px 0;}
     .lp-root .hero h1 {font-size:33px; margin:14px 0 18px;}
     .lp-root .hero p.lead {font-size:15px;}
-    .lp-root .hero-in {padding:26px 0 38px;}
+    .lp-root .hero-in {padding:26px 20px 38px;}
     .lp-root .sec-head h2 {font-size:26px;}
     .lp-root .sec-head p {font-size:14px;}
     .lp-root .hero .cta-row {gap:10px;}
