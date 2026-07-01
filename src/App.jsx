@@ -1,7 +1,11 @@
 // ============================================================
-// WEDDING SAAS  v6.19.4  （商業版／多租戶）
+// WEDDING SAAS  v6.19.5  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.19.5 2026-07-01  ★ Patch：升級 Pro 浮窗接付款流程
+//          移除「即將開放」字樣；浮窗底部改為「前往升級 →」（導向 #/dashboard/account
+//          帳戶中心「方案與訂閱」已完成付款頁）＋「稍後再說」。後端不變。
 //
 // v6.19.4 2026-07-01  ★ Patch：網域切換至 seatright.tw
 //          authDomain 改為 seatright.tw（搜配 vercel.json 代理不變）。
@@ -1850,9 +1854,6 @@ function ConfirmDialogHost() {
                   </div>
                 ))}
               </div>
-              <div style={{fontSize:12,color:'#9A8F82',textAlign:'center',marginTop:14,lineHeight:1.6}}>
-                線上付款功能即將開放，敬請期待！
-              </div>
             </div>
           );
         })()}
@@ -1864,12 +1865,19 @@ function ConfirmDialogHost() {
           onKeyDown={e=>{if(e.key==='Enter')close(inputVal);}}
           style={{...S.input,marginBottom:20}} />}
 
-        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-          {!isAlert && <Btn v="ghost" onClick={()=>close(isPrompt?null:false)}>{d.cancelText||'取消'}</Btn>}
-          <Btn v={d.danger?'rose':'gold'} onClick={()=>close(isPrompt?inputVal:(isAlert?undefined:true))}>
-            {d.confirmText||(isAlert?'知道了':'確定')}
-          </Btn>
-        </div>
+        {isProMode ? (
+          <div style={{display:'flex',gap:10}}>
+            <Btn v="ghost" onClick={()=>close()} style={{flex:'0 0 auto'}}>稍後再說</Btn>
+            <Btn v="gold" onClick={()=>{ close(); navigate('#/dashboard/account'); }} style={{flex:1,justifyContent:'center'}}>前往升級 →</Btn>
+          </div>
+        ) : (
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+            {!isAlert && <Btn v="ghost" onClick={()=>close(isPrompt?null:false)}>{d.cancelText||'取消'}</Btn>}
+            <Btn v={d.danger?'rose':'gold'} onClick={()=>close(isPrompt?inputVal:(isAlert?undefined:true))}>
+              {d.confirmText||(isAlert?'知道了':'確定')}
+            </Btn>
+          </div>
+        )}
       </div>
     </div>
   );
