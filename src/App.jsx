@@ -1,7 +1,10 @@
 // ============================================================
-// WEDDING SAAS  v6.19.3  （商業版／多租戶）
+// WEDDING SAAS  v6.19.4  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.19.4 2026-07-01  ★ Patch：網域切換至 seatright.tw
+//          authDomain 改為 seatright.tw（搜配 vercel.json 代理不變）。
 //
 // v6.19.3 2026-06-24  ★ Patch：形象頁 hero 內容谼鄰修正
 //          .hero-in padding 覆蓋 .wrap 水平留白導致手機內容谼鄰；
@@ -631,7 +634,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 // ============================================================
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCNIeg9Cz37CBCPL5BhVsosIw6OSp4v6Sk",
-  authDomain: "wedding-saas-lac.vercel.app",   // v6.3.5：改為 Vercel 網域，搭配 vercel.json 代理修復 Google 登入
+  authDomain: "seatright.tw",   // v6.19.4：網域切換至 seatright.tw
   projectId: "wedding-saas-558d9",
   storageBucket: "wedding-saas-558d9.firebasestorage.app",
   messagingSenderId: "586772571298",
@@ -10080,7 +10083,7 @@ export default function WeddingApp() {
       if (e.code === 'auth/cancelled-popup-request') return;
       if (e.code === 'auth/popup-closed-by-user') { uiAlert('連結視窗已關閉。若視窗中出現錯誤，多半是此網域尚未在 Firebase 授權，請見下方說明。'); return; }
       if (e.code === 'auth/credential-already-in-use') { uiAlert('此 Google 帳號已連結到其他帳戶'); return; }
-      if (e.code === 'auth/unauthorized-domain') { uiAlert('此網域未授權登入。\n\n請至 Firebase 主控台 → Authentication → Settings → 授權網域，加入 wedding-saas-lac.vercel.app 後再試。'); return; }
+      if (e.code === 'auth/unauthorized-domain') { uiAlert('此網域未授權登入。\n\n請至 Firebase 主控台 → Authentication → Settings → 授權網域，加入 seatright.tw 後再試。'); return; }
       uiAlert(`連結失敗（${e.code||'unknown'}）：${e.message}`);
     }
   };
