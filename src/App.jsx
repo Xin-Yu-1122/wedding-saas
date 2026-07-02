@@ -1,7 +1,14 @@
 // ============================================================
-// WEDDING SAAS  v6.19.5  （商業版／多租戶）
+// WEDDING SAAS  v6.19.6  （商業版／多租戶）
 // 最後更新：2026-06-22
 // 版本規則：x.x.1=Patch · x.1=Minor · x.0=Major
+//
+// v6.19.6 2026-07-02  ★ Patch：名單紙本喜帖欄 + 分類順序/選色器修正 + 花語符號
+//          1.【名單】新增「紙本」欄（索取顯示 ✓，hover 看地址）；colSpan 12→13。
+//          2.【關係分類】管理頁改用 orderedGroupEntries 順序（新娘方→共同→新郎方）與邀請函一致。
+//          3.【選色器 bug】原 closest('[style]') 會誤隱藏色塊自身（選一個少一個）；
+//             改用 React state (openPicker) 控制開合。邀請函按鈕顏色仍吃主題（維持原設計）。
+//          4.【外觀主題】移除花語前的 ❫ 符號。
 //
 // v6.19.5 2026-07-01  ★ Patch：升級 Pro 浮窗接付款流程
 //          移除「即將開放」字樣；浮窗底部改為「前往升級 →」（導向 #/dashboard/account
@@ -3320,6 +3327,7 @@ function AdminPage({data,onUpdate,weddingId,isPro,boThemeKey}) {
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,maxWidth:140}}>想同桌</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,maxWidth:140}}>避桌</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>特殊需求</th>
+                <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500,whiteSpace:'nowrap'}}>📮 紙本</th>
                 <th style={{padding:'11px 9px',textAlign:'left',color:'#6B6259',fontSize:12,fontWeight:500}}>祝福</th>
                 <SortTh col="桌號">桌號{(data.zones||[]).length>0?' / 分區':''}</SortTh>
                 <th/>
@@ -3374,6 +3382,11 @@ function AdminPage({data,onUpdate,weddingId,isPro,boThemeKey}) {
                     </td>
                     <td style={{padding:'11px 9px',fontSize:12,color:'#6B6259',maxWidth:130}}>{g.special||'—'}</td>
                     <td style={{padding:'11px 9px'}}>
+                      {g.needInvitation
+                        ? <span title={g.address||''} style={{padding:'2px 8px',fontSize:11,borderRadius:2,background:'#EFE3D0',color:'#9F754C',whiteSpace:'nowrap',cursor:g.address?'help':'default'}}>✓ 索取</span>
+                        : <span style={{fontSize:11,color:'#9A8F82'}}>—</span>}
+                    </td>
+                    <td style={{padding:'11px 9px'}}>
                       {g.blessing ? (
                         <button onClick={()=>setBlessingView(g)} title="點擊查看完整祝福"
                           style={{padding:'3px 9px',fontSize:11,borderRadius:14,
@@ -3397,7 +3410,7 @@ function AdminPage({data,onUpdate,weddingId,isPro,boThemeKey}) {
                   </tr>
                 );
               })}
-              {!filtered.length&&<tr><td colSpan={12} style={{padding:40,textAlign:'center',color:'#9A8F82'}}>沒有符合條件的賓客</td></tr>}
+              {!filtered.length&&<tr><td colSpan={13} style={{padding:40,textAlign:'center',color:'#9A8F82'}}>沒有符合條件的賓客</td></tr>}
             </tbody>
           </table>
         </div>
@@ -4864,6 +4877,7 @@ function GroupsTab({data,onUpdate}) {
   const [addingGroup,setAddingGroup] = useState(false);
   const [newSubInputs,setNewSubInputs] = useState({}); // key -> text
   const [editingLabel,setEditingLabel] = useState({}); // key -> bool
+  const [openPicker,setOpenPicker] = useState(null);   // v6.19.6：目前展開選色器的分類 key（原 DOM toggle 會誤隱藏色塊）
   const [saved,setSaved] = useState(false);
 
   useEffect(()=>{setDraft(initDraft());},[data.config.customGroups]);
@@ -4927,7 +4941,8 @@ function GroupsTab({data,onUpdate}) {
     setDraft(d=>{const nd={...d};delete nd[key];return nd;});
   };
 
-  const keys = Object.keys(draft);
+  // v6.19.6：與邀請函一致的顯示順序（新娘方 → 共同 → 新郎方 → 自訂）
+  const keys = orderedGroupEntries(draft).map(([k])=>k);
   const isBase = key => BASE_KEYS.includes(key);
 
   return (
@@ -4954,14 +4969,16 @@ function GroupsTab({data,onUpdate}) {
                 {/* Color picker */}
                 <div data-tp="1" style={{position:'relative',flexShrink:0}}>
                   <div style={{width:22,height:22,borderRadius:11,background:grp.color,cursor:'pointer',border:'2px solid white',boxShadow:'0 0 0 1px #ccc'}}
-                    onClick={e=>{e.currentTarget.nextSibling.style.display=e.currentTarget.nextSibling.style.display==='flex'?'none':'flex';}}
+                    onClick={()=>setOpenPicker(p=>p===key?null:key)}
                   />
-                  <div style={{display:'none',position:'absolute',top:28,left:0,zIndex:99,background:'white',border:'1px solid #E5DDD0',borderRadius:4,padding:8,flexWrap:'wrap',gap:5,width:164,boxShadow:'0 4px 12px rgba(0,0,0,.12)'}}>
-                    {PRESET_COLORS.map((c,i)=>(
-                      <div key={i} style={{width:22,height:22,borderRadius:11,background:c.color,cursor:'pointer',border:grp.color===c.color?'2px solid #3A332B':'2px solid white',boxShadow:'0 0 0 1px #ccc'}}
-                        onClick={e=>{updateColor(key,c.color,c.soft);e.currentTarget.closest('[style]').style.display='none';}} />
-                    ))}
-                  </div>
+                  {openPicker===key && (
+                    <div style={{display:'flex',position:'absolute',top:28,left:0,zIndex:99,background:'white',border:'1px solid #E5DDD0',borderRadius:4,padding:8,flexWrap:'wrap',gap:5,width:164,boxShadow:'0 4px 12px rgba(0,0,0,.12)'}}>
+                      {PRESET_COLORS.map((c,i)=>(
+                        <div key={i} style={{width:22,height:22,borderRadius:11,background:c.color,cursor:'pointer',border:grp.color===c.color?'2px solid #3A332B':'2px solid white',boxShadow:'0 0 0 1px #ccc'}}
+                          onClick={()=>{updateColor(key,c.color,c.soft);setOpenPicker(null);}} />
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {/* Label edit */}
                 <div style={{flex:1,minWidth:0}}>
@@ -5945,7 +5962,7 @@ function InfoPage({data,onUpdate,savePhotoData,deletePhotoData,photoMap,onPrevie
                     {fimg && <img data-tp="1" src={fimg} loading="lazy" alt="" style={{width:34,height:34,objectFit:'contain',flex:'none'}} />}
                     <div data-tp="1" style={{lineHeight:1.3}}>
                       <div data-tp="1" style={{fontWeight:active?600:500,color:th.text,fontSize:14}}>{flowerOf(key).name}</div>
-                      {!noF && <div data-tp="1" style={{color:th.primary,fontSize:11.5,fontWeight:500,marginTop:3,marginBottom:1,letterSpacing:.5}}>❫ {flowerOf(key).meaning}</div>}
+                      {!noF && <div data-tp="1" style={{color:th.primary,fontSize:11.5,fontWeight:500,marginTop:3,marginBottom:1,letterSpacing:.5}}>{flowerOf(key).meaning}</div>}
                       <div data-tp="1" style={{color:th.mutedText,fontSize:10,marginTop:noF?1:0}}>（{th.name}）</div>
                     </div>
                     {active && <span data-tp="1" style={{marginLeft:noF?6:'auto',color:th.primary,fontSize:16}}>✓</span>}
